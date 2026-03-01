@@ -12,9 +12,9 @@ function getPool() {
     return globalForPrisma.prismaPool;
   }
 
-  const connectionString = process.env.DATABASE_URL;
+  const connectionString = process.env.DATABASE_URL ?? process.env.DIRECT_URL;
   if (!connectionString) {
-    throw new Error('Missing DATABASE_URL for Prisma adapter');
+    throw new Error('Missing DATABASE_URL or DIRECT_URL for Prisma adapter');
   }
 
   const pool = new Pool({ connectionString });
