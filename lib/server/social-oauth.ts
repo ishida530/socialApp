@@ -57,7 +57,7 @@ function requireAnyConfig(keys: string[]) {
 }
 
 function resolveTikTokScope() {
-  const rawScope = process.env.TIKTOK_OAUTH_SCOPES || 'user.info.basic';
+  const rawScope = process.env.TIKTOK_OAUTH_SCOPES || 'user.info.profile,user.info.stats,video.list';
 
   return rawScope
     .split(/[\s,]+/)
