@@ -7,7 +7,7 @@ import {
 import { badRequest, serverError, unauthorized } from '@/lib/server/http';
 
 const TIKTOK_PKCE_COOKIE = 'tiktok_pkce';
-const TIKTOK_PKCE_COOKIE_PATH = '/social-accounts/callback/tiktok';
+const TIKTOK_PKCE_COOKIE_PATH = '/api/auth/callback/tiktok';
 
 export async function GET(
   request: NextRequest,

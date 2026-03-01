@@ -46,7 +46,7 @@ Wymagane klucze OAuth:
 
 Uwagi:
 - `NEXT_PUBLIC_API_URL` dla fullstack Next powinno pozostać ustawione na `/api`.
-- Dla lokalnego callbacku TikTok redirect zwykle to: `http://localhost:3000/social-accounts/callback/tiktok`.
+- Dla lokalnego callbacku TikTok redirect ustaw: `http://localhost:3000/api/auth/callback/tiktok`.
 - W panelu TikTok Login Kit redirect URI musi być identyczne 1:1.
 
 ## 4) Deploy na Vercel + Supabase
