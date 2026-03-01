@@ -17,7 +17,16 @@ function getPool() {
     throw new Error('Missing DATABASE_URL or DIRECT_URL for Prisma adapter');
   }
 
-  const pool = new Pool({ connectionString });
+  const pgSslMode = process.env.PGSSLMODE?.toLowerCase();
+  const disableTlsVerification =
+    pgSslMode === 'no-verify' ||
+    process.env.PGSSL_REJECT_UNAUTHORIZED === '0' ||
+    process.env.PGSSL_REJECT_UNAUTHORIZED?.toLowerCase() === 'false';
+
+  const pool = new Pool({
+    connectionString,
+    ssl: disableTlsVerification ? { rejectUnauthorized: false } : undefined,
+  });
   if (process.env.NODE_ENV !== 'production') {
     globalForPrisma.prismaPool = pool;
   }
