@@ -154,7 +154,7 @@ export function buildAuthUrl(platformInput: string, userId: string) {
   const codeChallenge = createCodeChallenge(codeVerifier);
 
   const params = new URLSearchParams({
-    client_key: requireAnyConfig(['TIKTOK_CLIENT_ID', 'TIKTOK_KEY']),
+    client_key: requireAnyConfig(['TIKTOK_KEY', 'TIKTOK_CLIENT_ID']),
     response_type: 'code',
     redirect_uri: requireConfig('TIKTOK_REDIRECT_URI'),
     scope: resolveTikTokScope(),
@@ -230,8 +230,8 @@ async function exchangeTikTokCode(code: string, codeVerifier?: string): Promise<
   }
 
   const params = new URLSearchParams({
-    client_key: requireAnyConfig(['TIKTOK_CLIENT_ID', 'TIKTOK_KEY']),
-    client_secret: requireAnyConfig(['TIKTOK_CLIENT_SECRET', 'TIKTOK_SECRET']),
+    client_key: requireAnyConfig(['TIKTOK_KEY', 'TIKTOK_CLIENT_ID']),
+    client_secret: requireAnyConfig(['TIKTOK_SECRET', 'TIKTOK_CLIENT_SECRET']),
     code,
     grant_type: 'authorization_code',
     redirect_uri: requireConfig('TIKTOK_REDIRECT_URI'),
