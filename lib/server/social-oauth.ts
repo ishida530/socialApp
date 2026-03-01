@@ -1,9 +1,9 @@
-import { Platform } from '@prisma/client';
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'crypto';
 import { decrypt, encrypt } from './crypto';
 import { prisma } from './prisma';
 
 type OAuthProvider = 'youtube' | 'tiktok';
+type PrismaPlatform = 'YOUTUBE' | 'TIKTOK';
 
 type TokenResult = {
   accessToken: string;
@@ -126,8 +126,8 @@ function verifyOAuthState(state: string) {
   return payload.userId;
 }
 
-function toPrismaPlatform(provider: OAuthProvider): Platform {
-  return provider === 'youtube' ? Platform.YOUTUBE : Platform.TIKTOK;
+function toPrismaPlatform(provider: OAuthProvider): PrismaPlatform {
+  return provider === 'youtube' ? 'YOUTUBE' : 'TIKTOK';
 }
 
 export function buildAuthUrl(platformInput: string, userId: string) {

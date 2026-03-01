@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -H 0.0.0.0 -p 3000",
-    "build": "next build",
+    "build": "prisma generate --schema prisma/schema.prisma && next build",
     "start": "next start",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",

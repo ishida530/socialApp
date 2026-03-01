@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PublishStatus } from '@prisma/client';
 import { getAuthUserFromRequest } from '@/lib/server/auth';
 import { prisma } from '@/lib/server/prisma';
 import { badRequest, serverError, unauthorized } from '@/lib/server/http';
+
+type PublishJobStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'CANCELED';
 
 export async function GET(request: NextRequest) {
   try {
@@ -35,7 +36,7 @@ export async function POST(request: NextRequest) {
       videoId?: string;
       socialAccountId?: string;
       scheduledFor?: string;
-      status?: PublishStatus;
+      status?: PublishJobStatus;
     };
 
     if (!body.videoId || !body.socialAccountId || !body.scheduledFor) {
@@ -62,7 +63,7 @@ export async function POST(request: NextRequest) {
     const job = await prisma.publishJob.create({
       data: {
         scheduledFor: new Date(body.scheduledFor),
-        status: body.status ?? PublishStatus.PENDING,
+        status: body.status ?? 'PENDING',
         video: { connect: { id: body.videoId } },
         socialAccount: { connect: { id: body.socialAccountId } },
       },

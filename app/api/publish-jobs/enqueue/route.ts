@@ -1,26 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Platform, PublishStatus } from '@prisma/client';
 import { getAuthUserFromRequest } from '@/lib/server/auth';
 import { prisma } from '@/lib/server/prisma';
 import { badRequest, serverError, unauthorized } from '@/lib/server/http';
 
-function normalizePlatform(value: string): Platform {
+type SocialPlatform = 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'FACEBOOK';
+
+function normalizePlatform(value: string): SocialPlatform {
   const normalized = value.trim().toUpperCase();
 
-  if (normalized === Platform.YOUTUBE) {
-    return Platform.YOUTUBE;
+  if (normalized === 'YOUTUBE') {
+    return 'YOUTUBE';
   }
 
-  if (normalized === Platform.TIKTOK) {
-    return Platform.TIKTOK;
+  if (normalized === 'TIKTOK') {
+    return 'TIKTOK';
   }
 
-  if (normalized === Platform.INSTAGRAM) {
-    return Platform.INSTAGRAM;
+  if (normalized === 'INSTAGRAM') {
+    return 'INSTAGRAM';
   }
 
-  if (normalized === Platform.FACEBOOK) {
-    return Platform.FACEBOOK;
+  if (normalized === 'FACEBOOK') {
+    return 'FACEBOOK';
   }
 
   throw new Error('Nieobsługiwana platforma');
@@ -71,7 +72,7 @@ export async function POST(request: NextRequest) {
 
     const publishJob = await prisma.publishJob.create({
       data: {
-        status: PublishStatus.PENDING,
+        status: 'PENDING',
         scheduledFor: scheduledDate,
         video: { connect: { id: video.id } },
         socialAccount: { connect: { id: socialAccount.id } },
