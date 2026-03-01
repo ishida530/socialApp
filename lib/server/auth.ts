@@ -31,10 +31,19 @@ export function getAuthUserFromRequest(request: NextRequest): AuthUser {
   }
 
   const token = authorization.replace('Bearer ', '').trim();
-  const decoded = jwt.verify(token, requireJwtSecret()) as {
+  let decoded: {
     sub?: string;
     email?: string;
   };
+
+  try {
+    decoded = jwt.verify(token, requireJwtSecret()) as {
+      sub?: string;
+      email?: string;
+    };
+  } catch {
+    throw new Error('Unauthorized');
+  }
 
   if (!decoded.sub || !decoded.email) {
     throw new Error('Unauthorized');
