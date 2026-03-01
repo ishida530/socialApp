@@ -1,0 +1,95 @@
+generator client {
+  provider = "prisma-client-js"
+  engineType = "binary"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Platform {
+  YOUTUBE
+  INSTAGRAM
+  TIKTOK
+  FACEBOOK
+}
+
+enum VideoStatus {
+  UPLOADED
+  PROCESSING
+  READY
+  FAILED
+}
+
+enum PublishStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+  CANCELED
+}
+
+model User {
+  id             String          @id @default(cuid())
+  email          String          @unique
+  name           String
+  passwordHash   String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  socialAccounts SocialAccount[]
+  videos         Video[]
+}
+
+model SocialAccount {
+  id           String       @id @default(cuid())
+  platform     Platform
+  handle       String
+  externalId   String?
+  accessToken  String?
+  refreshToken String?
+  expiresAt    DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  userId       String
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  publishJobs  PublishJob[]
+
+  @@index([userId])
+  @@unique([platform, externalId])
+}
+
+model Video {
+  id           String       @id @default(cuid())
+  title        String
+  description  String?
+  sourceUrl    String
+  localPath    String?
+  thumbnailUrl String?
+  durationSec  Int?
+  status       VideoStatus  @default(UPLOADED)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  userId       String
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  publishJobs  PublishJob[]
+
+  @@index([userId])
+}
+
+model PublishJob {
+  id              String        @id @default(cuid())
+  status          PublishStatus @default(PENDING)
+  scheduledFor    DateTime
+  publishedAt     DateTime?
+  errorMessage    String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  videoId         String
+  socialAccountId String
+  video           Video         @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  socialAccount   SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+
+  @@index([videoId])
+  @@index([socialAccountId])
+  @@index([status, scheduledFor])
+}
