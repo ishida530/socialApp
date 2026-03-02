@@ -172,7 +172,7 @@ export function PostComposer() {
             response.data.publishJob?.errorMessage?.includes('[oauth-scope-missing]') ?? false;
 
           if (oauthScopeMissing) {
-            toast.error('Brak zgód TikTok do publikacji. Wejdź w Połączone platformy i kliknij „Ulepsz uprawnienia publikacji”.');
+            toast.error('Brak zgód TikTok do publikacji. Kliknij Połącz/Reconnect TikTok i zaakceptuj wszystkie zgody.');
             return;
           }
 
