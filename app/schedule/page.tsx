@@ -27,6 +27,60 @@ type PublishJob = {
   };
 };
 
+type JobBadge = {
+  label: string;
+  className: string;
+};
+
+function resolveJobBadge(job: PublishJob): JobBadge {
+  if (job.status === 'SUCCESS') {
+    return {
+      label: 'Opublikowano',
+      className: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600',
+    };
+  }
+
+  if (job.status === 'RUNNING') {
+    return {
+      label: 'W trakcie',
+      className: 'bg-blue-500/10 border-blue-500/30 text-blue-600',
+    };
+  }
+
+  if (job.status === 'FAILED') {
+    return {
+      label: 'Błąd publikacji',
+      className: 'bg-destructive/10 border-destructive/30 text-destructive',
+    };
+  }
+
+  if (job.status === 'CANCELED') {
+    return {
+      label: 'Anulowano',
+      className: 'bg-muted/40 border-border text-muted-foreground',
+    };
+  }
+
+  if (job.errorMessage?.includes('[tiktok-tracking:')) {
+    return {
+      label: 'TikTok: oczekiwanie',
+      className: 'bg-amber-500/10 border-amber-500/30 text-amber-600',
+    };
+  }
+
+  if (job.errorMessage?.includes('[retry-attempt:')) {
+    return {
+      label: 'Retry zaplanowany',
+      className: 'bg-amber-500/10 border-amber-500/30 text-amber-600',
+    };
+  }
+
+  return {
+    label: 'Zaplanowano',
+    className: 'bg-secondary/50 border-border text-foreground',
+  };
+}
+
 export default function SchedulePage() {
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
@@ -111,6 +165,10 @@ export default function SchedulePage() {
 
             <div className="space-y-2">
               {jobs.map((job) => (
+                (() => {
+                  const badge = resolveJobBadge(job);
+
+                  return (
                 <div
                   key={job.id}
                   className="p-3 rounded-lg border border-border bg-secondary/20 flex flex-col gap-2"
@@ -124,6 +182,12 @@ export default function SchedulePage() {
                         {job.status} • {new Date(job.scheduledFor).toLocaleString('pl-PL')}
                       </p>
                     </div>
+
+                    <span
+                      className={`px-2 py-1 rounded-md border text-xs font-medium ${badge.className}`}
+                    >
+                      {badge.label}
+                    </span>
 
                     <div className="flex items-center gap-2">
                       <button
@@ -154,6 +218,8 @@ export default function SchedulePage() {
                     <p className="text-xs text-destructive">{job.errorMessage}</p>
                   )}
                 </div>
+                  );
+                })()
               ))}
             </div>
 

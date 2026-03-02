@@ -3,6 +3,7 @@ import { getAuthUserFromRequest } from '@/lib/server/auth';
 import { prisma } from '@/lib/server/prisma';
 import { badRequest, serverError, unauthorized } from '@/lib/server/http';
 import { assertUsageAllowed, incrementUsage } from '@/lib/server/subscription';
+import { processPublishJobImmediately } from '@/lib/server/publish-processor';
 
 type SocialPlatform = 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'FACEBOOK';
 
@@ -35,6 +36,7 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as {
       videoId?: string;
       scheduledDate?: string;
+      publishNow?: boolean;
       platformSettings?: {
         platform?: string;
         title?: string;
@@ -44,17 +46,25 @@ export async function POST(request: NextRequest) {
       };
     };
 
-    if (!body.videoId || !body.scheduledDate || !body.platformSettings?.platform) {
+    if (!body.videoId || !body.platformSettings?.platform) {
       return badRequest('Validation failed', [
         'videoId: videoId jest wymagany',
-        'scheduledDate: scheduledDate jest wymagany',
         'platformSettings.platform: platform jest wymagany',
       ]);
     }
 
-    const scheduledDate = new Date(body.scheduledDate);
-    if (Number.isNaN(scheduledDate.getTime())) {
-      return badRequest('scheduledDate is invalid');
+    const publishNow = body.publishNow === true;
+
+    let scheduledDate = new Date();
+    if (!publishNow) {
+      if (!body.scheduledDate) {
+        return badRequest('Validation failed', ['scheduledDate: scheduledDate jest wymagany']);
+      }
+
+      scheduledDate = new Date(body.scheduledDate);
+      if (Number.isNaN(scheduledDate.getTime())) {
+        return badRequest('scheduledDate is invalid');
+      }
     }
 
     const platform = normalizePlatform(body.platformSettings.platform);
@@ -89,9 +99,14 @@ export async function POST(request: NextRequest) {
 
     await incrementUsage(user.userId, 'publish_jobs');
 
+    const immediateOutcome = publishNow
+      ? await processPublishJobImmediately(publishJob.id)
+      : null;
+
     return NextResponse.json({
       success: true,
       publishJob,
+      immediateOutcome,
       queue: {
         name: 'next-inline-queue',
         delay,

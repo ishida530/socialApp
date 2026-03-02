@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUserFromRequest } from '@/lib/server/auth';
 import { prisma } from '@/lib/server/prisma';
 import { badRequest, serverError, unauthorized } from '@/lib/server/http';
+import { processPublishJobImmediately } from '@/lib/server/publish-processor';
 
 export async function POST(
   request: NextRequest,
@@ -40,7 +41,9 @@ export async function POST(
       },
     });
 
-    return NextResponse.json({ success: true, publishJob: updated });
+    const immediateOutcome = await processPublishJobImmediately(updated.id);
+
+    return NextResponse.json({ success: true, publishJob: updated, immediateOutcome });
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return unauthorized();

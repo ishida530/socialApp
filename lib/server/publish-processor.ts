@@ -747,3 +747,29 @@ export async function processDuePublishJobs(batchSizeRaw: number) {
 
   return summary;
 }
+
+export async function processPublishJobImmediately(jobId: string) {
+  const claimedCount = await prisma.publishJob.updateMany({
+    where: {
+      id: jobId,
+      status: 'PENDING',
+      scheduledFor: {
+        lte: new Date(),
+      },
+    },
+    data: {
+      status: 'RUNNING',
+      updatedAt: new Date(),
+    },
+  });
+
+  if (claimedCount.count === 0) {
+    logEvent('publish-processor', 'job-immediate-claim-skipped', {
+      jobId,
+      reason: 'not-pending-or-not-due',
+    });
+    return 'skipped' as const;
+  }
+
+  return processClaimedJob(jobId);
+}

@@ -121,7 +121,7 @@ export function PostComposer() {
     }
   };
 
-  const enqueuePublishJob = async () => {
+  const enqueuePublishJob = async (publishNow = false) => {
     if (!selectedVideoId) {
       toast.error('Brak dostępnego filmu. Najpierw prześlij wideo.');
       return;
@@ -132,7 +132,7 @@ export function PostComposer() {
       return;
     }
 
-    if (!scheduledDateTime) {
+    if (!publishNow && !scheduledDateTime) {
       toast.error('Wybierz datę i godzinę publikacji.');
       return;
     }
@@ -140,9 +140,15 @@ export function PostComposer() {
     try {
       setIsSubmitting(true);
 
-      await apiClient.post('/publish-jobs/enqueue', {
+      const response = await apiClient.post<{
+        success: boolean;
+        immediateOutcome?: 'succeeded' | 'retryScheduled' | 'failed' | 'skipped' | null;
+      }>('/publish-jobs/enqueue', {
         videoId: selectedVideoId,
-        scheduledDate: new Date(scheduledDateTime).toISOString(),
+        scheduledDate: scheduledDateTime
+          ? new Date(scheduledDateTime).toISOString()
+          : undefined,
+        publishNow,
         platformSettings: {
           platform: selectedPlatform,
           description: caption,
@@ -150,10 +156,31 @@ export function PostComposer() {
         },
       });
 
-      toast.success('Film został dodany do kolejki!');
+      if (publishNow) {
+        const immediateOutcome = response.data.immediateOutcome;
+
+        if (immediateOutcome === 'succeeded') {
+          toast.success('Film opublikowany od razu.');
+        } else if (immediateOutcome === 'retryScheduled') {
+          toast.success('Publikacja uruchomiona; trwa przetwarzanie/status check.');
+        } else if (immediateOutcome === 'failed') {
+          toast.error('Publikacja teraz nie powiodła się. Sprawdź harmonogram i spróbuj Retry.');
+        } else if (immediateOutcome === 'skipped') {
+          toast.error('Nie udało się natychmiast uruchomić zadania. Użyj Trigger w harmonogramie.');
+        } else {
+          toast.success('Rozpoczęto publikację teraz.');
+        }
+      } else {
+        toast.success('Film został dodany do kolejki!');
+      }
+
       window.dispatchEvent(new Event('publish-jobs:refresh'));
     } catch {
-      toast.error('Nie udało się dodać filmu do kolejki.');
+      toast.error(
+        publishNow
+          ? 'Nie udało się uruchomić publikacji teraz.'
+          : 'Nie udało się dodać filmu do kolejki.',
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -391,12 +418,19 @@ export function PostComposer() {
       {/* Action buttons */}
       <div className="p-6 border-t border-border space-y-3">
         <button
-          onClick={enqueuePublishJob}
+          onClick={() => enqueuePublishJob(false)}
           disabled={isSubmitting || !selectedVideoId || !selectedPlatformConnected}
           className="w-full flex items-center justify-center gap-2 px-5 py-3 bg-gradient-to-r from-primary to-accent text-primary-foreground rounded-xl hover:shadow-lg hover:shadow-primary/30 transition-all disabled:opacity-60"
         >
           <Send className="w-5 h-5" />
           <span>{isSubmitting ? 'Dodawanie do kolejki...' : 'Zaplanuj publikację'}</span>
+        </button>
+        <button
+          onClick={() => enqueuePublishJob(true)}
+          disabled={isSubmitting || !selectedVideoId || !selectedPlatformConnected}
+          className="w-full px-5 py-3 bg-secondary/50 text-foreground rounded-xl hover:bg-secondary transition-all disabled:opacity-60"
+        >
+          {isSubmitting ? 'Uruchamianie publikacji...' : 'Opublikuj teraz'}
         </button>
         {!selectedPlatformConnected && (
           <p className="text-xs text-destructive text-center">
