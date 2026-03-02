@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { VideoStatus } from '@prisma/client';
 import { extname } from 'path';
 import { writeFile } from 'fs/promises';
+import { put } from '@vercel/blob';
 import { getAuthUserFromRequest } from '@/lib/server/auth';
 import { prisma } from '@/lib/server/prisma';
 import { badRequest, serverError, unauthorized } from '@/lib/server/http';
@@ -12,6 +13,10 @@ const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024;
 
 function sanitizeFileName(value: string) {
   return value.replace(/[^a-zA-Z0-9.-]/g, '-').toLowerCase();
+}
+
+function shouldUseBlobStorage() {
+  return process.env.VERCEL === '1' || !!process.env.BLOB_READ_WRITE_TOKEN;
 }
 
 export async function POST(request: NextRequest) {
@@ -39,20 +44,34 @@ export async function POST(request: NextRequest) {
     const safeName = sanitizeFileName(baseName);
     const fileName = `${Date.now()}-${safeName}${extension}`;
 
-    const uploadDir = ensureUploadsDirectory();
-    const filePath = `${uploadDir}/${fileName}`;
+    let sourceUrl: string;
+    let localPath: string | null = null;
 
-    const bytes = Buffer.from(await file.arrayBuffer());
-    await writeFile(filePath, bytes);
+    if (shouldUseBlobStorage()) {
+      const blob = await put(`uploads/videos/${fileName}`, file, {
+        access: 'public',
+        addRandomSuffix: true,
+      });
 
-    const sourceUrl = `/uploads/videos/${fileName}`;
+      sourceUrl = blob.url;
+    } else {
+      const uploadDir = ensureUploadsDirectory();
+      const filePath = `${uploadDir}/${fileName}`;
+
+      const bytes = Buffer.from(await file.arrayBuffer());
+      await writeFile(filePath, bytes);
+
+      sourceUrl = `/uploads/videos/${fileName}`;
+      localPath = filePath;
+    }
+
     const title = baseName || `video-${Date.now()}`;
 
     const video = await prisma.video.create({
       data: {
         title,
         sourceUrl,
-        localPath: filePath,
+        localPath,
         status: VideoStatus.READY,
         user: { connect: { id: user.userId } },
       },
@@ -71,6 +90,10 @@ export async function POST(request: NextRequest) {
       error.message.startsWith('Przekroczono limit planu FREE')
     ) {
       return badRequest(error.message);
+    }
+
+    if (error instanceof Error && error.message.includes('BLOB_READ_WRITE_TOKEN')) {
+      return badRequest('Brak konfiguracji storage. Ustaw BLOB_READ_WRITE_TOKEN na Vercel.');
     }
 
     return serverError(error);
