@@ -17,7 +17,25 @@ export async function GET(
     const params = await context.params;
     const user = getAuthUserFromRequest(request);
     const result = buildAuthUrl(params.platform, user.userId);
-    const response = NextResponse.json({ url: result.url });
+    const debugEnabled = request.nextUrl.searchParams.get('debug') === '1';
+    const authUrl = new URL(result.url);
+    const scopeRaw = authUrl.searchParams.get('scope') ?? '';
+
+    const response = NextResponse.json(
+      debugEnabled
+        ? {
+            url: result.url,
+            debug: {
+              platform: params.platform,
+              scopeRaw,
+              scopes: scopeRaw
+                .split(/[\s,]+/)
+                .map((entry) => entry.trim())
+                .filter(Boolean),
+            },
+          }
+        : { url: result.url },
+    );
 
     if (
       params.platform.toLowerCase() === 'tiktok' &&
