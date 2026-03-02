@@ -34,11 +34,17 @@ export async function POST(
     }
 
     const platform = account.platform.toLowerCase();
-    const result = buildAuthUrl(platform, user.userId);
+    const modeParam = request.nextUrl.searchParams.get('mode');
+    const tikTokScopeMode = modeParam === 'publish' ? 'publish' : 'connect';
+
+    const result = buildAuthUrl(platform, user.userId, {
+      tikTokScopeMode,
+    });
     const response = NextResponse.json({
       success: true,
       accountId: account.id,
       platform,
+      tikTokScopeMode,
       url: result.url,
     });
 

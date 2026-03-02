@@ -16,7 +16,9 @@ export async function GET(
   try {
     const params = await context.params;
     const user = getAuthUserFromRequest(request);
-    const result = buildAuthUrl(params.platform, user.userId);
+    const result = buildAuthUrl(params.platform, user.userId, {
+      tikTokScopeMode: 'connect',
+    });
     const debugEnabled = request.nextUrl.searchParams.get('debug') === '1';
     const authUrl = new URL(result.url);
     const scopeRaw = authUrl.searchParams.get('scope') ?? '';

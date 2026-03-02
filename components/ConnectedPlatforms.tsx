@@ -122,6 +122,25 @@ export function ConnectedPlatforms() {
     }
   };
 
+  const upgradeTikTokPublishScopes = async (accountId: string) => {
+    try {
+      setLoadingPlatform(`publish:${accountId}`);
+      const response = await apiClient.post<{ url?: string }>(
+        `/social-accounts/${accountId}/reconnect?mode=publish`,
+      );
+
+      if (!response.data.url) {
+        throw new Error('Brak URL autoryzacji publish w odpowiedzi API');
+      }
+
+      window.location.assign(response.data.url);
+    } catch {
+      toast.error('Nie udało się rozpocząć autoryzacji uprawnień publikacji TikTok.');
+    } finally {
+      setLoadingPlatform(null);
+    }
+  };
+
   const formatDate = (date: string) =>
     new Date(date).toLocaleString('pl-PL', {
       day: '2-digit',
@@ -220,6 +239,22 @@ export function ConnectedPlatforms() {
                 >
                   Rozłącz
                 </button>
+
+                {platform.apiPlatform === 'tiktok' && (
+                  <button
+                    onClick={() => upgradeTikTokPublishScopes(account.id)}
+                    disabled={loadingPlatform === `publish:${account.id}`}
+                    className={`col-span-2 px-3 py-2 rounded-lg text-sm transition-all bg-primary/10 border border-primary/30 text-primary hover:bg-primary/20 ${
+                      loadingPlatform === `publish:${account.id}`
+                        ? 'opacity-60 cursor-not-allowed'
+                        : ''
+                    }`}
+                  >
+                    {loadingPlatform === `publish:${account.id}`
+                      ? 'Przekierowanie...'
+                      : 'Ulepsz uprawnienia publikacji'}
+                  </button>
+                )}
               </div>
             )}
           </div>

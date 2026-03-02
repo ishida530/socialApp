@@ -4,6 +4,7 @@ import { prisma } from './prisma';
 
 type OAuthProvider = 'youtube' | 'tiktok';
 type PrismaPlatform = 'YOUTUBE' | 'TIKTOK';
+type TikTokScopeMode = 'connect' | 'publish';
 
 type TokenResult = {
   accessToken: string;
@@ -56,9 +57,19 @@ function requireAnyConfig(keys: string[]) {
   throw new Error(`Missing required config. Tried: ${keys.join(', ')}`);
 }
 
-function resolveTikTokScope() {
-  const rawScope = process.env.TIKTOK_OAUTH_SCOPES || 'user.info.profile';
-  const requiredScopeRaw = process.env.TIKTOK_OAUTH_REQUIRED_SCOPES || '';
+function resolveTikTokScope(mode: TikTokScopeMode) {
+  const connectScopeFallback = 'user.info.basic,user.info.profile,user.info.stats,video.list';
+  const publishScopeFallback = process.env.TIKTOK_OAUTH_SCOPES || 'user.info.basic,video.publish';
+
+  const rawScope =
+    mode === 'publish'
+      ? process.env.TIKTOK_OAUTH_PUBLISH_SCOPES || publishScopeFallback
+      : process.env.TIKTOK_OAUTH_CONNECT_SCOPES || connectScopeFallback;
+
+  const requiredScopeRaw =
+    mode === 'publish'
+      ? process.env.TIKTOK_OAUTH_REQUIRED_SCOPES || ''
+      : process.env.TIKTOK_OAUTH_CONNECT_REQUIRED_SCOPES || '';
 
   const scopes = rawScope
     .split(/[\s,]+/)
@@ -143,7 +154,11 @@ function toPrismaPlatform(provider: OAuthProvider): PrismaPlatform {
   return provider === 'youtube' ? 'YOUTUBE' : 'TIKTOK';
 }
 
-export function buildAuthUrl(platformInput: string, userId: string) {
+export function buildAuthUrl(
+  platformInput: string,
+  userId: string,
+  options?: { tikTokScopeMode?: TikTokScopeMode },
+) {
   const provider = getProvider(platformInput);
   const state = signOAuthState(userId);
 
@@ -171,7 +186,7 @@ export function buildAuthUrl(platformInput: string, userId: string) {
     client_key: requireAnyConfig(['TIKTOK_KEY', 'TIKTOK_CLIENT_ID']),
     response_type: 'code',
     redirect_uri: requireConfig('TIKTOK_REDIRECT_URI'),
-    scope: resolveTikTokScope(),
+    scope: resolveTikTokScope(options?.tikTokScopeMode ?? 'connect'),
     state,
     code_challenge: codeChallenge,
     code_challenge_method: 'S256',
