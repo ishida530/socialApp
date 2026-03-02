@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LayoutDashboard, Link2, Image, Calendar, BarChart3 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { apiClient } from '@/lib/api-client';
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/' },
@@ -14,6 +16,71 @@ const navItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const [planLabel, setPlanLabel] = useState('Plan Free');
+  const [usageLabel, setUsageLabel] = useState('0/0 filmów w tym miesiącu');
+  const [trialLabel, setTrialLabel] = useState<string | null>(null);
+  const [usageProgress, setUsageProgress] = useState(0);
+
+  useEffect(() => {
+    const loadSubscriptionCard = async () => {
+      try {
+        const response = await apiClient.get<{
+          subscription: {
+            plan: 'FREE' | 'PRO' | 'PREMIUM';
+            basePlan?: 'FREE' | 'PRO' | 'PREMIUM';
+            trial?: {
+              isActive: boolean;
+              endsAt: string;
+            } | null;
+          };
+          usage: {
+            video_uploads: {
+              count: number;
+              limit: number | null;
+            };
+          };
+        }>('/billing/subscription');
+
+        const activePlan = response.data.subscription.plan;
+        setPlanLabel(activePlan === 'FREE' ? 'Plan Free' : activePlan === 'PRO' ? 'Plan Pro' : 'Plan Premium');
+
+        const count = response.data.usage.video_uploads.count;
+        const limit = response.data.usage.video_uploads.limit;
+        setUsageLabel(`${count}/${limit ?? '∞'} filmów w tym miesiącu`);
+
+        if (limit && limit > 0) {
+          setUsageProgress(Math.max(0, Math.min(100, Math.round((count / limit) * 100))));
+        } else {
+          setUsageProgress(100);
+        }
+
+        if (response.data.subscription.trial?.isActive && response.data.subscription.basePlan === 'FREE') {
+          const endsAt = new Date(response.data.subscription.trial.endsAt).getTime();
+          const remainingMs = Math.max(0, endsAt - Date.now());
+          const hours = Math.floor(remainingMs / (1000 * 60 * 60));
+          const minutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+          setTrialLabel(`Trial PRO: ${hours}h ${minutes}m`);
+        } else {
+          setTrialLabel(null);
+        }
+      } catch {
+        setPlanLabel('Plan Free');
+        setUsageLabel('0/0 filmów w tym miesiącu');
+        setUsageProgress(0);
+        setTrialLabel(null);
+      }
+    };
+
+    void loadSubscriptionCard();
+
+    const timer = window.setInterval(() => {
+      void loadSubscriptionCard();
+    }, 60 * 1000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, []);
 
   return (
     <aside className="w-64 bg-card border-r border-border flex flex-col">
@@ -55,12 +122,16 @@ export function Sidebar() {
       {/* Bottom section */}
       <div className="p-4 border-t border-border">
         <div className="bg-gradient-to-br from-primary/10 to-accent/10 backdrop-blur-sm border border-primary/20 rounded-xl p-4">
-          <p className="text-sm text-foreground font-medium mb-2">Plan Pro</p>
+          <p className="text-sm text-foreground font-medium mb-2">{planLabel}</p>
           <p className="text-xs text-muted-foreground mb-3">
-            500/1000 filmów w tym miesiącu
+            {usageLabel}
           </p>
+          {trialLabel && <p className="text-xs text-primary mb-2">{trialLabel}</p>}
           <div className="w-full bg-secondary rounded-full h-2 mb-3">
-            <div className="bg-gradient-to-r from-primary to-accent h-2 rounded-full" style={{ width: '50%' }} />
+            <div
+              className="bg-gradient-to-r from-primary to-accent h-2 rounded-full"
+              style={{ width: `${usageProgress}%` }}
+            />
           </div>
           <Link
             href="/billing"

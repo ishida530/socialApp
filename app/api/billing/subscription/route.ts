@@ -29,17 +29,11 @@ export async function PATCH(request: NextRequest) {
     }
 
     const normalizedPlan = body.plan.toUpperCase();
-    if (normalizedPlan !== 'FREE' && normalizedPlan !== 'PRO' && normalizedPlan !== 'PREMIUM') {
-      return badRequest('Nieobsługiwany plan. Użyj FREE, PRO lub PREMIUM.');
+    if (normalizedPlan !== 'FREE') {
+      return badRequest('Bezpośrednia zmiana planu wspiera tylko FREE. Użyj checkout dla PRO/PREMIUM.');
     }
 
-    const plan =
-      normalizedPlan === 'PREMIUM'
-        ? PlanTier.PREMIUM
-        : normalizedPlan === 'PRO'
-          ? PlanTier.PRO
-          : PlanTier.FREE;
-    const subscription = await setUserPlan(user.userId, plan);
+    const subscription = await setUserPlan(user.userId, PlanTier.FREE);
 
     return NextResponse.json({ success: true, subscription });
   } catch (error) {

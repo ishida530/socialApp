@@ -9,6 +9,8 @@ type PlanLimitConfig = {
   publish_jobs: number | null;
 };
 
+const NEW_USER_PRO_TRIAL_HOURS = 48;
+
 const PLAN_LIMITS: Record<PlanTier, PlanLimitConfig> = {
   FREE: {
     video_uploads: 25,
@@ -65,6 +67,39 @@ export const PLAN_CATALOG = [
 
 function resolvePlanLimits(plan: PlanTier) {
   return PLAN_LIMITS[plan];
+}
+
+function resolveTrialWindow(userCreatedAt: Date) {
+  const trialEndsAt = new Date(userCreatedAt.getTime() + NEW_USER_PRO_TRIAL_HOURS * 60 * 60 * 1000);
+  const isActive = trialEndsAt.getTime() > Date.now();
+
+  return {
+    trialStartedAt: userCreatedAt,
+    trialEndsAt,
+    isActive,
+  };
+}
+
+function resolveEffectivePlan(subscriptionPlan: PlanTier, userCreatedAt: Date) {
+  if (subscriptionPlan !== PlanTier.FREE) {
+    return {
+      effectivePlan: subscriptionPlan,
+      trial: null,
+    };
+  }
+
+  const trial = resolveTrialWindow(userCreatedAt);
+  if (!trial.isActive) {
+    return {
+      effectivePlan: PlanTier.FREE,
+      trial,
+    };
+  }
+
+  return {
+    effectivePlan: PlanTier.PRO,
+    trial,
+  };
 }
 
 function resolveLimitMessage(metric: UsageMetric, limit: number) {
@@ -185,14 +220,25 @@ export async function incrementUsage(userId: string, metric: UsageMetric, amount
 }
 
 export async function assertUsageAllowed(userId: string, metric: UsageMetric) {
-  const subscription = await ensureUserSubscription(userId);
+  const [subscription, user] = await Promise.all([
+    ensureUserSubscription(userId),
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { createdAt: true },
+    }),
+  ]);
+
+  if (!user) {
+    throw new Error('Nie znaleziono użytkownika.');
+  }
 
   if (subscription.status !== SubscriptionStatus.ACTIVE) {
     throw new Error('Subskrypcja jest nieaktywna.');
   }
 
+  const effective = resolveEffectivePlan(subscription.plan, user.createdAt);
   const current = await getCurrentUsage(userId, metric);
-  const limit = resolvePlanLimits(subscription.plan)[metric];
+  const limit = resolvePlanLimits(effective.effectivePlan)[metric];
 
   if (limit === null) {
     return;
@@ -204,14 +250,39 @@ export async function assertUsageAllowed(userId: string, metric: UsageMetric) {
 }
 
 export async function getSubscriptionSnapshot(userId: string) {
-  const subscription = await ensureUserSubscription(userId);
+  const [subscription, user] = await Promise.all([
+    ensureUserSubscription(userId),
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { createdAt: true },
+    }),
+  ]);
+
+  if (!user) {
+    throw new Error('Nie znaleziono użytkownika.');
+  }
+
+  const effective = resolveEffectivePlan(subscription.plan, user.createdAt);
+
   const [videoUsage, publishUsage] = await Promise.all([
     getCurrentUsage(userId, 'video_uploads'),
     getCurrentUsage(userId, 'publish_jobs'),
   ]);
 
   return {
-    subscription,
+    subscription: {
+      ...subscription,
+      basePlan: subscription.plan,
+      plan: effective.effectivePlan,
+      effectivePlan: effective.effectivePlan,
+      trial: effective.trial
+        ? {
+            isActive: effective.trial.isActive,
+            startsAt: effective.trial.trialStartedAt,
+            endsAt: effective.trial.trialEndsAt,
+          }
+        : null,
+    },
     catalog: PLAN_CATALOG.map((plan) => ({
       ...plan,
       features: PLAN_FEATURES[plan.tier],
@@ -220,11 +291,11 @@ export async function getSubscriptionSnapshot(userId: string) {
     usage: {
       video_uploads: {
         count: videoUsage.count,
-        limit: resolvePlanLimits(subscription.plan).video_uploads,
+        limit: resolvePlanLimits(effective.effectivePlan).video_uploads,
       },
       publish_jobs: {
         count: publishUsage.count,
-        limit: resolvePlanLimits(subscription.plan).publish_jobs,
+        limit: resolvePlanLimits(effective.effectivePlan).publish_jobs,
       },
     },
   };

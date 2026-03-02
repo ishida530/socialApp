@@ -11,8 +11,15 @@ import { apiClient } from '@/lib/api-client';
 type BillingSnapshot = {
   subscription: {
     plan: 'FREE' | 'PRO' | 'PREMIUM';
+    basePlan?: 'FREE' | 'PRO' | 'PREMIUM';
+    effectivePlan?: 'FREE' | 'PRO' | 'PREMIUM';
     status: 'ACTIVE' | 'CANCELED' | 'PAST_DUE';
     currentPeriodEnd?: string | null;
+    trial?: {
+      isActive: boolean;
+      startsAt: string;
+      endsAt: string;
+    } | null;
   };
   catalog: Array<{
     tier: 'FREE' | 'PRO' | 'PREMIUM';
@@ -45,6 +52,15 @@ function BillingPageContent() {
   const handledCheckoutState = useRef<string | null>(null);
   const [snapshot, setSnapshot] = useState<BillingSnapshot | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+
+  const trialEndsAt = snapshot?.subscription.trial?.isActive
+    ? new Date(snapshot.subscription.trial.endsAt).getTime()
+    : null;
+
+  const trialRemainingMs = trialEndsAt ? Math.max(0, trialEndsAt - now) : 0;
+  const trialRemainingHours = Math.floor(trialRemainingMs / (1000 * 60 * 60));
+  const trialRemainingMinutes = Math.floor((trialRemainingMs % (1000 * 60 * 60)) / (1000 * 60));
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -66,6 +82,16 @@ function BillingPageContent() {
       void loadSnapshot();
     }
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setNow(Date.now());
+    }, 60 * 1000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, []);
 
   useEffect(() => {
     const checkoutState = searchParams.get('checkout');
@@ -185,6 +211,12 @@ function BillingPageContent() {
                 <p className="text-xl font-semibold text-foreground mt-1">
                   {snapshot?.subscription.plan ?? '-'}
                 </p>
+                {snapshot?.subscription.trial?.isActive && snapshot.subscription.basePlan === 'FREE' && (
+                  <p className="text-xs text-primary mt-1">
+                    Trial PRO: {trialRemainingHours}h {trialRemainingMinutes}m (do{' '}
+                    {new Date(snapshot.subscription.trial.endsAt).toLocaleString('pl-PL')})
+                  </p>
+                )}
               </div>
 
               <div className="p-4 rounded-lg border border-border bg-secondary/20">
@@ -261,7 +293,11 @@ function BillingPageContent() {
                         disabled={isSubmitting || isCurrentPlan}
                         className="w-full px-3 py-2 rounded-lg bg-primary text-primary-foreground disabled:opacity-60"
                       >
-                        {isCurrentPlan ? 'Aktualny plan' : `Kup ${plan.title}`}
+                        {isCurrentPlan
+                          ? snapshot?.subscription.trial?.isActive && snapshot.subscription.basePlan === 'FREE'
+                            ? 'Trial aktywny'
+                            : 'Aktualny plan'
+                          : `Kup ${plan.title}`}
                       </button>
                     )}
                   </div>
