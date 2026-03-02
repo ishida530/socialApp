@@ -140,16 +140,9 @@ export default function SchedulePage() {
       const oauthScopeMissing =
         response.data.publishJob?.errorMessage?.includes('[oauth-scope-missing]') ?? false;
 
-      if (oauthScopeMissing && response.data.publishJob?.socialAccountId) {
-        toast.error('Brak zgód TikTok do publikacji. Przekierowuję do ponownego połączenia konta...');
-        const reconnect = await apiClient.post<{ url?: string }>(
-          `/social-accounts/${response.data.publishJob.socialAccountId}/reconnect`,
-        );
-
-        if (reconnect.data.url) {
-          window.location.assign(reconnect.data.url);
-          return;
-        }
+      if (oauthScopeMissing) {
+        toast.error('Brak zgód TikTok do publikacji. Kliknij Połącz/Reconnect TikTok i zaakceptuj wszystkie zgody.');
+        return;
       }
 
       toast.success(`Akcja ${action.toUpperCase()} wykonana.`);
