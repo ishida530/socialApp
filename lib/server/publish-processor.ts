@@ -22,6 +22,15 @@ class PublishAuthError extends Error {
   }
 }
 
+function isPermanentOAuthScopeError(message: string) {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes('scope_not_authorized') ||
+    normalized.includes('did not authorize the scope') ||
+    normalized.includes('insufficient scope')
+  );
+}
+
 const MAX_RETRY_ATTEMPTS = 3;
 const BASE_BACKOFF_SECONDS = 60;
 const TIKTOK_STATUS_POLL_SECONDS = 60;
@@ -595,6 +604,27 @@ async function processClaimedJob(jobId: string) {
     return 'succeeded' as const;
   } catch (error) {
     if (error instanceof PublishAuthError) {
+      if (isPermanentOAuthScopeError(error.message)) {
+        const reason =
+          'Brak uprawnień OAuth do publikacji. Połącz konto ponownie i zaakceptuj wymagane zakresy.';
+
+        await prisma.publishJob.update({
+          where: { id: job.id },
+          data: {
+            status: 'FAILED',
+            errorMessage: reason,
+          },
+        });
+
+        logEvent('publish-processor', 'job-failed-final', {
+          jobId: job.id,
+          attempt: nextAttempt,
+          reason: 'oauth-scope-not-authorized',
+        });
+
+        return 'failed' as const;
+      }
+
       try {
         const refreshed = await refreshSocialAccessToken(job.socialAccount.id);
 

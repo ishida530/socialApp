@@ -59,11 +59,19 @@ function requireAnyConfig(keys: string[]) {
 function resolveTikTokScope() {
   const rawScope = process.env.TIKTOK_OAUTH_SCOPES || 'user.info.profile';
 
-  return rawScope
+  const scopes = rawScope
     .split(/[\s,]+/)
     .map((entry) => entry.trim())
-    .filter(Boolean)
-    .join(',');
+    .filter(Boolean);
+
+  const requiredScopes = ['user.info.profile', 'video.publish'];
+  for (const required of requiredScopes) {
+    if (!scopes.includes(required)) {
+      scopes.push(required);
+    }
+  }
+
+  return scopes.join(',');
 }
 
 function generateCodeVerifier() {
