@@ -5,6 +5,7 @@ import {
   handleOAuthCallback,
   OAuthCallbackQuery,
 } from '@/lib/server/social-oauth';
+import { logError, logEvent } from '@/lib/server/observability';
 
 const TIKTOK_PKCE_COOKIE = 'tiktok_pkce';
 const TIKTOK_PKCE_COOKIE_PATH = '/api/auth/callback/tiktok';
@@ -47,6 +48,11 @@ export async function GET(
       tiktokCodeVerifier,
     });
 
+    logEvent('oauth-callback', 'success', {
+      provider: normalizedProvider,
+      accountId: result.accountId,
+    });
+
     redirectUrl.searchParams.set('status', 'success');
     redirectUrl.searchParams.set(
       'message',
@@ -64,6 +70,9 @@ export async function GET(
     return response;
   } catch (error) {
     const message = error instanceof Error ? error.message : 'OAuth callback failed';
+    logError('oauth-callback', 'failure', error, {
+      provider: normalizedProvider,
+    });
     redirectUrl.searchParams.set('status', 'error');
     redirectUrl.searchParams.set('message', message);
 

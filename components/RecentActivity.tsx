@@ -1,7 +1,7 @@
 "use client";
 
 import { Youtube, Instagram, Music2, Facebook, CheckCircle2, Clock, XCircle, Info } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
 
@@ -30,6 +30,12 @@ type PublishJobResponse = {
   };
 };
 
+type PaginatedActivityResponse = {
+  data: PublishJobResponse[];
+  totalCount: number;
+  hasMore: boolean;
+};
+
 const platformIcons = {
   youtube: { icon: Youtube, color: 'text-red-500' },
   instagram: { icon: Instagram, color: 'text-pink-500' },
@@ -40,63 +46,79 @@ const platformIcons = {
 export function RecentActivity() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const pageSize = 8;
+
+  const loadActivities = useCallback(async (targetPage: number) => {
+    try {
+      const offset = (targetPage - 1) * pageSize;
+      const response = await apiClient.get<PaginatedActivityResponse>(
+        `/activity?limit=${pageSize}&offset=${offset}`,
+      );
+
+      const mapped: Activity[] = response.data.data.map((job) => {
+        const platformRaw = job.socialAccount?.platform ?? 'YOUTUBE';
+        const platform = platformRaw.toLowerCase() as PlatformKey;
+        const scheduledFor = new Date(job.scheduledFor);
+        const isScheduled =
+          (job.status === 'PENDING' || job.status === 'RUNNING') &&
+          scheduledFor.getTime() > Date.now();
+
+        return {
+          id: job.id,
+          videoName: job.video?.title ?? 'Bez nazwy',
+          platforms: [platform],
+          status:
+            job.status === 'SUCCESS'
+              ? 'success'
+              : job.status === 'FAILED' || job.status === 'CANCELED'
+                ? 'failed'
+                : 'pending',
+          statusLabel:
+            job.status === 'SUCCESS'
+              ? 'SUCCESS'
+              : job.status === 'FAILED' || job.status === 'CANCELED'
+                ? 'FAILED'
+                : isScheduled
+                  ? 'SCHEDULED'
+                  : 'QUEUED',
+          scheduledDate: scheduledFor.toLocaleString('pl-PL'),
+          errorMessage: job.errorMessage ?? undefined,
+        };
+      });
+
+      setActivities(mapped);
+      setTotalCount(response.data.totalCount);
+      setHasMore(response.data.hasMore);
+    } catch {
+      toast.error('Nie udało się pobrać ostatniej aktywności.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [pageSize]);
 
   useEffect(() => {
-    const loadActivities = async () => {
-      try {
-        const response = await apiClient.get<PublishJobResponse[]>('/publish-jobs');
+    setIsLoading(true);
+    void loadActivities(page);
+  }, [loadActivities, page]);
 
-        const mapped: Activity[] = response.data.map((job) => {
-          const platformRaw = job.socialAccount?.platform ?? 'YOUTUBE';
-          const platform = platformRaw.toLowerCase() as PlatformKey;
-          const scheduledFor = new Date(job.scheduledFor);
-          const isScheduled =
-            (job.status === 'PENDING' || job.status === 'RUNNING') &&
-            scheduledFor.getTime() > Date.now();
-
-          return {
-            id: job.id,
-            videoName: job.video?.title ?? 'Bez nazwy',
-            platforms: [platform],
-            status:
-              job.status === 'SUCCESS'
-                ? 'success'
-                : job.status === 'FAILED' || job.status === 'CANCELED'
-                  ? 'failed'
-                  : 'pending',
-            statusLabel:
-              job.status === 'SUCCESS'
-                ? 'SUCCESS'
-                : job.status === 'FAILED' || job.status === 'CANCELED'
-                  ? 'FAILED'
-                  : isScheduled
-                    ? 'SCHEDULED'
-                    : 'QUEUED',
-            scheduledDate: scheduledFor.toLocaleString('pl-PL'),
-            errorMessage: job.errorMessage ?? undefined,
-          };
-        });
-
-        setActivities(mapped);
-      } catch {
-        toast.error('Nie udało się pobrać ostatniej aktywności.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
+  useEffect(() => {
     const refreshHandler = () => {
+      setPage(1);
       setIsLoading(true);
-      void loadActivities();
+      void loadActivities(1);
     };
 
     window.addEventListener('publish-jobs:refresh', refreshHandler);
-    void loadActivities();
 
     return () => {
       window.removeEventListener('publish-jobs:refresh', refreshHandler);
     };
-  }, []);
+  }, [loadActivities]);
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
   return (
     <div className="bg-card border border-border rounded-xl backdrop-blur-sm overflow-hidden">
@@ -202,13 +224,21 @@ export function RecentActivity() {
       {/* Pagination */}
       <div className="p-4 border-t border-border flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          Pokazano {activities.length} aktywności
+          Pokazano {activities.length} z {totalCount} aktywności (strona {page}/{totalPages})
         </p>
         <div className="flex gap-2">
-          <button className="px-4 py-2 bg-secondary/50 text-foreground rounded-lg hover:bg-secondary transition-all text-sm">
+          <button
+            onClick={() => setPage((current) => Math.max(1, current - 1))}
+            disabled={page <= 1}
+            className="px-4 py-2 bg-secondary/50 text-foreground rounded-lg hover:bg-secondary transition-all text-sm disabled:opacity-50"
+          >
             Poprzednia
           </button>
-          <button className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:shadow-lg hover:shadow-primary/30 transition-all text-sm">
+          <button
+            onClick={() => setPage((current) => current + 1)}
+            disabled={!hasMore}
+            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:shadow-lg hover:shadow-primary/30 transition-all text-sm disabled:opacity-50"
+          >
             Następna
           </button>
         </div>

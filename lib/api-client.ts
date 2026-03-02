@@ -2,7 +2,6 @@
 
 import axios from 'axios';
 import { toast } from 'sonner';
-import { clearStoredToken, getStoredToken } from './auth-token';
 
 type ApiValidationError = {
   message?: string;
@@ -17,20 +16,11 @@ export const apiClient = axios.create({
   withCredentials: true,
 });
 
-apiClient.interceptors.request.use((config) => {
-  const token = getStoredToken();
-
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-
-  return config;
-});
-
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     const statusCode = error?.response?.status as number | undefined;
+    const requestUrl = error?.config?.url as string | undefined;
     const data = error?.response?.data as ApiValidationError | undefined;
 
     if (statusCode === 400) {
@@ -43,7 +33,15 @@ apiClient.interceptors.response.use(
     }
 
     if (statusCode === 401 && typeof window !== 'undefined') {
-      clearStoredToken();
+      const isSessionProbe = requestUrl?.includes('/auth/me');
+      const isPublicAuthPage =
+        window.location.pathname.startsWith('/login') ||
+        window.location.pathname.startsWith('/register');
+
+      if (isSessionProbe || isPublicAuthPage) {
+        return Promise.reject(error);
+      }
+
       if (!window.location.pathname.startsWith('/login')) {
         toast.error('Sesja wygasła. Zaloguj się ponownie.');
         window.location.assign('/login');

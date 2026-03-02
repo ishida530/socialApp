@@ -29,6 +29,18 @@ enum PublishStatus {
   CANCELED
 }
 
+enum PlanTier {
+  FREE
+  PRO
+  PREMIUM
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELED
+  PAST_DUE
+}
+
 model User {
   id             String          @id @default(cuid())
   email          String          @unique
@@ -38,6 +50,9 @@ model User {
   updatedAt      DateTime        @updatedAt
   socialAccounts SocialAccount[]
   videos         Video[]
+  drafts         Draft[]
+  subscription   Subscription?
+  usageCounters  UsageCounter[]
 }
 
 model SocialAccount {
@@ -72,8 +87,26 @@ model Video {
   userId       String
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   publishJobs  PublishJob[]
+  drafts       Draft[]
 
   @@index([userId])
+}
+
+model Draft {
+  id           String    @id @default(cuid())
+  caption      String
+  platform     Platform
+  hashtags     String[]
+  scheduledFor DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  userId       String
+  videoId      String?
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video        Video?    @relation(fields: [videoId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([platform, createdAt])
 }
 
 model PublishJob {
@@ -92,4 +125,43 @@ model PublishJob {
   @@index([videoId])
   @@index([socialAccountId])
   @@index([status, scheduledFor])
+}
+
+model Subscription {
+  id                     String             @id @default(cuid())
+  userId                 String             @unique
+  user                   User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan                   PlanTier           @default(FREE)
+  status                 SubscriptionStatus @default(ACTIVE)
+  provider               String             @default("mock")
+  providerCustomerId     String?
+  providerSubscriptionId String?
+  currentPeriodStart     DateTime?
+  currentPeriodEnd       DateTime?
+  cancelAtPeriodEnd      Boolean            @default(false)
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+
+  @@index([plan, status])
+}
+
+model UsageCounter {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  metric      String
+  periodStart DateTime
+  count       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, metric, periodStart])
+  @@index([userId, metric])
+}
+
+model StripeEvent {
+  id        String   @id
+  type      String
+  processed Boolean  @default(false)
+  createdAt DateTime @default(now())
 }

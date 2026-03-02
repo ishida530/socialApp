@@ -7,8 +7,31 @@ import { badRequest, serverError, unauthorized } from '@/lib/server/http';
 export async function GET(request: NextRequest) {
   try {
     const user = getAuthUserFromRequest(request);
+    const queryStatus = request.nextUrl.searchParams.get('status');
+    const querySearch = request.nextUrl.searchParams.get('q')?.trim();
+
+    const statusFilter = queryStatus
+      ? ((queryStatus.toUpperCase() as VideoStatus) || undefined)
+      : undefined;
+
+    const allowedStatuses = new Set(Object.values(VideoStatus));
+    if (statusFilter && !allowedStatuses.has(statusFilter)) {
+      return badRequest('Nieprawidłowy status wideo');
+    }
+
     const videos = await prisma.video.findMany({
-      where: { userId: user.userId },
+      where: {
+        userId: user.userId,
+        ...(statusFilter ? { status: statusFilter } : {}),
+        ...(querySearch
+          ? {
+              OR: [
+                { title: { contains: querySearch, mode: 'insensitive' } },
+                { description: { contains: querySearch, mode: 'insensitive' } },
+              ],
+            }
+          : {}),
+      },
       include: { user: true, publishJobs: true },
       orderBy: { createdAt: 'desc' },
     });

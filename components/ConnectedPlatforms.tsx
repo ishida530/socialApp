@@ -90,6 +90,38 @@ export function ConnectedPlatforms() {
     }
   };
 
+  const disconnectAccount = async (accountId: string) => {
+    try {
+      setLoadingPlatform(accountId);
+      await apiClient.delete(`/social-accounts/${accountId}`);
+      setAccounts((current) => current.filter((account) => account.id !== accountId));
+      toast.success('Konto zostało odłączone.');
+    } catch {
+      toast.error('Nie udało się odłączyć konta.');
+    } finally {
+      setLoadingPlatform(null);
+    }
+  };
+
+  const reconnectAccount = async (accountId: string) => {
+    try {
+      setLoadingPlatform(accountId);
+      const response = await apiClient.post<{ url?: string }>(
+        `/social-accounts/${accountId}/reconnect`,
+      );
+
+      if (!response.data.url) {
+        throw new Error('Brak URL autoryzacji w odpowiedzi API');
+      }
+
+      window.location.assign(response.data.url);
+    } catch {
+      toast.error('Nie udało się rozpocząć ponownej autoryzacji.');
+    } finally {
+      setLoadingPlatform(null);
+    }
+  };
+
   const formatDate = (date: string) =>
     new Date(date).toLocaleString('pl-PL', {
       day: '2-digit',
@@ -143,28 +175,53 @@ export function ConnectedPlatforms() {
               </p>
             )}
             
-            <button
-              onClick={() => connectAccount(platform.apiPlatform)}
-              disabled={loadingPlatform === platform.apiPlatform}
-              className={`w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm transition-all ${
-                connected
-                  ? 'bg-secondary/50 text-foreground hover:bg-secondary'
-                  : 'bg-primary/10 text-primary hover:bg-primary/20'
-              } ${
-                loadingPlatform === platform.apiPlatform
-                  ? 'opacity-60 cursor-not-allowed'
-                  : ''
-              }`}
-            >
-              <RefreshCw className="w-4 h-4" />
-              <span>
-                {loadingPlatform === platform.apiPlatform
-                  ? 'Przekierowanie...'
-                  : connected
-                    ? 'Połącz ponownie'
+            {!connected && (
+              <button
+                onClick={() => connectAccount(platform.apiPlatform)}
+                disabled={loadingPlatform === platform.apiPlatform}
+                className={`w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm transition-all bg-primary/10 text-primary hover:bg-primary/20 ${
+                  loadingPlatform === platform.apiPlatform
+                    ? 'opacity-60 cursor-not-allowed'
+                    : ''
+                }`}
+              >
+                <RefreshCw className="w-4 h-4" />
+                <span>
+                  {loadingPlatform === platform.apiPlatform
+                    ? 'Przekierowanie...'
                     : 'Połącz'}
-              </span>
-            </button>
+                </span>
+              </button>
+            )}
+
+            {connected && account && (
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => reconnectAccount(account.id)}
+                  disabled={loadingPlatform === account.id}
+                  className={`flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm transition-all bg-secondary/50 text-foreground hover:bg-secondary ${
+                    loadingPlatform === account.id
+                      ? 'opacity-60 cursor-not-allowed'
+                      : ''
+                  }`}
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  <span>Reconnect</span>
+                </button>
+
+                <button
+                  onClick={() => disconnectAccount(account.id)}
+                  disabled={loadingPlatform === account.id}
+                  className={`px-3 py-2 rounded-lg text-sm transition-all bg-destructive/10 border border-destructive/30 text-destructive hover:bg-destructive/20 ${
+                    loadingPlatform === account.id
+                      ? 'opacity-60 cursor-not-allowed'
+                      : ''
+                  }`}
+                >
+                  Rozłącz
+                </button>
+              </div>
+            )}
           </div>
             );
           })()

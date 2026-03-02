@@ -6,6 +6,8 @@ export type AuthUser = {
   email: string;
 };
 
+export const TOKEN_COOKIE_NAME = 'flowstate_token';
+
 function requireJwtSecret() {
   const secret = process.env.JWT_SECRET;
   if (!secret) {
@@ -24,13 +26,7 @@ export function issueAccessToken(userId: string, email: string) {
   });
 }
 
-export function getAuthUserFromRequest(request: NextRequest): AuthUser {
-  const authorization = request.headers.get('authorization');
-  if (!authorization?.startsWith('Bearer ')) {
-    throw new Error('Unauthorized');
-  }
-
-  const token = authorization.replace('Bearer ', '').trim();
+export function verifyAccessToken(token: string): AuthUser {
   let decoded: {
     sub?: string;
     email?: string;
@@ -53,4 +49,25 @@ export function getAuthUserFromRequest(request: NextRequest): AuthUser {
     userId: decoded.sub,
     email: decoded.email,
   };
+}
+
+function getTokenFromRequest(request: NextRequest) {
+  const authorization = request.headers.get('authorization');
+  if (authorization?.startsWith('Bearer ')) {
+    const fromHeader = authorization.replace('Bearer ', '').trim();
+    if (fromHeader) {
+      return fromHeader;
+    }
+  }
+
+  return request.cookies.get(TOKEN_COOKIE_NAME)?.value?.trim() || null;
+}
+
+export function getAuthUserFromRequest(request: NextRequest): AuthUser {
+  const token = getTokenFromRequest(request);
+  if (!token) {
+    throw new Error('Unauthorized');
+  }
+
+  return verifyAccessToken(token);
 }

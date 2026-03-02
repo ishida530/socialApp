@@ -141,7 +141,8 @@ export function buildAuthUrl(platformInput: string, userId: string) {
       response_type: 'code',
       access_type: 'offline',
       prompt: 'consent',
-      scope: 'openid email profile https://www.googleapis.com/auth/youtube.readonly',
+      scope:
+        'openid email profile https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.upload',
       state,
     });
 
@@ -254,6 +255,82 @@ async function exchangeTikTokCode(code: string, codeVerifier?: string): Promise<
     refresh_token?: string;
     expires_in?: number;
   };
+
+  return {
+    accessToken: tokenJson.access_token,
+    refreshToken: tokenJson.refresh_token,
+    expiresAt: tokenJson.expires_in
+      ? new Date(Date.now() + tokenJson.expires_in * 1000)
+      : undefined,
+  };
+}
+
+async function refreshGoogleToken(refreshToken: string): Promise<TokenResult> {
+  const params = new URLSearchParams({
+    client_id: requireConfig('GOOGLE_CLIENT_ID'),
+    client_secret: requireConfig('GOOGLE_CLIENT_SECRET'),
+    grant_type: 'refresh_token',
+    refresh_token: refreshToken,
+  });
+
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params.toString(),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`Google token refresh failed: ${errorBody || response.statusText}`);
+  }
+
+  const tokenJson = (await response.json()) as {
+    access_token?: string;
+    refresh_token?: string;
+    expires_in?: number;
+  };
+
+  if (!tokenJson.access_token) {
+    throw new Error('Google token refresh failed: missing access_token');
+  }
+
+  return {
+    accessToken: tokenJson.access_token,
+    refreshToken: tokenJson.refresh_token,
+    expiresAt: tokenJson.expires_in
+      ? new Date(Date.now() + tokenJson.expires_in * 1000)
+      : undefined,
+  };
+}
+
+async function refreshTikTokToken(refreshToken: string): Promise<TokenResult> {
+  const params = new URLSearchParams({
+    client_key: requireAnyConfig(['TIKTOK_KEY', 'TIKTOK_CLIENT_ID']),
+    client_secret: requireAnyConfig(['TIKTOK_SECRET', 'TIKTOK_CLIENT_SECRET']),
+    grant_type: 'refresh_token',
+    refresh_token: refreshToken,
+  });
+
+  const response = await fetch('https://open.tiktokapis.com/v2/oauth/token/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params.toString(),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`TikTok token refresh failed: ${errorBody || response.statusText}`);
+  }
+
+  const tokenJson = (await response.json()) as {
+    access_token?: string;
+    refresh_token?: string;
+    expires_in?: number;
+  };
+
+  if (!tokenJson.access_token) {
+    throw new Error('TikTok token refresh failed: missing access_token');
+  }
 
   return {
     accessToken: tokenJson.access_token,
@@ -396,4 +473,52 @@ export function decryptToken(value?: string | null) {
   }
 
   return decrypt(value);
+}
+
+export async function refreshSocialAccessToken(accountId: string) {
+  const account = await prisma.socialAccount.findUnique({
+    where: { id: accountId },
+    select: {
+      id: true,
+      platform: true,
+      refreshToken: true,
+    },
+  });
+
+  if (!account) {
+    throw new Error('Social account not found for token refresh');
+  }
+
+  const decryptedRefreshToken = decryptToken(account.refreshToken);
+  if (!decryptedRefreshToken) {
+    throw new Error('Brak refresh token dla konta social');
+  }
+
+  const tokenResult =
+    account.platform === 'YOUTUBE'
+      ? await refreshGoogleToken(decryptedRefreshToken)
+      : account.platform === 'TIKTOK'
+        ? await refreshTikTokToken(decryptedRefreshToken)
+        : (() => {
+            throw new Error(`Refresh token nieobsługiwany dla platformy ${account.platform}`);
+          })();
+
+  const encryptedAccessToken = encrypt(tokenResult.accessToken);
+  const encryptedRefreshToken = tokenResult.refreshToken
+    ? encrypt(tokenResult.refreshToken)
+    : account.refreshToken;
+
+  await prisma.socialAccount.update({
+    where: { id: account.id },
+    data: {
+      accessToken: encryptedAccessToken,
+      refreshToken: encryptedRefreshToken,
+      expiresAt: tokenResult.expiresAt,
+    },
+  });
+
+  return {
+    accessToken: tokenResult.accessToken,
+    expiresAt: tokenResult.expiresAt,
+  };
 }

@@ -6,6 +6,7 @@ import { getAuthUserFromRequest } from '@/lib/server/auth';
 import { prisma } from '@/lib/server/prisma';
 import { badRequest, serverError, unauthorized } from '@/lib/server/http';
 import { ensureUploadsDirectory } from '@/lib/server/uploads';
+import { assertUsageAllowed, incrementUsage } from '@/lib/server/subscription';
 
 const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024;
 
@@ -16,6 +17,7 @@ function sanitizeFileName(value: string) {
 export async function POST(request: NextRequest) {
   try {
     const user = getAuthUserFromRequest(request);
+    await assertUsageAllowed(user.userId, 'video_uploads');
     const formData = await request.formData();
     const file = formData.get('file');
 
@@ -56,10 +58,19 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    await incrementUsage(user.userId, 'video_uploads');
+
     return NextResponse.json(video);
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return unauthorized();
+    }
+
+    if (
+      error instanceof Error &&
+      error.message.startsWith('Przekroczono limit planu FREE')
+    ) {
+      return badRequest(error.message);
     }
 
     return serverError(error);

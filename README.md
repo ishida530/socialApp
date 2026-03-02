@@ -43,6 +43,7 @@ Główny plik środowiskowy:
 Wymagane klucze OAuth:
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`
 - `TIKTOK_CLIENT_ID`, `TIKTOK_CLIENT_SECRET`, `TIKTOK_REDIRECT_URI`
+- `TIKTOK_WEBHOOK_SECRET`
 
 Uwagi:
 - `NEXT_PUBLIC_API_URL` dla fullstack Next powinno pozostać ustawione na `/api`.
@@ -60,14 +61,33 @@ Uwagi:
 3. W build/deploy uruchamiaj `prisma generate` i `prisma migrate deploy`.
 4. Redis na produkcji ustaw jako osobną usługę (np. Upstash Redis) i podaj `REDIS_URL`.
 
+## 4a) Harmonogram publikacji na Vercel (Cron)
+
+Aplikacja zawiera minimalny processor jobów publikacji uruchamiany przez Vercel Cron:
+
+- endpoint: `/api/cron/publish`
+- harmonogram: co 1 minutę (`*/1 * * * *` w `vercel.json`)
+- autoryzacja: nagłówek `Authorization: Bearer <CRON_SECRET>`
+
+Wymagane zmienne środowiskowe na Vercel:
+
+- `CRON_SECRET` (silny losowy sekret)
+- standardowe zmienne bazy/OAuth (`DATABASE_URL`, `DIRECT_URL`, itd.)
+
+Uwaga: to jest model serverless (cron wywołuje endpoint cyklicznie), nie stały worker 24/7.
+
 ## 5) TikTok verification endpoints
 
-Endpointy weryfikacyjne są obsługiwane przez route handlers w `app/...txt/route.ts`.
-Po uruchomieniu aplikacji są dostępne pod:
+Aktualne endpointy i pliki weryfikacyjne:
+
+- Webhook API: `/api/tiktok/webhook` (obsługa challenge + podpisu)
+- Pliki domenowe (statyczne w `public/`):
 
 - `/tiktokssJ4FaBZj5ZZrwsRwf4lvypAO1wwKwcH.txt`
 - `/tiktokLUYqjkeTYqRBFe3zn6FkLfkrbHkGJhrJ.txt`
 - `/tiktok6TdUcTHOVj7ZVJyqNEDoGhvIP5hpPzAZ.txt`
+
+Uwaga: nazwy plików muszą być identyczne z tymi wymaganymi w panelu TikTok.
 
 ## 6) Diagnostyka
 
@@ -78,4 +98,15 @@ curl http://localhost:3000/api/videos
 ```
 
 Odpowiedź `401` bez tokena jest poprawna.
+
+## 7) Checklista deployu (Vercel + Supabase)
+
+1. Uzupełnij zmienne środowiskowe (`.env.example` jako szablon).
+2. Ustaw `CRON_SECRET` i `TIKTOK_WEBHOOK_SECRET`.
+3. Sprawdź redirect URI OAuth (Google/TikTok) 1:1 z produkcją.
+4. Wykonaj `prisma migrate deploy` (lub `prisma db push` dla środowiska MVP).
+5. Zweryfikuj endpoint `/api/health`.
+6. Zweryfikuj cron `/api/cron/publish` i statusy jobów.
+7. Zweryfikuj TikTok webhook i pliki domenowe `.txt`.
+8. Po wdrożeniu sprawdź panel admin jobów: `/admin/jobs`.
 # socialApp

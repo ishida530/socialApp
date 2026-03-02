@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { apiClient } from '@/lib/api-client';
 
 type CallbackState = 'loading' | 'success' | 'error';
 
@@ -12,61 +11,32 @@ export default function CallbackPage() {
   const [message, setMessage] = useState('Trwa łączenie konta...');
 
   useEffect(() => {
-    const run = async () => {
+    const run = () => {
       const urlParams = new URLSearchParams(window.location.search);
-      const platform = urlParams.get('platform')?.toLowerCase() ?? '';
-      const code = urlParams.get('code') ?? '';
-      const state = urlParams.get('state') ?? '';
       const redirectedStatus = urlParams.get('status');
       const redirectedMessage = urlParams.get('message');
 
-      if (redirectedStatus === 'success' || redirectedStatus === 'error') {
-        const finalMessage =
-          redirectedMessage ||
-          (redirectedStatus === 'success'
-            ? 'Konto zostało połączone.'
-            : 'Połączenie konta nie powiodło się.');
-
-        setStatus(redirectedStatus);
-        setMessage(finalMessage);
-
-        if (redirectedStatus === 'success') {
-          toast.success(finalMessage);
-        } else {
-          toast.error(finalMessage);
-        }
-
+      if (redirectedStatus !== 'success' && redirectedStatus !== 'error') {
+        const fallbackMessage = 'Brak statusu callback. Spróbuj ponownie połączyć konto.';
+        setStatus('error');
+        setMessage(fallbackMessage);
+        toast.error(fallbackMessage);
         return;
       }
 
-      if (!platform || !code) {
-        setStatus('error');
-        setMessage('Brak wymaganych parametrów callback (platform/code).');
-        return;
-      }
+      const finalMessage =
+        redirectedMessage ||
+        (redirectedStatus === 'success'
+          ? 'Konto zostało połączone.'
+          : 'Połączenie konta nie powiodło się.');
 
-      try {
-        const query = new URLSearchParams({ code });
-        if (state) {
-          query.set('state', state);
-        }
+      setStatus(redirectedStatus);
+      setMessage(finalMessage);
 
-        const response = await apiClient.get<{
-          message?: string;
-        }>(`/social-accounts/callback/${platform}?${query.toString()}`);
-        const payload = response.data;
-
-        setStatus('success');
-        setMessage(payload.message || 'Konto zostało połączone.');
-        toast.success(payload.message || 'Konto zostało połączone.');
-      } catch (error) {
-        setStatus('error');
-        setMessage(
-          error instanceof Error
-            ? error.message
-            : 'Połączenie konta nie powiodło się.',
-        );
-        toast.error('Połączenie konta nie powiodło się.');
+      if (redirectedStatus === 'success') {
+        toast.success(finalMessage);
+      } else {
+        toast.error(finalMessage);
       }
     };
 

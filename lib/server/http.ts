@@ -19,6 +19,22 @@ export function unauthorized(message = 'Unauthorized') {
   );
 }
 
+export function tooManyRequests(message = 'Too many requests', retryAfterSec?: number) {
+  const headers = retryAfterSec
+    ? { 'Retry-After': String(retryAfterSec) }
+    : undefined;
+
+  return NextResponse.json(
+    {
+      message,
+    },
+    {
+      status: 429,
+      headers,
+    },
+  );
+}
+
 export function notFound(message = 'Not found') {
   return NextResponse.json(
     {
@@ -29,10 +45,9 @@ export function notFound(message = 'Not found') {
 }
 
 export function serverError(error: unknown) {
-  const message = error instanceof Error ? error.message : 'Internal server error';
   return NextResponse.json(
     {
-      message,
+      message: 'Internal server error',
     },
     { status: 500 },
   );

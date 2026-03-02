@@ -27,7 +27,7 @@ export async function GET(
       response.cookies.set(TIKTOK_PKCE_COOKIE, payload, {
         httpOnly: true,
         sameSite: 'lax',
-        secure: false,
+        secure: process.env.NODE_ENV === 'production',
         maxAge: 10 * 60,
         path: TIKTOK_PKCE_COOKIE_PATH,
       });

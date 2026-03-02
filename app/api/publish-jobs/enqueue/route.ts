@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUserFromRequest } from '@/lib/server/auth';
 import { prisma } from '@/lib/server/prisma';
 import { badRequest, serverError, unauthorized } from '@/lib/server/http';
+import { assertUsageAllowed, incrementUsage } from '@/lib/server/subscription';
 
 type SocialPlatform = 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'FACEBOOK';
 
@@ -30,6 +31,7 @@ function normalizePlatform(value: string): SocialPlatform {
 export async function POST(request: NextRequest) {
   try {
     const user = getAuthUserFromRequest(request);
+    await assertUsageAllowed(user.userId, 'publish_jobs');
     const body = (await request.json()) as {
       videoId?: string;
       scheduledDate?: string;
@@ -85,6 +87,8 @@ export async function POST(request: NextRequest) {
 
     const delay = Math.max(0, scheduledDate.getTime() - Date.now());
 
+    await incrementUsage(user.userId, 'publish_jobs');
+
     return NextResponse.json({
       success: true,
       publishJob,
@@ -99,6 +103,13 @@ export async function POST(request: NextRequest) {
     }
 
     if (error instanceof Error && error.message === 'Nieobsługiwana platforma') {
+      return badRequest(error.message);
+    }
+
+    if (
+      error instanceof Error &&
+      error.message.startsWith('Przekroczono limit planu FREE')
+    ) {
       return badRequest(error.message);
     }
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUserFromRequest } from '@/lib/server/auth';
 import { prisma } from '@/lib/server/prisma';
 import { badRequest, serverError, unauthorized } from '@/lib/server/http';
+import { assertUsageAllowed, incrementUsage } from '@/lib/server/subscription';
 
 type PublishJobStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'CANCELED';
 
@@ -32,6 +33,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const user = getAuthUserFromRequest(request);
+    await assertUsageAllowed(user.userId, 'publish_jobs');
     const body = (await request.json()) as {
       videoId?: string;
       socialAccountId?: string;
@@ -69,10 +71,19 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    await incrementUsage(user.userId, 'publish_jobs');
+
     return NextResponse.json(job);
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return unauthorized();
+    }
+
+    if (
+      error instanceof Error &&
+      error.message.startsWith('Przekroczono limit planu FREE')
+    ) {
+      return badRequest(error.message);
     }
 
     return serverError(error);
