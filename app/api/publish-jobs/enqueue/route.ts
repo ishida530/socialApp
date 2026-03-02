@@ -103,9 +103,19 @@ export async function POST(request: NextRequest) {
       ? await processPublishJobImmediately(publishJob.id)
       : null;
 
+    const responseJob = publishNow
+      ? await prisma.publishJob.findUnique({
+          where: { id: publishJob.id },
+          include: {
+            video: true,
+            socialAccount: true,
+          },
+        })
+      : publishJob;
+
     return NextResponse.json({
       success: true,
-      publishJob,
+      publishJob: responseJob ?? publishJob,
       immediateOutcome,
       queue: {
         name: 'next-inline-queue',

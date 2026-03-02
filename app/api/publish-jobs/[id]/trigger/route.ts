@@ -43,7 +43,15 @@ export async function POST(
 
     const immediateOutcome = await processPublishJobImmediately(updated.id);
 
-    return NextResponse.json({ success: true, publishJob: updated, immediateOutcome });
+    const refreshed = await prisma.publishJob.findUnique({
+      where: { id: updated.id },
+    });
+
+    return NextResponse.json({
+      success: true,
+      publishJob: refreshed ?? updated,
+      immediateOutcome,
+    });
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return unauthorized();
