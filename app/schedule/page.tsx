@@ -18,6 +18,7 @@ type PublishJob = {
   id: string;
   status: 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'CANCELED';
   scheduledFor: string;
+  remotePostUrl?: string | null;
   errorMessage?: string | null;
   video?: {
     title?: string;
@@ -216,6 +217,17 @@ export default function SchedulePage() {
 
                   {job.errorMessage && (
                     <p className="text-xs text-destructive">{job.errorMessage}</p>
+                  )}
+
+                  {job.status === 'SUCCESS' && job.remotePostUrl && (
+                    <a
+                      href={job.remotePostUrl}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="inline-flex w-fit items-center rounded-md border border-primary/30 bg-primary/10 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/20"
+                    >
+                      Otwórz post
+                    </a>
                   )}
                 </div>
                   );

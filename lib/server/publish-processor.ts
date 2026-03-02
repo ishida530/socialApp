@@ -10,6 +10,7 @@ type ClaimedJobRow = {
 type PublishTransportResult = {
   provider: 'YOUTUBE' | 'TIKTOK';
   remoteId?: string;
+  postUrl?: string;
 };
 
 class PublishAuthError extends Error {
@@ -111,12 +112,17 @@ async function scheduleTikTokStatusPoll(jobId: string, publishId: string, pollAt
   });
 }
 
-async function markJobSuccess(jobId: string) {
+async function markJobSuccess(
+  jobId: string,
+  result?: { remoteId?: string; postUrl?: string },
+) {
   await prisma.publishJob.update({
     where: { id: jobId },
     data: {
       status: 'SUCCESS',
       publishedAt: new Date(),
+      remotePostId: result?.remoteId ?? null,
+      remotePostUrl: result?.postUrl ?? null,
       errorMessage: null,
     },
   });
@@ -177,6 +183,10 @@ async function fetchTikTokPublishStatus(publishId: string, accessToken: string) 
       status?: string;
       publish_status?: string;
       post_status?: string;
+      post_id?: string;
+      item_id?: string;
+      share_url?: string;
+      public_post_url?: string;
       fail_reason?: string;
       reason?: string;
     };
@@ -193,6 +203,8 @@ async function fetchTikTokPublishStatus(publishId: string, accessToken: string) 
   return {
     finalState,
     rawStatus,
+    postId: payload.data?.post_id ?? payload.data?.item_id,
+    postUrl: payload.data?.public_post_url ?? payload.data?.share_url,
     reason: payload.data?.fail_reason ?? payload.data?.reason ?? payload.error?.message,
   };
 }
@@ -339,9 +351,12 @@ async function publishToYouTube(job: {
   }
 
   const payload = (await response.json()) as { id?: string };
+  const postUrl = payload.id ? `https://www.youtube.com/watch?v=${payload.id}` : undefined;
+
   return {
     provider: 'YOUTUBE' as const,
     remoteId: payload.id,
+    postUrl,
   };
 }
 
@@ -520,7 +535,10 @@ async function processClaimedJob(jobId: string) {
       );
 
       if (status.finalState === 'SUCCESS') {
-        await markJobSuccess(job.id);
+        await markJobSuccess(job.id, {
+          remoteId: status.postId ?? tiktokTrackingState.publishId,
+          postUrl: status.postUrl,
+        });
 
         logEvent('publish-processor', 'job-succeeded', {
           jobId: job.id,
@@ -592,7 +610,10 @@ async function processClaimedJob(jobId: string) {
       return 'retryScheduled' as const;
     }
 
-    await markJobSuccess(job.id);
+    await markJobSuccess(job.id, {
+      remoteId: publishResult.remoteId,
+      postUrl: publishResult.postUrl,
+    });
 
     logEvent('publish-processor', 'job-succeeded', {
       jobId: job.id,
@@ -635,7 +656,10 @@ async function processClaimedJob(jobId: string) {
           );
 
           if (status.finalState === 'SUCCESS') {
-            await markJobSuccess(job.id);
+            await markJobSuccess(job.id, {
+              remoteId: status.postId ?? tiktokTrackingState.publishId,
+              postUrl: status.postUrl,
+            });
 
             logEvent('publish-processor', 'job-succeeded-after-token-refresh', {
               jobId: job.id,
@@ -709,7 +733,10 @@ async function processClaimedJob(jobId: string) {
           return 'retryScheduled' as const;
         }
 
-        await markJobSuccess(job.id);
+        await markJobSuccess(job.id, {
+          remoteId: publishResult.remoteId,
+          postUrl: publishResult.postUrl,
+        });
 
         logEvent('publish-processor', 'job-succeeded-after-token-refresh', {
           jobId: job.id,
