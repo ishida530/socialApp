@@ -59,7 +59,7 @@ function requireAnyConfig(keys: string[]) {
 
 function resolveTikTokScope(mode: TikTokScopeMode) {
   const connectScopeFallback = 'user.info.basic,user.info.profile,user.info.stats,video.list';
-  const publishScopeFallback = process.env.TIKTOK_OAUTH_SCOPES || 'user.info.basic,video.publish';
+  const publishScopeFallback = 'user.info.basic,video.publish';
 
   const rawScope =
     mode === 'publish'
