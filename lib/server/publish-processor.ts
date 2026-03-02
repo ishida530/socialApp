@@ -271,6 +271,15 @@ function resolvePublicVideoUrl(sourceUrl: string) {
   return new URL(sourceUrl, frontendUrl).toString();
 }
 
+function buildTikTokPullSourceUrl(videoId: string, fallbackSourceUrl: string) {
+  const frontendUrl = process.env.FRONTEND_URL;
+  if (!frontendUrl) {
+    return resolvePublicVideoUrl(fallbackSourceUrl);
+  }
+
+  return new URL(`/api/videos/${videoId}/source`, frontendUrl).toString();
+}
+
 async function resolveVideoBytes(job: {
   video: {
     sourceUrl: string;
@@ -361,9 +370,9 @@ async function publishToYouTube(job: {
 }
 
 async function publishToTikTok(job: {
-  video: { title: string; sourceUrl: string };
+  video: { id: string; title: string; sourceUrl: string };
 }, accessToken: string) {
-  const sourceUrl = resolvePublicVideoUrl(job.video.sourceUrl);
+  const sourceUrl = buildTikTokPullSourceUrl(job.video.id, job.video.sourceUrl);
 
   const response = await fetch('https://open.tiktokapis.com/v2/post/publish/video/init/', {
     method: 'POST',
@@ -414,6 +423,7 @@ async function publishToTikTok(job: {
 async function publishToPlatform(job: {
   socialAccount: { platform: 'YOUTUBE' | 'TIKTOK' };
   video: {
+    id: string;
     title: string;
     description: string | null;
     sourceUrl: string;
@@ -501,6 +511,7 @@ async function processClaimedJob(jobId: string) {
       platform: job.socialAccount.platform as 'YOUTUBE' | 'TIKTOK',
     },
     video: {
+      id: job.video.id,
       title: job.video.title,
       description: job.video.description,
       sourceUrl: job.video.sourceUrl,
