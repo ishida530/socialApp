@@ -4,7 +4,7 @@
   "crons": [
     {
       "path": "/api/cron/publish",
-      "schedule": "*/1 * * * *"
+      "schedule": "0 3 * * *"
     }
   ]
 }
