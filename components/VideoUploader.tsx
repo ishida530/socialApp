@@ -4,6 +4,7 @@ import { Upload, FileVideo, X } from 'lucide-react';
 import { useState, useRef } from 'react';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
+import { upload } from '@vercel/blob/client';
 
 type UploadedVideo = {
   id: string;
@@ -58,11 +59,34 @@ export function VideoUploader() {
     setUploading(true);
     setProgress(0);
 
-    const formData = new FormData();
-    formData.append('file', file);
+    const baseName = file.name.replace(/\.[^.]+$/, '').trim() || `video-${Date.now()}`;
 
-    void apiClient
-      .post<UploadedVideo>('/videos/upload', formData, {
+    const uploadDirectToBlob = async () => {
+      setProgress(15);
+      const blob = await upload(file.name, file, {
+        access: 'public',
+        handleUploadUrl: '/api/videos/blob-upload',
+        clientPayload: JSON.stringify({
+          title: baseName,
+        }),
+      });
+
+      setProgress(95);
+
+      setUploadedFile({
+        name: file.name,
+        size: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
+        previewUrl: blob.url,
+      });
+      setProgress(100);
+      toast.success('Wideo zostało przesłane.');
+    };
+
+    const uploadViaApiRoute = async () => {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await apiClient.post<UploadedVideo>('/videos/upload', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -74,18 +98,27 @@ export function VideoUploader() {
 
           setProgress(nextProgress);
         },
-      })
-      .then((response) => {
-        setUploadedFile({
-          name: file.name,
-          size: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
-          previewUrl: response.data.sourceUrl,
-        });
-        setProgress(100);
-        toast.success('Wideo zostało przesłane lokalnie.');
+      });
+
+      setUploadedFile({
+        name: file.name,
+        size: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
+        previewUrl: response.data.sourceUrl,
+      });
+      setProgress(100);
+      toast.success('Wideo zostało przesłane lokalnie.');
+    };
+
+    void uploadDirectToBlob()
+      .catch(async () => {
+        if (file.size > 4 * 1024 * 1024) {
+          throw new Error('upload-large-file-failed');
+        }
+
+        await uploadViaApiRoute();
       })
       .catch(() => {
-        toast.error('Przesyłanie wideo nie powiodło się.');
+        toast.error('Przesyłanie wideo nie powiodło się. Sprawdź konfigurację Blob Storage.');
       })
       .finally(() => {
         setUploading(false);
