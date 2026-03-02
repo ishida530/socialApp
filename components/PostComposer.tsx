@@ -262,12 +262,12 @@ export function PostComposer() {
   };
 
   return (
-    <div id="post-composer" className="w-96 bg-card border-l border-border flex flex-col">
+    <div id="post-composer" className="w-full lg:w-96 bg-card border-t lg:border-t-0 lg:border-l border-border flex flex-col">
       <div className="p-6 border-b border-border">
         <h2 className="text-lg font-semibold text-foreground">Komponuj post</h2>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
         {/* Platform selector */}
         <div>
           <label className="block text-sm font-medium text-foreground mb-3">

@@ -83,19 +83,19 @@ export default function AnalyticsPage() {
   }
 
   return (
-    <div className="size-full flex bg-background dark">
+    <div className="min-h-screen flex bg-background dark">
       <Sidebar />
 
       <div className="flex-1 flex flex-col min-w-0">
         <Header />
 
-        <main className="flex-1 overflow-y-auto p-6">
-          <div className="flex items-center justify-between mb-4">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 lg:pb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
             <h2 className="text-lg font-semibold text-foreground">Analytics</h2>
             <select
               value={selectedRange}
               onChange={(event) => setSelectedRange(event.target.value as RangeKey)}
-              className="px-3 py-2 bg-secondary/30 border border-border rounded-lg text-sm text-foreground"
+              className="w-full sm:w-auto px-3 py-2 bg-secondary/30 border border-border rounded-lg text-sm text-foreground"
             >
               <option value="7d">Ostatnie 7 dni</option>
               <option value="30d">Ostatnie 30 dni</option>
@@ -103,7 +103,7 @@ export default function AnalyticsPage() {
             </select>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
             <div className="bg-card border border-border rounded-xl p-5">
               <p className="text-sm text-muted-foreground">Wideo ({selectedRange})</p>
               <p className="text-3xl font-semibold text-foreground mt-2">

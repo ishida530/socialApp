@@ -146,13 +146,13 @@ export default function SchedulePage() {
   }
 
   return (
-    <div className="size-full flex bg-background dark">
+    <div className="min-h-screen flex bg-background dark">
       <Sidebar />
 
       <div className="flex-1 flex flex-col min-w-0">
         <Header />
 
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 lg:pb-6">
           <section className="bg-card border border-border rounded-xl p-6 space-y-4">
             <h2 className="text-lg font-semibold text-foreground">Harmonogram publikacji</h2>
 
@@ -174,7 +174,7 @@ export default function SchedulePage() {
                   key={job.id}
                   className="p-3 rounded-lg border border-border bg-secondary/20 flex flex-col gap-2"
                 >
-                  <div className="flex items-center justify-between gap-3">
+                  <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
                     <div>
                       <p className="text-sm font-medium text-foreground">
                         {job.video?.title ?? 'Bez nazwy'} • {job.socialAccount?.platform ?? 'N/A'}
@@ -190,7 +190,7 @@ export default function SchedulePage() {
                       {badge.label}
                     </span>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <button
                         onClick={() => runAction(job.id, 'trigger')}
                         disabled={actionId === job.id}
@@ -235,11 +235,11 @@ export default function SchedulePage() {
               ))}
             </div>
 
-            <div className="pt-2 flex items-center justify-between">
+            <div className="pt-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <p className="text-sm text-muted-foreground">
                 Pokazano {jobs.length} z {totalCount} zadań (strona {page}/{Math.max(1, Math.ceil(totalCount / pageSize))})
               </p>
-              <div className="flex gap-2">
+              <div className="flex gap-2 self-end sm:self-auto">
                 <button
                   onClick={() => setPage((current) => Math.max(1, current - 1))}
                   disabled={jobsLoading || page <= 1}

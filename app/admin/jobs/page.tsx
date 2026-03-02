@@ -104,13 +104,13 @@ export default function AdminJobsPage() {
   }
 
   return (
-    <div className="size-full flex bg-background dark">
+    <div className="min-h-screen flex bg-background dark">
       <Sidebar />
 
       <div className="flex-1 flex flex-col min-w-0">
         <Header />
 
-        <main className="flex-1 overflow-y-auto p-6 space-y-4">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 lg:pb-6 space-y-4">
           <h2 className="text-lg font-semibold text-foreground">Admin: statusy jobów</h2>
 
           {loading && <p className="text-sm text-muted-foreground">Ładowanie...</p>}
@@ -207,7 +207,7 @@ export default function AdminJobsPage() {
                 <p className="text-sm text-muted-foreground">
                   Pokazano {jobs.length} z {totalCount} jobów (strona {page}/{Math.max(1, Math.ceil(totalCount / pageSize))})
                 </p>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <button
                     onClick={() => setPage((current) => Math.max(1, current - 1))}
                     disabled={page <= 1}

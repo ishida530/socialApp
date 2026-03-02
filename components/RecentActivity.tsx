@@ -222,11 +222,11 @@ export function RecentActivity() {
       </div>
 
       {/* Pagination */}
-      <div className="p-4 border-t border-border flex items-center justify-between">
+      <div className="p-4 border-t border-border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <p className="text-sm text-muted-foreground">
           Pokazano {activities.length} z {totalCount} aktywności (strona {page}/{totalPages})
         </p>
-        <div className="flex gap-2">
+        <div className="flex gap-2 self-end sm:self-auto">
           <button
             onClick={() => setPage((current) => Math.max(1, current - 1))}
             disabled={page <= 1}
