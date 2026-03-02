@@ -58,13 +58,18 @@ function requireAnyConfig(keys: string[]) {
 
 function resolveTikTokScope() {
   const rawScope = process.env.TIKTOK_OAUTH_SCOPES || 'user.info.profile';
+  const requiredScopeRaw = process.env.TIKTOK_OAUTH_REQUIRED_SCOPES || '';
 
   const scopes = rawScope
     .split(/[\s,]+/)
     .map((entry) => entry.trim())
     .filter(Boolean);
 
-  const requiredScopes = ['user.info.profile', 'video.publish'];
+  const requiredScopes = requiredScopeRaw
+    .split(/[\s,]+/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
   for (const required of requiredScopes) {
     if (!scopes.includes(required)) {
       scopes.push(required);

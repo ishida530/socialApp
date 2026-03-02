@@ -627,7 +627,7 @@ async function processClaimedJob(jobId: string) {
     if (error instanceof PublishAuthError) {
       if (isPermanentOAuthScopeError(error.message)) {
         const reason =
-          'Brak uprawnień OAuth do publikacji. Połącz konto ponownie i zaakceptuj wymagane zakresy.';
+          '[oauth-scope-missing] Brak uprawnień OAuth do publikacji. Włącz wymagane scope w aplikacji TikTok Developers, potem połącz konto ponownie.';
 
         await prisma.publishJob.update({
           where: { id: job.id },

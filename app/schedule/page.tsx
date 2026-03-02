@@ -18,6 +18,7 @@ type PublishJob = {
   id: string;
   status: 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'CANCELED';
   scheduledFor: string;
+  socialAccountId?: string;
   remotePostUrl?: string | null;
   errorMessage?: string | null;
   video?: {
@@ -127,7 +128,30 @@ export default function SchedulePage() {
   const runAction = async (jobId: string, action: 'cancel' | 'retry' | 'trigger') => {
     try {
       setActionId(jobId);
-      await apiClient.post(`/publish-jobs/${jobId}/${action}`);
+      const response = await apiClient.post<{
+        success: boolean;
+        immediateOutcome?: 'succeeded' | 'retryScheduled' | 'failed' | 'skipped' | null;
+        publishJob?: {
+          socialAccountId?: string;
+          errorMessage?: string | null;
+        };
+      }>(`/publish-jobs/${jobId}/${action}`);
+
+      const oauthScopeMissing =
+        response.data.publishJob?.errorMessage?.includes('[oauth-scope-missing]') ?? false;
+
+      if (oauthScopeMissing && response.data.publishJob?.socialAccountId) {
+        toast.error('Brak zgód TikTok do publikacji. Przekierowuję do ponownego połączenia konta...');
+        const reconnect = await apiClient.post<{ url?: string }>(
+          `/social-accounts/${response.data.publishJob.socialAccountId}/reconnect`,
+        );
+
+        if (reconnect.data.url) {
+          window.location.assign(reconnect.data.url);
+          return;
+        }
+      }
+
       toast.success(`Akcja ${action.toUpperCase()} wykonana.`);
       await loadJobs(page);
     } catch {

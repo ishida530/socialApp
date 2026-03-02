@@ -143,6 +143,10 @@ export function PostComposer() {
       const response = await apiClient.post<{
         success: boolean;
         immediateOutcome?: 'succeeded' | 'retryScheduled' | 'failed' | 'skipped' | null;
+        publishJob?: {
+          socialAccountId?: string;
+          errorMessage?: string | null;
+        };
       }>('/publish-jobs/enqueue', {
         videoId: selectedVideoId,
         scheduledDate: scheduledDateTime
@@ -164,6 +168,21 @@ export function PostComposer() {
         } else if (immediateOutcome === 'retryScheduled') {
           toast.success('Publikacja uruchomiona; trwa przetwarzanie/status check.');
         } else if (immediateOutcome === 'failed') {
+          const oauthScopeMissing =
+            response.data.publishJob?.errorMessage?.includes('[oauth-scope-missing]') ?? false;
+
+          if (oauthScopeMissing && response.data.publishJob?.socialAccountId) {
+            toast.error('Brak zgód TikTok do publikacji. Przekierowuję do ponownego połączenia konta...');
+            const reconnect = await apiClient.post<{ url?: string }>(
+              `/social-accounts/${response.data.publishJob.socialAccountId}/reconnect`,
+            );
+
+            if (reconnect.data.url) {
+              window.location.assign(reconnect.data.url);
+              return;
+            }
+          }
+
           toast.error('Publikacja teraz nie powiodła się. Sprawdź harmonogram i spróbuj Retry.');
         } else if (immediateOutcome === 'skipped') {
           toast.error('Nie udało się natychmiast uruchomić zadania. Użyj Trigger w harmonogramie.');
