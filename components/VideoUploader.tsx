@@ -80,6 +80,7 @@ export function VideoUploader() {
       });
       setProgress(100);
       toast.success('Wideo zostało przesłane.');
+      window.dispatchEvent(new Event('videos:refresh'));
     };
 
     const uploadViaApiRoute = async () => {
@@ -107,6 +108,7 @@ export function VideoUploader() {
       });
       setProgress(100);
       toast.success('Wideo zostało przesłane lokalnie.');
+      window.dispatchEvent(new Event('videos:refresh'));
     };
 
     void uploadDirectToBlob()

@@ -16,8 +16,10 @@ export function getStripeClient() {
     return stripeClient;
   }
 
+  const apiVersion = process.env.STRIPE_API_VERSION;
+
   stripeClient = new Stripe(requireStripeSecret(), {
-    apiVersion: '2026-02-25.clover',
+    ...(apiVersion ? { apiVersion: apiVersion as Stripe.LatestApiVersion } : {}),
   });
 
   return stripeClient;

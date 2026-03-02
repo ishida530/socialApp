@@ -1,5 +1,5 @@
 import { Hash, Calendar, Clock, Send } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
 
@@ -40,8 +40,7 @@ export function PostComposer() {
     }>
   >([]);
 
-  useEffect(() => {
-    const bootstrapComposerData = async () => {
+  const bootstrapComposerData = useCallback(async () => {
       try {
         const [videosResponse, accountsResponse, draftsResponse] = await Promise.all([
           apiClient.get<Array<{ id: string; title: string; createdAt?: string }>>('/videos'),
@@ -81,10 +80,20 @@ export function PostComposer() {
         setConnectedPlatforms(new Set());
         setDrafts([]);
       }
+    }, []);
+
+  useEffect(() => {
+    void bootstrapComposerData();
+
+    const onVideosRefresh = () => {
+      void bootstrapComposerData();
     };
 
-    void bootstrapComposerData();
-  }, []);
+    window.addEventListener('videos:refresh', onVideosRefresh);
+    return () => {
+      window.removeEventListener('videos:refresh', onVideosRefresh);
+    };
+  }, [bootstrapComposerData]);
 
   const currentLimit = platformLimits[selectedPlatform];
   const remainingChars = currentLimit - caption.length;

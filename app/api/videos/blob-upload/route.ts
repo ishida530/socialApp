@@ -13,15 +13,15 @@ function sanitizeTitle(value: string) {
 
 export async function POST(request: NextRequest) {
   try {
-    const user = getAuthUserFromRequest(request);
-    await assertUsageAllowed(user.userId, 'video_uploads');
-
     const body = (await request.json()) as HandleUploadBody;
 
     const jsonResponse = await handleUpload({
       body,
       request,
       onBeforeGenerateToken: async (_pathname, clientPayload, _multipart) => {
+        const user = getAuthUserFromRequest(request);
+        await assertUsageAllowed(user.userId, 'video_uploads');
+
         let titleFromClient = '';
         if (clientPayload) {
           try {
@@ -58,6 +58,18 @@ export async function POST(request: NextRequest) {
         }
 
         const title = sanitizeTitle(payload?.title ?? 'Nowe wideo');
+
+        const existing = await prisma.video.findFirst({
+          where: {
+            userId,
+            sourceUrl: blob.url,
+          },
+          select: { id: true },
+        });
+
+        if (existing) {
+          return;
+        }
 
         await prisma.video.create({
           data: {

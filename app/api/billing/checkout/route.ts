@@ -142,6 +142,13 @@ export async function POST(request: NextRequest) {
       return badRequest(error.message);
     }
 
+    if (error && typeof error === 'object' && 'type' in error) {
+      const stripeError = error as { type?: string; message?: string };
+      if (stripeError.type?.startsWith('Stripe')) {
+        return badRequest(stripeError.message || 'Stripe checkout error');
+      }
+    }
+
     return serverError(error);
   }
 }
