@@ -63,7 +63,7 @@ export default function RegisterPage() {
             type="email"
             required
             className="w-full px-3 py-2 rounded-lg bg-background border border-border text-foreground"
-            placeholder="jan@flowstate.app"
+            placeholder="jan@postfly.app"
           />
         </div>
 

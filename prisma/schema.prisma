@@ -31,8 +31,9 @@ enum PublishStatus {
 
 enum PlanTier {
   FREE
+  STARTER
   PRO
-  PREMIUM
+  BUSINESS
 }
 
 enum SubscriptionStatus {

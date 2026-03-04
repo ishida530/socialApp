@@ -30,7 +30,7 @@ export async function PATCH(request: NextRequest) {
 
     const normalizedPlan = body.plan.toUpperCase();
     if (normalizedPlan !== 'FREE') {
-      return badRequest('Bezpośrednia zmiana planu wspiera tylko FREE. Użyj checkout dla PRO/PREMIUM.');
+      return badRequest('Bezpośrednia zmiana planu wspiera tylko FREE. Użyj checkout dla STARTER/PRO/BUSINESS.');
     }
 
     const subscription = await setUserPlan(user.userId, PlanTier.FREE);

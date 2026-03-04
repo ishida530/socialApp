@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from 'react';
-import { Sidebar } from './Sidebar';
-import { Header } from './Header';
 import { ConnectedPlatforms } from './ConnectedPlatforms';
 import { RecentActivity } from './RecentActivity';
 import { DashboardAIAdvisor } from './DashboardAIAdvisor';
@@ -80,35 +78,27 @@ export function Dashboard() {
   }, [analytics]);
 
   return (
-    <div className="size-full flex bg-background dark">
-      <Sidebar />
+    <main className="flex-1 overflow-hidden">
+      <div className="h-full overflow-y-auto p-4 sm:p-6 pb-24 lg:pb-6 space-y-6">
+        <OnboardingChecklist />
 
-      <div className="flex-1 flex flex-col min-w-0">
-        <Header />
-
-        <main className="flex-1 overflow-hidden">
-          <div className="h-full overflow-y-auto p-4 sm:p-6 pb-24 lg:pb-6 space-y-6">
-            <OnboardingChecklist />
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-              {metricCards.map((card) => (
-                <div key={card.label} className={card.className}>
-                  <p className="text-sm text-muted-foreground mb-1">{card.label}</p>
-                  <p className="text-3xl font-bold text-foreground">
-                    {isLoadingAnalytics ? '...' : card.value ?? '-'}
-                  </p>
-                  <p className={card.hintClassName}>{card.hint}</p>
-                </div>
-              ))}
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          {metricCards.map((card) => (
+            <div key={card.label} className={card.className}>
+              <p className="text-sm text-muted-foreground mb-1">{card.label}</p>
+              <p className="text-3xl font-bold text-foreground">
+                {isLoadingAnalytics ? '...' : card.value ?? '-'}
+              </p>
+              <p className={card.hintClassName}>{card.hint}</p>
             </div>
+          ))}
+        </div>
 
-            <DashboardAIAdvisor />
+        <DashboardAIAdvisor />
 
-            <ConnectedPlatforms />
-            <RecentActivity />
-          </div>
-        </main>
+        <ConnectedPlatforms />
+        <RecentActivity />
       </div>
-    </div>
+    </main>
   );
 }

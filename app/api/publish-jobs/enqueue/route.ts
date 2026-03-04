@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUserFromRequest } from '@/lib/server/auth';
 import { prisma } from '@/lib/server/prisma';
 import { badRequest, serverError, unauthorized } from '@/lib/server/http';
-import { assertUsageAllowed, getSubscriptionSnapshot, incrementUsage } from '@/lib/server/subscription';
+import {
+  assertScheduleWindowAllowed,
+  assertUsageAllowed,
+  getSubscriptionSnapshot,
+  incrementUsage,
+} from '@/lib/server/subscription';
 import { processPublishJobImmediately } from '@/lib/server/publish-processor';
 
 type SocialPlatform = 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'FACEBOOK';
@@ -64,6 +69,8 @@ export async function POST(request: NextRequest) {
       if (Number.isNaN(scheduledDate.getTime())) {
         return badRequest('scheduledDate is invalid');
       }
+
+      await assertScheduleWindowAllowed(user.userId, scheduledDate);
     }
 
     const requestedPlatforms = Array.isArray(body.targetPlatforms)
@@ -85,8 +92,8 @@ export async function POST(request: NextRequest) {
     const snapshot = await getSubscriptionSnapshot(user.userId);
     const userPlan = snapshot.subscription.plan;
 
-    if (userPlan === 'FREE' && targetPlatforms.length > 2) {
-      return badRequest('Plan Free pozwala publikować jednocześnie maksymalnie na 2 platformach.');
+    if (userPlan === 'FREE' && targetPlatforms.length > 1) {
+      return badRequest('Plan Free pozwala publikować jednocześnie maksymalnie na 1 kanale social.');
     }
 
     const [video, socialAccounts] = await Promise.all([
@@ -201,7 +208,8 @@ export async function POST(request: NextRequest) {
 
     if (
       error instanceof Error &&
-      error.message.startsWith('Przekroczono limit planu FREE')
+      (error.message.startsWith('Przekroczono limit planu') ||
+        error.message.startsWith('Plan FREE pozwala planować publikacje'))
     ) {
       return badRequest(error.message);
     }

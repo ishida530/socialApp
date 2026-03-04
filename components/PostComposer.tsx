@@ -33,22 +33,28 @@ const platformOrder: PlatformKey[] = ['youtube', 'tiktok', 'instagram', 'faceboo
 
 const planComposerConfig = {
   FREE: {
-    maxPlatforms: 2,
+    maxPlatforms: 1,
     aiMode: 'single-lite',
     aiLabel: 'AI Mini (1 opis)',
-    subtitle: 'Free: podstawowe planowanie, max 2 platformy',
+    subtitle: 'Free: 1 kanał social, planowanie do 72h',
+  },
+  STARTER: {
+    maxPlatforms: 3,
+    aiMode: 'all-lite',
+    aiLabel: 'AI niedostępne',
+    subtitle: 'Starter: 3 kanały i 15 wideo / miesiąc',
   },
   PRO: {
-    maxPlatforms: 4,
+    maxPlatforms: 10,
     aiMode: 'all-lite',
-    aiLabel: 'Auto-Pilot Lite',
-    subtitle: 'PRO: kampanie multi-platform + AI Lite',
+    aiLabel: 'AI niedostępne',
+    subtitle: 'PRO: 10 kanałów, soft limit 100 wideo/mies.',
   },
-  PREMIUM: {
-    maxPlatforms: 4,
+  BUSINESS: {
+    maxPlatforms: 25,
     aiMode: 'all-full',
-    aiLabel: 'Auto-Pilot Full',
-    subtitle: 'Premium: pełny AI Auto-Pilot bez limitów funkcji',
+    aiLabel: 'Auto-Pilot',
+    subtitle: 'Business: AI Autopilot + priorytetowy support',
   },
 } as const;
 
@@ -68,10 +74,11 @@ function apiPlatformToKey(platform: 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'FACEBO
   return 'facebook';
 }
 
-function planLabel(plan: 'FREE' | 'PRO' | 'PREMIUM') {
+function planLabel(plan: 'FREE' | 'STARTER' | 'PRO' | 'BUSINESS') {
   if (plan === 'FREE') return 'Free';
+  if (plan === 'STARTER') return 'Starter';
   if (plan === 'PRO') return 'Pro';
-  return 'Premium';
+  return 'Business';
 }
 
 export function PostComposer() {
@@ -104,7 +111,7 @@ export function PostComposer() {
       video?: { id: string; title: string } | null;
     }>
   >([]);
-  const [effectivePlan, setEffectivePlan] = useState<'FREE' | 'PRO' | 'PREMIUM'>('FREE');
+  const [effectivePlan, setEffectivePlan] = useState<'FREE' | 'STARTER' | 'PRO' | 'BUSINESS'>('FREE');
   const [aiRunUsage, setAiRunUsage] = useState<{ count: number; limit: number | null }>({ count: 0, limit: null });
   const [isPlanLoading, setIsPlanLoading] = useState(true);
 
@@ -127,8 +134,8 @@ export function PostComposer() {
           >('/drafts'),
           apiClient.get<{
             subscription: {
-              plan: 'FREE' | 'PRO' | 'PREMIUM';
-              effectivePlan?: 'FREE' | 'PRO' | 'PREMIUM';
+              plan: 'FREE' | 'STARTER' | 'PRO' | 'BUSINESS';
+              effectivePlan?: 'FREE' | 'STARTER' | 'PRO' | 'BUSINESS';
             };
             usage?: {
               ai_autopilot_runs?: {
@@ -179,10 +186,12 @@ export function PostComposer() {
 
   const planConfig = planComposerConfig[effectivePlan];
   const autoPilotTierLabel =
-    effectivePlan === 'PREMIUM'
-      ? 'Premium pełny Auto-Pilot'
+    effectivePlan === 'BUSINESS'
+      ? 'Business Auto-Pilot'
       : effectivePlan === 'PRO'
-        ? 'PRO Auto-Pilot Lite'
+        ? 'PRO bez Auto-Pilot'
+        : effectivePlan === 'STARTER'
+          ? 'Starter bez Auto-Pilot'
         : 'Free AI Mini (1 opis/post)';
 
   useEffect(() => {
@@ -220,6 +229,11 @@ export function PostComposer() {
     next.setDate(next.getDate() + 1);
     next.setHours(18, 0, 0, 0);
     return next;
+  }, []);
+
+  const freePlanMaxDate = useMemo(() => {
+    const maxAllowed = new Date(Date.now() + 72 * 60 * 60 * 1000);
+    return maxAllowed.toISOString().slice(0, 10);
   }, []);
 
   const selectedPlatformConnected = connectedPlatforms.has(selectedPlatform);
@@ -266,7 +280,7 @@ export function PostComposer() {
       return;
     }
 
-    if (effectivePlan === 'FREE') {
+    if (effectivePlan !== 'BUSINESS') {
       const trimmed = campaignBrief.trim();
       const generated = `${trimmed}\n\nSprawdź więcej w bio i daj znać w komentarzu, co testujemy następnie.`;
       const defaultTags = hashtagPresets.slice(0, 3);
@@ -278,7 +292,7 @@ export function PostComposer() {
         aiScore: 0.58,
       }));
 
-      toast.success('AI Mini wygenerował opis dla wybranej platformy. Odblokuj Pro lub Premium dla wszystkich platform.');
+      toast.success('AI Mini wygenerował opis dla wybranej platformy. Odblokuj Business dla pełnego Auto-Pilot.');
       return;
     }
 
@@ -415,7 +429,7 @@ export function PostComposer() {
       }).response?.data;
 
       if (responseData?.code === 'FEATURE_NOT_AVAILABLE') {
-        toast.error('Auto-Pilot AI jest dostępny od planu Pro i Premium.');
+        toast.error('Auto-Pilot AI jest dostępny od planu Business.');
         return;
       }
 
@@ -462,13 +476,22 @@ export function PostComposer() {
     }
 
     if (effectivePlan === 'FREE' && targetPlatforms.length > planConfig.maxPlatforms) {
-      toast.error('Plan Free pozwala publikować maksymalnie na 2 platformach jednocześnie.');
+      toast.error('Plan Free pozwala publikować na maksymalnie 1 kanale social.');
       return;
     }
 
     if (!publishNow && !scheduledDateTime) {
       toast.error('Wybierz datę i godzinę publikacji.');
       return;
+    }
+
+    if (!publishNow && effectivePlan === 'FREE' && scheduledDateTime) {
+      const plannedAt = new Date(scheduledDateTime);
+      const maxAllowed = new Date(Date.now() + 72 * 60 * 60 * 1000);
+      if (plannedAt.getTime() > maxAllowed.getTime()) {
+        toast.error('Plan Free pozwala planować publikacje maksymalnie 72h do przodu.');
+        return;
+      }
     }
 
     try {
@@ -550,7 +573,7 @@ export function PostComposer() {
     }
   };
 
-  const startPlanCheckout = async (plan: 'PRO' | 'PREMIUM') => {
+  const startPlanCheckout = async (plan: 'STARTER' | 'PRO' | 'BUSINESS') => {
     try {
       setIsCheckoutLoading(true);
       const response = await apiClient.post<{ url?: string; mode?: 'mock' | 'live' }>('/billing/checkout', {
@@ -578,7 +601,7 @@ export function PostComposer() {
         next.delete(platform);
       } else {
         if (effectivePlan === 'FREE' && next.size >= planConfig.maxPlatforms) {
-          toast.warning('Plan Free: możesz wybrać maksymalnie 2 platformy. Odblokuj Pro lub Premium dla pełnej kampanii.');
+          toast.warning('Plan Free: możesz wybrać maksymalnie 1 kanał. Odblokuj Starter lub wyżej.');
           return next;
         }
         next.add(platform);
@@ -669,6 +692,16 @@ export function PostComposer() {
   };
 
   const applySuggestedSchedule = () => {
+    if (effectivePlan === 'FREE') {
+      const maxAllowed = new Date(Date.now() + 72 * 60 * 60 * 1000);
+      if (suggestedDateTime.getTime() > maxAllowed.getTime()) {
+        setScheduledDate(maxAllowed.toISOString().slice(0, 10));
+        setScheduledTime(maxAllowed.toISOString().slice(11, 16));
+        toast.warning('Plan Free: sugestia została skrócona do maks. 72h do przodu.');
+        return;
+      }
+    }
+
     setScheduledDate(toDateInputValue(suggestedDateTime));
     setScheduledTime(toTimeInputValue(suggestedDateTime));
     toast.success('Zastosowano sugerowany termin publikacji.');
@@ -816,52 +849,52 @@ export function PostComposer() {
                     <span>
                       {isAutoPilotRunning
                         ? 'AI generuje opisy...'
-                        : effectivePlan === 'FREE'
+                        : effectivePlan !== 'BUSINESS'
                           ? 'Generuj AI (1 platforma)'
                           : 'Generuj AI (wszystkie platformy)'}
                     </span>
                   </button>
 
-                  {effectivePlan === 'FREE' && (
+                  {effectivePlan !== 'BUSINESS' && (
                     <p className="text-xs text-muted-foreground">
-                      🔒 Ulepsz do PRO, aby generować opisy dla wszystkich platform jednocześnie.
+                      🔒 Ulepsz do Business, aby odblokować pełny Auto-Pilot.
                     </p>
                   )}
-                  {effectivePlan === 'PRO' && (
+                  {effectivePlan === 'BUSINESS' && (
                     <p className="text-xs text-muted-foreground">
                       Wykorzystano {aiRunUsage.count}/{aiRunUsage.limit ?? '∞'} uruchomień AI w tym miesiącu.
                     </p>
                   )}
                 </div>
 
-                {!isPlanLoading && effectivePlan !== 'PREMIUM' && (
+                {!isPlanLoading && effectivePlan !== 'BUSINESS' && (
                   <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
                     <p className="text-xs text-foreground flex items-center gap-2 font-medium">
                       <Gem className="w-3.5 h-3.5 text-primary" />
                       {effectivePlan === 'PRO'
-                        ? 'Premium odblokowuje Full Auto-Pilot i zaawansowane rekomendacje.'
-                        : 'Przejdź na PRO/Premium, aby generować opisy dla wszystkich platform i publikować bez limitu 2 kanałów.'}
+                        ? 'Business odblokowuje AI Autopilot i priorytetowy support.'
+                        : 'Przejdź na Starter/Pro/Business zgodnie z potrzebnym limitem kanałów i funkcji.'}
                     </p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       {effectivePlan === 'FREE' && (
                         <button
                           onClick={() => {
-                            void startPlanCheckout('PRO');
+                            void startPlanCheckout('STARTER');
                           }}
                           disabled={isCheckoutLoading}
                           className="px-3 py-1.5 rounded-lg border border-border bg-secondary text-foreground text-xs disabled:opacity-60"
                         >
-                          {isCheckoutLoading ? 'Uruchamianie...' : 'Odblokuj PRO'}
+                          {isCheckoutLoading ? 'Uruchamianie...' : 'Odblokuj STARTER'}
                         </button>
                       )}
                       <button
                         onClick={() => {
-                          void startPlanCheckout('PREMIUM');
+                          void startPlanCheckout('BUSINESS');
                         }}
                         disabled={isCheckoutLoading}
                         className="px-3 py-1.5 rounded-lg border border-primary/30 bg-primary text-primary-foreground text-xs font-medium disabled:opacity-60"
                       >
-                        {isCheckoutLoading ? 'Uruchamianie...' : effectivePlan === 'PRO' ? 'Przejdź na PREMIUM' : 'Odblokuj PREMIUM'}
+                        {isCheckoutLoading ? 'Uruchamianie...' : effectivePlan === 'PRO' ? 'Przejdź na BUSINESS' : 'Odblokuj BUSINESS'}
                       </button>
                     </div>
                   </div>
@@ -967,6 +1000,7 @@ export function PostComposer() {
                         type="date"
                         value={scheduledDate}
                         onChange={(e) => setScheduledDate(e.target.value)}
+                        max={effectivePlan === 'FREE' ? freePlanMaxDate : undefined}
                         className="w-full px-4 py-2.5 bg-secondary/30 border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                       />
                     </div>
@@ -980,6 +1014,9 @@ export function PostComposer() {
                       />
                     </div>
                     <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
+                      {effectivePlan === 'FREE' && (
+                        <p className="text-xs text-muted-foreground mb-1">Plan Free: planowanie do 72h w przód.</p>
+                      )}
                       <p className="text-xs text-muted-foreground">
                         AI sugeruje: {suggestedDateTime.toLocaleString('pl-PL', { dateStyle: 'medium', timeStyle: 'short' })}
                       </p>
@@ -1083,11 +1120,13 @@ export function PostComposer() {
       <div className="border-t border-border p-3 sm:p-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <p className="text-xs text-muted-foreground">
-            {effectivePlan === 'PRO'
+            {effectivePlan === 'BUSINESS'
               ? `AI: ${aiRunUsage.count}/${aiRunUsage.limit ?? '∞'} w tym miesiącu`
               : effectivePlan === 'FREE'
-                ? 'Free: AI dla 1 platformy, multi-platform od PRO'
-                : 'Premium: pełny Auto-Pilot bez limitu AI'}
+                ? 'Free: AI dla 1 platformy i planowanie do 72h'
+                : effectivePlan === 'STARTER'
+                  ? 'Starter: 3 kanały, bez AI Auto-Pilot'
+                  : 'PRO: 10 kanałów, soft limit 100 wideo/mies.'}
           </p>
 
           <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 justify-end">

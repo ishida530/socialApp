@@ -3,8 +3,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Sidebar } from '@/components/Sidebar';
-import { Header } from '@/components/Header';
 import { VideoUploader } from '@/components/VideoUploader';
 import { useAuth } from '@/contexts/auth-context';
 import { apiClient } from '@/lib/api-client';
@@ -133,13 +131,7 @@ export default function MediaLibraryPage() {
   }
 
   return (
-    <div className="min-h-screen flex bg-background dark">
-      <Sidebar />
-
-      <div className="flex-1 flex flex-col min-w-0">
-        <Header />
-
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 lg:pb-6 space-y-6">
+    <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 lg:pb-6 space-y-6">
           <VideoUploader />
 
           <section className="bg-card border border-border rounded-xl p-6 space-y-4">
@@ -230,8 +222,6 @@ export default function MediaLibraryPage() {
               ))}
             </div>
           </section>
-        </main>
-      </div>
-    </div>
+    </main>
   );
 }

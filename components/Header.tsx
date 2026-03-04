@@ -1,11 +1,12 @@
 import { Plus, ChevronDown, Wifi, WifiOff } from 'lucide-react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { useAuth } from '@/contexts/auth-context';
 
 export function Header() {
   const pathname = usePathname();
+  const router = useRouter();
   const [apiConnected, setApiConnected] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const { logout, user } = useAuth();
@@ -105,7 +106,7 @@ export function Header() {
               <button
                 onClick={() => {
                   setMenuOpen(false);
-                  window.location.assign('/billing');
+                  router.push('/billing');
                 }}
                 className="w-full text-left px-3 py-2 rounded-md text-sm text-foreground hover:bg-secondary"
               >
@@ -115,7 +116,7 @@ export function Header() {
                 onClick={() => {
                   setMenuOpen(false);
                   logout();
-                  window.location.assign('/login');
+                  router.replace('/login');
                 }}
                 className="w-full text-left px-3 py-2 rounded-md text-sm text-destructive hover:bg-destructive/10"
               >

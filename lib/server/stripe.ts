@@ -1,4 +1,7 @@
 import Stripe from 'stripe';
+import { PlanTier } from '@prisma/client';
+import type { BillingInterval } from '@/lib/billing/plans';
+import { resolveStripePriceIdFromEnv } from '@/lib/stripe/config';
 
 let stripeClient: Stripe | null = null;
 
@@ -25,15 +28,8 @@ export function getStripeClient() {
   return stripeClient;
 }
 
-export function resolveStripePriceId(plan: 'PRO' | 'PREMIUM') {
-  const key = plan === 'PRO' ? 'STRIPE_PRICE_PRO_MONTHLY' : 'STRIPE_PRICE_PREMIUM_MONTHLY';
-  const value = process.env[key];
-
-  if (!value) {
-    throw new Error(`Missing required config: ${key}`);
-  }
-
-  return value;
+export function resolveStripePriceId(plan: Exclude<PlanTier, 'FREE'>, interval: BillingInterval) {
+  return resolveStripePriceIdFromEnv(plan, interval);
 }
 
 export function resolveStripeReturnUrls() {

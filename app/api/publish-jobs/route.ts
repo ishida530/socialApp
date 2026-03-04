@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUserFromRequest } from '@/lib/server/auth';
 import { prisma } from '@/lib/server/prisma';
 import { badRequest, serverError, unauthorized } from '@/lib/server/http';
-import { assertUsageAllowed, incrementUsage } from '@/lib/server/subscription';
+import {
+  assertScheduleWindowAllowed,
+  assertUsageAllowed,
+  incrementUsage,
+} from '@/lib/server/subscription';
 
 type PublishJobStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'CANCELED';
 
@@ -49,6 +53,13 @@ export async function POST(request: NextRequest) {
       ]);
     }
 
+    const scheduledFor = new Date(body.scheduledFor);
+    if (Number.isNaN(scheduledFor.getTime())) {
+      return badRequest('scheduledFor is invalid');
+    }
+
+    await assertScheduleWindowAllowed(user.userId, scheduledFor);
+
     const [video, socialAccount] = await Promise.all([
       prisma.video.findFirst({ where: { id: body.videoId, userId: user.userId } }),
       prisma.socialAccount.findFirst({
@@ -64,7 +75,7 @@ export async function POST(request: NextRequest) {
 
     const job = await prisma.publishJob.create({
       data: {
-        scheduledFor: new Date(body.scheduledFor),
+        scheduledFor,
         status: body.status ?? 'PENDING',
         video: { connect: { id: body.videoId } },
         socialAccount: { connect: { id: body.socialAccountId } },
@@ -81,7 +92,8 @@ export async function POST(request: NextRequest) {
 
     if (
       error instanceof Error &&
-      error.message.startsWith('Przekroczono limit planu FREE')
+      (error.message.startsWith('Przekroczono limit planu') ||
+        error.message.startsWith('Plan FREE pozwala planować publikacje'))
     ) {
       return badRequest(error.message);
     }

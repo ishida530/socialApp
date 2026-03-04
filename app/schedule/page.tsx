@@ -3,8 +3,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Sidebar } from '@/components/Sidebar';
-import { Header } from '@/components/Header';
 import { SmartScheduleCard } from '@/components/schedule/SmartScheduleCard';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import {
@@ -207,7 +205,7 @@ export default function SchedulePage() {
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [hasMore, setHasMore] = useState(false);
-  const [effectivePlan, setEffectivePlan] = useState<'FREE' | 'PRO' | 'PREMIUM'>('FREE');
+  const [effectivePlan, setEffectivePlan] = useState<'FREE' | 'STARTER' | 'PRO' | 'BUSINESS'>('FREE');
   const [isPlanLoading, setIsPlanLoading] = useState(true);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [isAiApplying, setIsAiApplying] = useState(false);
@@ -272,8 +270,8 @@ export default function SchedulePage() {
         setIsPlanLoading(true);
         const billingResponse = await apiClient.get<{
           subscription: {
-            plan: 'FREE' | 'PRO' | 'PREMIUM';
-            effectivePlan?: 'FREE' | 'PRO' | 'PREMIUM';
+            plan: 'FREE' | 'STARTER' | 'PRO' | 'BUSINESS';
+            effectivePlan?: 'FREE' | 'STARTER' | 'PRO' | 'BUSINESS';
           };
         }>('/billing/subscription');
 
@@ -312,11 +310,16 @@ export default function SchedulePage() {
     void loadMediaLibrary();
   }, [isAuthenticated]);
 
-  const hasAutoPilotAccess = effectivePlan === 'PRO' || effectivePlan === 'PREMIUM';
+  const hasAutoPilotAccess = effectivePlan === 'BUSINESS';
+
+  const freePlanMaxDateTimeLocal = useMemo(() => {
+    const maxDate = new Date(Date.now() + 72 * 60 * 60 * 1000);
+    return toDateTimeLocalValue(maxDate.toISOString());
+  }, []);
 
   const runAiSchedule = async (mode: 'preview' | 'apply' | 'automanage' = 'preview') => {
     if (!hasAutoPilotAccess && !isPlanLoading) {
-      toast.error('AI harmonogram jest dostępny od planu Pro i Premium.');
+      toast.error('AI harmonogram jest dostępny od planu Business.');
       return;
     }
 
@@ -811,13 +814,8 @@ export default function SchedulePage() {
   }
 
   return (
-    <div className="min-h-screen flex bg-background dark">
-      <Sidebar />
-
-      <div className="flex-1 flex flex-col min-w-0">
-        <Header />
-
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 lg:pb-6">
+    <>
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 lg:pb-6">
           <section className="bg-card border border-border rounded-xl p-6 space-y-4">
             <h2 className="text-lg font-semibold text-foreground">Harmonogram publikacji</h2>
             <div className="rounded-lg border border-border bg-secondary/20 p-3 space-y-3">
@@ -1111,27 +1109,27 @@ export default function SchedulePage() {
               </div>
             </div>
           </section>
-        </main>
+      </main>
 
-        <Sheet
-          open={selectedCampaignId !== null}
-          onOpenChange={(open) => {
-            if (!open) {
-              setSelectedCampaignId(null);
-            }
-          }}
-        >
-          <SheetContent side="right" className="w-full sm:max-w-xl p-0">
-            <SheetHeader className="border-b border-border">
-              <SheetTitle>{selectedCampaign?.name ?? 'Szczegóły kampanii'}</SheetTitle>
-              <SheetDescription>
-                Oś kampanii i akcje operacyjne dla platform.
-              </SheetDescription>
-            </SheetHeader>
+      <Sheet
+        open={selectedCampaignId !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedCampaignId(null);
+          }
+        }}
+      >
+        <SheetContent side="right" className="w-full sm:max-w-xl p-0">
+          <SheetHeader className="border-b border-border">
+            <SheetTitle>{selectedCampaign?.name ?? 'Szczegóły kampanii'}</SheetTitle>
+            <SheetDescription>
+              Oś kampanii i akcje operacyjne dla platform.
+            </SheetDescription>
+          </SheetHeader>
 
-            <div className="h-full overflow-y-auto p-4 space-y-4">
-              {selectedCampaign && (
-                <>
+          <div className="h-full overflow-y-auto p-4 space-y-4">
+            {selectedCampaign && (
+              <>
                   <div className="rounded-lg border border-border bg-secondary/20 p-3 space-y-3">
                     <p className="text-sm font-medium text-foreground">Edycja kampanii</p>
 
@@ -1226,6 +1224,7 @@ export default function SchedulePage() {
                                   <input
                                     type="datetime-local"
                                     value={campaignScheduleInput[post.id] || ''}
+                                    max={effectivePlan === 'FREE' ? freePlanMaxDateTimeLocal : undefined}
                                     onChange={(event) =>
                                       setCampaignScheduleInput((current) => ({
                                         ...current,
@@ -1234,6 +1233,9 @@ export default function SchedulePage() {
                                     }
                                     className="px-2 py-1 bg-secondary/40 border border-border rounded-md text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                                   />
+                                  {effectivePlan === 'FREE' && (
+                                    <p className="text-[11px] text-muted-foreground mt-1">Plan Free: maks. 72h do przodu.</p>
+                                  )}
                                 </div>
                               )}
                             </div>
@@ -1303,12 +1305,11 @@ export default function SchedulePage() {
                       </div>
                     ))}
                   </div>
-                </>
-              )}
-            </div>
-          </SheetContent>
-        </Sheet>
-      </div>
-    </div>
+              </>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
+    </>
   );
 }

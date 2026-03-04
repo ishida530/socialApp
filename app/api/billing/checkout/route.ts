@@ -4,6 +4,7 @@ import { getAuthUserFromRequest } from '@/lib/server/auth';
 import { badRequest, serverError, unauthorized } from '@/lib/server/http';
 import { setUserPlan } from '@/lib/server/subscription';
 import { resolveBillingMode } from '@/lib/server/billing-mode';
+import { NEW_USER_PRO_TRIAL_DAYS, type BillingInterval } from '@/lib/billing/plans';
 import {
   getStripeClient,
   resolveStripePriceId,
@@ -11,23 +12,30 @@ import {
 } from '@/lib/server/stripe';
 import { prisma } from '@/lib/server/prisma';
 
+type PaidPlanTier = Exclude<PlanTier, 'FREE'>;
+
 function parseRequestedPlan(value?: string) {
   const plan = value?.toUpperCase();
-  if (plan === 'PRO' || plan === 'PREMIUM') {
-    return plan;
+  if (plan === 'STARTER' || plan === 'PRO' || plan === 'BUSINESS') {
+    return plan as PaidPlanTier;
   }
 
   return null;
 }
 
+function parseBillingInterval(value?: string): BillingInterval {
+  return value?.toUpperCase() === 'YEARLY' ? 'YEARLY' : 'MONTHLY';
+}
+
 export async function POST(request: NextRequest) {
   try {
     const user = getAuthUserFromRequest(request);
-    const body = (await request.json()) as { plan?: string };
+    const body = (await request.json()) as { plan?: string; interval?: string };
     const requestedPlan = parseRequestedPlan(body.plan);
+    const billingInterval = parseBillingInterval(body.interval);
 
     if (!requestedPlan) {
-      return badRequest('Checkout wspiera plany PRO lub PREMIUM.');
+      return badRequest('Checkout wspiera plany STARTER, PRO lub BUSINESS.');
     }
 
     const billingMode = resolveBillingMode();
@@ -43,6 +51,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         mode: 'mock',
+        billingInterval,
         message: 'Plan został zaktualizowany lokalnie (mock checkout).',
         url: mockCheckoutUrl.toString(),
         subscription,
@@ -51,7 +60,7 @@ export async function POST(request: NextRequest) {
 
     const stripe = getStripeClient();
     const [stripePriceId, userRecord] = await Promise.all([
-      resolveStripePriceId(requestedPlan),
+      resolveStripePriceId(requestedPlan, billingInterval),
       prisma.user.findUnique({
         where: { id: user.userId },
         select: { id: true, email: true, name: true },
@@ -64,7 +73,7 @@ export async function POST(request: NextRequest) {
 
     const existingSubscription = await prisma.subscription.findUnique({
       where: { userId: user.userId },
-      select: { providerCustomerId: true },
+      select: { providerCustomerId: true, providerSubscriptionId: true },
     });
 
     let customerId = existingSubscription?.providerCustomerId ?? null;
@@ -111,12 +120,17 @@ export async function POST(request: NextRequest) {
       metadata: {
         userId: user.userId,
         plan: requestedPlan,
+        billingInterval,
       },
       subscription_data: {
         metadata: {
           userId: user.userId,
           plan: requestedPlan,
+          billingInterval,
         },
+        ...(existingSubscription?.providerSubscriptionId
+          ? {}
+          : { trial_period_days: NEW_USER_PRO_TRIAL_DAYS }),
       },
     });
 

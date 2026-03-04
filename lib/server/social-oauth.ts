@@ -1,6 +1,7 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'crypto';
 import { decrypt, encrypt } from './crypto';
 import { prisma } from './prisma';
+import { assertSocialAccountsLimit } from './subscription';
 
 type OAuthProvider = 'youtube' | 'tiktok' | 'facebook' | 'instagram';
 type PrismaPlatform = 'YOUTUBE' | 'TIKTOK' | 'FACEBOOK' | 'INSTAGRAM';
@@ -759,17 +760,20 @@ export async function handleOAuthCallback(
           expiresAt: expiresAtToStore,
         },
       })
-    : await prisma.socialAccount.create({
-        data: {
-          userId: ownerId,
-          platform: prismaPlatform,
-          handle: profile.handle,
-          externalId: profile.externalId,
-          accessToken: encryptedAccessToken,
-          refreshToken: encryptedRefreshToken,
-          expiresAt: expiresAtToStore,
-        },
-      });
+    : await (async () => {
+        await assertSocialAccountsLimit(ownerId);
+        return prisma.socialAccount.create({
+          data: {
+            userId: ownerId,
+            platform: prismaPlatform,
+            handle: profile.handle,
+            externalId: profile.externalId,
+            accessToken: encryptedAccessToken,
+            refreshToken: encryptedRefreshToken,
+            expiresAt: expiresAtToStore,
+          },
+        });
+      })();
 
   return {
     success: true,

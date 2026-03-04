@@ -1,83 +1,19 @@
 import { PlanTier, SubscriptionStatus } from '@prisma/client';
 import { prisma } from './prisma';
 import { resolveBillingMode } from './billing-mode';
-
-type UsageMetric = 'video_uploads' | 'publish_jobs' | 'ai_autopilot_runs';
-
-type PlanLimitConfig = {
-  video_uploads: number | null;
-  publish_jobs: number | null;
-  ai_autopilot_runs: number | null;
-};
-
-const NEW_USER_PRO_TRIAL_HOURS = 48;
-
-const PLAN_LIMITS: Record<PlanTier, PlanLimitConfig> = {
-  FREE: {
-    video_uploads: 25,
-    publish_jobs: 100,
-    ai_autopilot_runs: 0,
-  },
-  PRO: {
-    video_uploads: 250,
-    publish_jobs: 1000,
-    ai_autopilot_runs: 40,
-  },
-  PREMIUM: {
-    video_uploads: null,
-    publish_jobs: null,
-    ai_autopilot_runs: null,
-  },
-};
-
-const PLAN_FEATURES: Record<PlanTier, string[]> = {
-  FREE: [
-    'Do 25 uploadów miesięcznie',
-    'Do 100 zadań publikacji miesięcznie',
-    'Podstawowy harmonogram publikacji',
-    'Auto-Pilot AI niedostępny',
-  ],
-  PRO: [
-    'Do 250 uploadów miesięcznie',
-    'Do 1000 zadań publikacji miesięcznie',
-    'Priorytetowe przetwarzanie kolejki',
-    'Auto-Pilot Lite (do 40 uruchomień/miesiąc, tryb draft)',
-  ],
-  PREMIUM: [
-    'Nielimitowane uploady i publikacje',
-    'Priorytetowe wsparcie i SLA',
-    'Rozszerzona analityka',
-    'Pełny Auto-Pilot AI bez limitu uruchomień',
-  ],
-};
-
-export const PLAN_CATALOG = [
-  {
-    tier: PlanTier.FREE,
-    title: 'Free',
-    description: 'Plan startowy do testów i małych kont.',
-    priceMonthly: '0 PLN',
-  },
-  {
-    tier: PlanTier.PRO,
-    title: 'Pro',
-    description: 'Dla twórców i małych zespołów publikujących regularnie.',
-    priceMonthly: '99 PLN',
-  },
-  {
-    tier: PlanTier.PREMIUM,
-    title: 'Premium',
-    description: 'Dla zespołów z dużym wolumenem i potrzebą pełnej skali.',
-    priceMonthly: '299 PLN',
-  },
-];
-
-function resolvePlanLimits(plan: PlanTier) {
-  return PLAN_LIMITS[plan];
-}
+import {
+  NEW_USER_PRO_TRIAL_DAYS,
+  PLAN_CATALOG,
+  PLAN_FEATURES,
+} from '@/lib/billing/plans';
+import {
+  isBeyondFreeScheduleWindow,
+  resolvePlanLimits,
+  type UsageMetric,
+} from '@/lib/billing/limits';
 
 function resolveTrialWindow(userCreatedAt: Date) {
-  const trialEndsAt = new Date(userCreatedAt.getTime() + NEW_USER_PRO_TRIAL_HOURS * 60 * 60 * 1000);
+  const trialEndsAt = new Date(userCreatedAt.getTime() + NEW_USER_PRO_TRIAL_DAYS * 24 * 60 * 60 * 1000);
   const isActive = trialEndsAt.getTime() > Date.now();
 
   return {
@@ -230,7 +166,7 @@ export async function incrementUsage(userId: string, metric: UsageMetric, amount
   });
 }
 
-export async function assertUsageAllowed(userId: string, metric: UsageMetric) {
+async function resolveSubscriptionContext(userId: string) {
   const [subscription, user] = await Promise.all([
     ensureUserSubscription(userId),
     prisma.user.findUnique({
@@ -242,6 +178,18 @@ export async function assertUsageAllowed(userId: string, metric: UsageMetric) {
   if (!user) {
     throw new Error('Nie znaleziono użytkownika.');
   }
+
+  return { subscription, user };
+}
+
+export async function getEffectivePlan(userId: string) {
+  const { subscription, user } = await resolveSubscriptionContext(userId);
+  const effective = resolveEffectivePlan(subscription.plan, user.createdAt);
+  return effective.effectivePlan;
+}
+
+export async function checkUsageLimits(userId: string, metric: UsageMetric) {
+  const { subscription, user } = await resolveSubscriptionContext(userId);
 
   if (subscription.status !== SubscriptionStatus.ACTIVE) {
     throw new Error('Subskrypcja jest nieaktywna.');
@@ -257,6 +205,34 @@ export async function assertUsageAllowed(userId: string, metric: UsageMetric) {
 
   if (current.count >= limit) {
     throw new Error(resolveLimitMessage(metric, limit));
+  }
+}
+
+export async function assertUsageAllowed(userId: string, metric: UsageMetric) {
+  await checkUsageLimits(userId, metric);
+}
+
+export async function assertSocialAccountsLimit(userId: string) {
+  const effectivePlan = await getEffectivePlan(userId);
+  const limit = resolvePlanLimits(effectivePlan).social_accounts;
+
+  const socialAccountsCount = await prisma.socialAccount.count({
+    where: { userId },
+  });
+
+  if (socialAccountsCount >= limit) {
+    throw new Error(`Przekroczono limit planu (${limit} kont social).`);
+  }
+}
+
+export async function assertScheduleWindowAllowed(userId: string, scheduledFor: Date) {
+  const effectivePlan = await getEffectivePlan(userId);
+  if (effectivePlan !== PlanTier.FREE) {
+    return;
+  }
+
+  if (isBeyondFreeScheduleWindow(scheduledFor)) {
+    throw new Error('Plan FREE pozwala planować publikacje maksymalnie 72h do przodu.');
   }
 }
 

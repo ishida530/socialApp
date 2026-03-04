@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 export const metadata: Metadata = {
-  title: 'Regulamin | FlowState',
-  description: 'Regulamin świadczenia usług drogą elektroniczną dla FlowState.',
+  title: 'Regulamin | Postfly',
+  description: 'Regulamin świadczenia usług drogą elektroniczną dla Postfly.',
 };
 
 export default function TermsPage() {
@@ -19,13 +19,16 @@ export default function TermsPage() {
           </Link>
         </div>
 
-        <h1 className="text-3xl font-semibold tracking-tight">Regulamin usługi FlowState</h1>
-        <p className="mt-6 text-sm text-muted-foreground">Data wejścia w życie: 2 marca 2026 r.</p>
+        <h1 className="text-3xl font-semibold tracking-tight">Regulamin usługi Postfly</h1>
+        <p className="mt-6 text-sm text-muted-foreground">
+          Niniejszy Regulamin określa zasady korzystania z usługi Postfly.
+        </p>
+        <p className="mt-2 text-sm text-muted-foreground">Data wejścia w życie: 2 marca 2026 r.</p>
 
         <section className="mt-8 space-y-4 text-sm leading-6 text-muted-foreground">
           <h2 className="text-base font-semibold text-foreground">1. Postanowienia ogólne</h2>
           <p>
-            Niniejszy Regulamin określa zasady korzystania z aplikacji SaaS „FlowState”, służącej
+            Niniejszy Regulamin określa zasady korzystania z aplikacji SaaS „Postfly”, służącej
             do planowania i publikacji materiałów wideo w serwisach społecznościowych (w tym
             TikTok) z wykorzystaniem integracji API i OAuth.
           </p>
@@ -36,8 +39,8 @@ export default function TermsPage() {
 
           <h2 className="text-base font-semibold text-foreground">2. Definicje</h2>
           <p>
-            Użytkownik – osoba fizyczna lub podmiot korzystający z FlowState. Konto – profil
-            Użytkownika w aplikacji. Usługa – funkcjonalności FlowState, w tym planowanie,
+            Użytkownik – osoba fizyczna lub podmiot korzystający z Postfly. Konto – profil
+            Użytkownika w aplikacji. Usługa – funkcjonalności Postfly, w tym planowanie,
             zarządzanie i zautomatyzowana publikacja treści.
           </p>
 
@@ -54,7 +57,7 @@ export default function TermsPage() {
           <h2 className="text-base font-semibold text-foreground">4. Konto i integracje OAuth</h2>
           <p>
             Logowanie i autoryzacja kont społecznościowych odbywają się przez mechanizm OAuth.
-            FlowState nie pozyskuje ani nie przechowuje haseł do kont TikTok/YouTube.
+            Postfly nie pozyskuje ani nie przechowuje haseł do kont TikTok/YouTube.
           </p>
           <p>
             Użytkownik odpowiada za utrzymanie ważności udzielonych zgód OAuth i za działania
@@ -64,7 +67,7 @@ export default function TermsPage() {
           <h2 className="text-base font-semibold text-foreground">5. Publikowane treści i odpowiedzialność Użytkownika</h2>
           <p>
             Użytkownik ponosi pełną odpowiedzialność za treści przesyłane i publikowane przez
-            FlowState, w tym za ich zgodność z prawem, prawami autorskimi, prawami osób trzecich
+            Postfly, w tym za ich zgodność z prawem, prawami autorskimi, prawami osób trzecich
             oraz regulaminami platform społecznościowych.
           </p>
           <p>
@@ -74,7 +77,7 @@ export default function TermsPage() {
 
           <h2 className="text-base font-semibold text-foreground">6. Subskrypcje, płatności i odnowienia</h2>
           <p>
-            FlowState oferuje plany subskrypcyjne (w tym Free, Pro, Premium) z limitami użycia,
+            Postfly oferuje plany subskrypcyjne (w tym Free, Starter, Pro, Business) z limitami użycia,
             m.in. liczby uploadów wideo i zadań publikacji.
           </p>
           <p>

@@ -70,7 +70,7 @@ function normalizeSubscriptionTier(plan: string): SubscriptionTier {
     return 'pro';
   }
 
-  if (plan === 'PREMIUM') {
+  if (plan === 'BUSINESS' || plan === 'PREMIUM') {
     return 'premium';
   }
 
@@ -167,7 +167,7 @@ export async function orchestrateContent(userId: string, input: OrchestrateConte
     throw new OrchestrationBusinessError(
       403,
       'FEATURE_NOT_AVAILABLE',
-      'Tryb ai-autopilot jest dostępny od planu PRO (Lite) i Premium.',
+      'Tryb ai-autopilot jest dostępny od planu BUSINESS.',
     );
   }
 

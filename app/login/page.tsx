@@ -37,7 +37,7 @@ export default function LoginPage() {
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Logowanie</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Zaloguj się do panelu FlowState
+            Zaloguj się do panelu Postfly
           </p>
         </div>
 
@@ -50,7 +50,7 @@ export default function LoginPage() {
             type="email"
             required
             className="w-full px-3 py-2 rounded-lg bg-background border border-border text-foreground"
-            placeholder="jan@flowstate.app"
+            placeholder="jan@postfly.app"
           />
         </div>
 

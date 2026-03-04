@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 export const metadata: Metadata = {
-  title: 'Polityka Prywatności | FlowState',
-  description: 'Polityka prywatności i zasady przetwarzania danych osobowych w FlowState.',
+  title: 'Polityka Prywatności | Postfly',
+  description: 'Polityka prywatności i zasady przetwarzania danych osobowych w Postfly.',
 };
 
 export default function PrivacyPage() {
@@ -19,10 +19,11 @@ export default function PrivacyPage() {
           </Link>
         </div>
 
-        <h1 className="text-3xl font-semibold tracking-tight">Polityka prywatności FlowState</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">Polityka prywatności Postfly</h1>
         <p className="mt-6 text-sm text-muted-foreground">
-          Data wejścia w życie: 2 marca 2026 r.
+          Niniejsza Polityka Prywatności opisuje zasady przetwarzania danych w usłudze Postfly.
         </p>
+        <p className="mt-2 text-sm text-muted-foreground">Data wejścia w życie: 2 marca 2026 r.</p>
 
         <section className="mt-8 space-y-4 text-sm leading-6 text-muted-foreground">
           <h2 className="text-base font-semibold text-foreground">1. Administrator danych</h2>
@@ -34,7 +35,7 @@ export default function PrivacyPage() {
 
           <h2 className="text-base font-semibold text-foreground">2. Zakres zbieranych danych</h2>
           <p>
-            W związku z korzystaniem z FlowState możemy przetwarzać następujące dane:
+            W związku z korzystaniem z Postfly możemy przetwarzać następujące dane:
           </p>
           <ul className="list-disc space-y-1 pl-5">
             <li>dane konta użytkownika (np. adres e-mail, identyfikator użytkownika),</li>
@@ -74,7 +75,7 @@ export default function PrivacyPage() {
 
           <h2 className="text-base font-semibold text-foreground">4. Płatności i Stripe</h2>
           <p>
-            Płatności realizuje Stripe jako odrębny dostawca usług płatniczych. FlowState nie
+            Płatności realizuje Stripe jako odrębny dostawca usług płatniczych. Postfly nie
             przechowuje pełnych danych kart płatniczych. Przechowujemy informacje o statusie
             subskrypcji i identyfikatorach powiązanych z rozliczeniami.
           </p>

@@ -3,16 +3,14 @@
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { Sidebar } from '@/components/Sidebar';
-import { Header } from '@/components/Header';
 import { useAuth } from '@/contexts/auth-context';
 import { apiClient } from '@/lib/api-client';
 
 type BillingSnapshot = {
   subscription: {
-    plan: 'FREE' | 'PRO' | 'PREMIUM';
-    basePlan?: 'FREE' | 'PRO' | 'PREMIUM';
-    effectivePlan?: 'FREE' | 'PRO' | 'PREMIUM';
+    plan: 'FREE' | 'STARTER' | 'PRO' | 'BUSINESS';
+    basePlan?: 'FREE' | 'STARTER' | 'PRO' | 'BUSINESS';
+    effectivePlan?: 'FREE' | 'STARTER' | 'PRO' | 'BUSINESS';
     status: 'ACTIVE' | 'CANCELED' | 'PAST_DUE';
     currentPeriodEnd?: string | null;
     trial?: {
@@ -22,14 +20,17 @@ type BillingSnapshot = {
     } | null;
   };
   catalog: Array<{
-    tier: 'FREE' | 'PRO' | 'PREMIUM';
+    tier: 'FREE' | 'STARTER' | 'PRO' | 'BUSINESS';
     title: string;
     description: string;
     priceMonthly: string;
+    priceYearly: string;
     features: string[];
     limits: {
+      social_accounts: number;
       video_uploads: number | null;
       publish_jobs: number | null;
+      max_schedule_ahead_hours: number | null;
     };
   }>;
   usage: {
@@ -50,10 +51,11 @@ function subscriptionStatusLabel(status: 'ACTIVE' | 'CANCELED' | 'PAST_DUE') {
   return 'Anulowana';
 }
 
-function planLabel(plan: 'FREE' | 'PRO' | 'PREMIUM') {
+function planLabel(plan: 'FREE' | 'STARTER' | 'PRO' | 'BUSINESS') {
   if (plan === 'FREE') return 'Free';
+  if (plan === 'STARTER') return 'Starter';
   if (plan === 'PRO') return 'Pro';
-  return 'Premium';
+  return 'Business';
 }
 
 function BillingPageContent() {
@@ -65,12 +67,14 @@ function BillingPageContent() {
   const [snapshot, setSnapshot] = useState<BillingSnapshot | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  const [billingInterval, setBillingInterval] = useState<'MONTHLY' | 'YEARLY'>('MONTHLY');
 
   const trialEndsAt = snapshot?.subscription.trial?.isActive
     ? new Date(snapshot.subscription.trial.endsAt).getTime()
     : null;
 
   const trialRemainingMs = trialEndsAt ? Math.max(0, trialEndsAt - now) : 0;
+  const trialRemainingDays = Math.floor(trialRemainingMs / (1000 * 60 * 60 * 24));
   const trialRemainingHours = Math.floor(trialRemainingMs / (1000 * 60 * 60));
   const trialRemainingMinutes = Math.floor((trialRemainingMs % (1000 * 60 * 60)) / (1000 * 60));
 
@@ -138,12 +142,15 @@ function BillingPageContent() {
     }
   }, [pathname, router, searchParams]);
 
-  const startCheckout = async (plan: 'PRO' | 'PREMIUM') => {
+  const startCheckout = async (plan: 'STARTER' | 'PRO' | 'BUSINESS') => {
     try {
       setIsSubmitting(true);
       const response = await apiClient.post<{ mode: 'mock' | 'live'; url?: string }>(
         '/billing/checkout',
-        { plan },
+        {
+          plan,
+          interval: billingInterval,
+        },
       );
 
       if (response.data.url) {
@@ -207,13 +214,7 @@ function BillingPageContent() {
   }
 
   return (
-    <div className="min-h-screen flex bg-background dark">
-      <Sidebar />
-
-      <div className="flex-1 flex flex-col min-w-0">
-        <Header />
-
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 lg:pb-6 space-y-6">
+    <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 lg:pb-6 space-y-6">
           <section className="bg-card border border-border rounded-xl p-6 space-y-4">
             <h2 className="text-lg font-semibold text-foreground">Subskrypcja</h2>
 
@@ -228,6 +229,9 @@ function BillingPageContent() {
                     Okres próbny PRO: {trialRemainingHours}h {trialRemainingMinutes}m (do{' '}
                     {new Date(snapshot.subscription.trial.endsAt).toLocaleString('pl-PL')})
                   </p>
+                )}
+                {snapshot?.subscription.trial?.isActive && snapshot.subscription.basePlan === 'FREE' && (
+                  <p className="text-xs text-muted-foreground mt-1">Pozostało ~{trialRemainingDays} dni okresu próbnego.</p>
                 )}
               </div>
 
@@ -268,17 +272,44 @@ function BillingPageContent() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-secondary/20 p-3">
+              <p className="text-sm text-foreground">Rozliczenie</p>
+              <div className="inline-flex rounded-lg border border-border overflow-hidden">
+                <button
+                  onClick={() => setBillingInterval('MONTHLY')}
+                  className={`px-3 py-1.5 text-xs ${billingInterval === 'MONTHLY' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-foreground'}`}
+                >
+                  Miesięcznie
+                </button>
+                <button
+                  onClick={() => setBillingInterval('YEARLY')}
+                  className={`px-3 py-1.5 text-xs ${billingInterval === 'YEARLY' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-foreground'}`}
+                >
+                  Rocznie (2 miesiące gratis)
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               {snapshot?.catalog.map((plan) => {
                 const isCurrentPlan = snapshot.subscription.plan === plan.tier;
-                const canPurchasePaidPlan = plan.tier === 'PRO' || plan.tier === 'PREMIUM';
+                const canPurchasePaidPlan = plan.tier !== 'FREE';
 
                 return (
                   <div key={plan.tier} className="p-4 rounded-lg border border-border bg-secondary/20 space-y-3">
                     <div>
-                      <p className="text-sm font-semibold text-foreground">{plan.title}</p>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-semibold text-foreground">{plan.title}</p>
+                        {plan.tier === 'PRO' && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/30">
+                            Najczęściej wybierany
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-muted-foreground mt-1">{plan.description}</p>
-                      <p className="text-sm text-primary mt-2">{plan.priceMonthly} / miesiąc</p>
+                      <p className="text-sm text-primary mt-2">
+                        {billingInterval === 'MONTHLY' ? plan.priceMonthly : plan.priceYearly} / miesiąc netto
+                      </p>
                     </div>
 
                     <ul className="space-y-1">
@@ -298,7 +329,7 @@ function BillingPageContent() {
                     ) : (
                       <button
                         onClick={() => {
-                          if (plan.tier === 'PRO' || plan.tier === 'PREMIUM') {
+                          if (plan.tier === 'STARTER' || plan.tier === 'PRO' || plan.tier === 'BUSINESS') {
                             void startCheckout(plan.tier);
                           }
                         }}
@@ -327,9 +358,7 @@ function BillingPageContent() {
               </button>
             </div>
           </section>
-        </main>
-      </div>
-    </div>
+    </main>
   );
 }
 

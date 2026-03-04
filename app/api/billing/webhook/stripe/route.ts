@@ -19,12 +19,16 @@ function requireStripeWebhookSecret() {
 function toPlanTier(value?: string | null) {
   const normalized = value?.toUpperCase();
 
+  if (normalized === 'STARTER') {
+    return PlanTier.STARTER;
+  }
+
   if (normalized === 'PRO') {
     return PlanTier.PRO;
   }
 
-  if (normalized === 'PREMIUM') {
-    return PlanTier.PREMIUM;
+  if (normalized === 'BUSINESS' || normalized === 'PREMIUM') {
+    return PlanTier.BUSINESS;
   }
 
   return PlanTier.FREE;

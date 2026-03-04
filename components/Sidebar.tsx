@@ -26,8 +26,8 @@ export function Sidebar() {
       try {
         const response = await apiClient.get<{
           subscription: {
-            plan: 'FREE' | 'PRO' | 'PREMIUM';
-            basePlan?: 'FREE' | 'PRO' | 'PREMIUM';
+            plan: 'FREE' | 'STARTER' | 'PRO' | 'BUSINESS';
+            basePlan?: 'FREE' | 'STARTER' | 'PRO' | 'BUSINESS';
             trial?: {
               isActive: boolean;
               endsAt: string;
@@ -42,7 +42,15 @@ export function Sidebar() {
         }>('/billing/subscription');
 
         const activePlan = response.data.subscription.plan;
-        setPlanLabel(activePlan === 'FREE' ? 'Plan bezpłatny' : activePlan === 'PRO' ? 'Plan Pro' : 'Plan Premium');
+        setPlanLabel(
+          activePlan === 'FREE'
+            ? 'Plan Free'
+            : activePlan === 'STARTER'
+              ? 'Plan Starter'
+              : activePlan === 'PRO'
+                ? 'Plan Pro'
+                : 'Plan Business',
+        );
 
         const count = response.data.usage.video_uploads.count;
         const limit = response.data.usage.video_uploads.limit;
@@ -57,9 +65,9 @@ export function Sidebar() {
         if (response.data.subscription.trial?.isActive && response.data.subscription.basePlan === 'FREE') {
           const endsAt = new Date(response.data.subscription.trial.endsAt).getTime();
           const remainingMs = Math.max(0, endsAt - Date.now());
-          const hours = Math.floor(remainingMs / (1000 * 60 * 60));
-          const minutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
-          setTrialLabel(`Okres próbny PRO: ${hours}h ${minutes}m`);
+          const days = Math.floor(remainingMs / (1000 * 60 * 60 * 24));
+          const hours = Math.floor((remainingMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+          setTrialLabel(`Trial PRO: ${days}d ${hours}h`);
         } else {
           setTrialLabel(null);
         }
@@ -88,9 +96,9 @@ export function Sidebar() {
         <div className="p-6 border-b border-border">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-gradient-to-br from-primary to-accent rounded-xl flex items-center justify-center">
-              <span className="text-xl font-bold text-white">FS</span>
+              <span className="text-xl font-bold text-white">PF</span>
             </div>
-            <span className="text-xl font-bold text-foreground">FlowState</span>
+            <span className="text-xl font-bold text-foreground">Postfly</span>
           </div>
         </div>
 

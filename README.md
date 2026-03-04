@@ -48,6 +48,18 @@ Wymagane klucze OAuth:
 - `TIKTOK_WEBHOOK_SECRET`
 - `VIDEO_SOURCE_SIGNING_SECRET` (zalecane; fallback to `JWT_SECRET` jeśli brak)
 
+Wymagane zmienne Stripe (Value-Based Pricing):
+- `STRIPE_SECRET_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+- `STRIPE_PRICE_STARTER_MONTHLY`
+- `STRIPE_PRICE_STARTER_YEARLY`
+- `STRIPE_PRICE_PRO_MONTHLY`
+- `STRIPE_PRICE_PRO_YEARLY`
+- `STRIPE_PRICE_BUSINESS_MONTHLY`
+- `STRIPE_PRICE_BUSINESS_YEARLY`
+- `STRIPE_SUCCESS_URL`
+- `STRIPE_CANCEL_URL`
+
 Dodatkowo dla Meta Graph API:
 - `META_GRAPH_API_VERSION` (domyślnie `v23.0`)
 
@@ -108,6 +120,35 @@ curl http://localhost:3000/api/videos
 ```
 
 Odpowiedź `401` bez tokena jest poprawna.
+
+### Turbopack panic (Windows)
+
+Jeśli podczas `next dev` pojawia się panic w stylu:
+
+`inner_of_uppers_lost_follower ... turbo-tasks-backend ...`
+
+to jest to błąd wewnętrzny Turbopack, a nie logiki aplikacji.
+
+Zalecane uruchamianie lokalne (stabilne):
+
+```bash
+npm run dev
+```
+
+Ten projekt ma domyślnie ustawiony Webpack w skrypcie `dev`.
+
+Tryb testowy Turbopack (opcjonalnie):
+
+```bash
+npm run dev:turbo
+```
+
+Szybkie recovery po panic:
+
+```powershell
+if (Test-Path .next) { Remove-Item -Recurse -Force .next }
+npm run dev
+```
 
 ## 7) Checklista deployu (Vercel + Supabase)
 

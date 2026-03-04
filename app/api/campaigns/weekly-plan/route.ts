@@ -3,7 +3,12 @@ import { Platform } from '@prisma/client';
 import { getAuthUserFromRequest } from '@/lib/server/auth';
 import { prisma } from '@/lib/server/prisma';
 import { badRequest, serverError, unauthorized } from '@/lib/server/http';
-import { assertUsageAllowed, getSubscriptionSnapshot, incrementUsage } from '@/lib/server/subscription';
+import {
+  assertScheduleWindowAllowed,
+  assertUsageAllowed,
+  getSubscriptionSnapshot,
+  incrementUsage,
+} from '@/lib/server/subscription';
 import { findBestSlot } from '@/lib/smart-schedule/smart-slots';
 
 type RequestBody = {
@@ -22,11 +27,15 @@ const PLATFORM_TO_LOWER: Record<Platform, PlatformLower> = {
   FACEBOOK: 'facebook',
 };
 
-function resolveRecommendedPostsPerWeek(videoCount: number, plan: 'FREE' | 'PRO' | 'PREMIUM') {
+function resolveRecommendedPostsPerWeek(videoCount: number, plan: 'FREE' | 'STARTER' | 'PRO' | 'BUSINESS') {
   const baseline = Math.max(3, Math.min(14, videoCount * 2));
 
   if (plan === 'FREE') {
     return Math.min(3, baseline);
+  }
+
+  if (plan === 'STARTER') {
+    return Math.min(5, baseline);
   }
 
   if (plan === 'PRO') {
@@ -124,12 +133,13 @@ export async function POST(request: NextRequest) {
     let createdJobsCount = 0;
 
     if (apply) {
-      if (effectivePlan === 'FREE' && availablePlatforms.length > 2) {
-        return badRequest('Plan Free pozwala planować kampanię jednocześnie maksymalnie na 2 platformach.');
+      if (effectivePlan === 'FREE' && availablePlatforms.length > 1) {
+        return badRequest('Plan Free pozwala planować kampanię jednocześnie maksymalnie na 1 kanale social.');
       }
 
       for (let index = 0; index < suggestions.length; index += 1) {
         await assertUsageAllowed(user.userId, 'publish_jobs');
+        await assertScheduleWindowAllowed(user.userId, new Date(suggestions[index].suggestedScheduledFor));
       }
 
       await prisma.$transaction(
@@ -168,6 +178,10 @@ export async function POST(request: NextRequest) {
     }
 
     if (error instanceof Error && error.message.startsWith('Przekroczono limit planu')) {
+      return badRequest(error.message);
+    }
+
+    if (error instanceof Error && error.message.startsWith('Plan FREE pozwala planować publikacje')) {
       return badRequest(error.message);
     }
 

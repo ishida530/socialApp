@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUserFromRequest } from '@/lib/server/auth';
 import { prisma } from '@/lib/server/prisma';
 import { badRequest, notFound, serverError, unauthorized } from '@/lib/server/http';
+import { assertScheduleWindowAllowed } from '@/lib/server/subscription';
 
 type PatchBody = {
   title?: string;
@@ -61,31 +62,34 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ c
     }
 
     if (body.scheduledForByJobId && typeof body.scheduledForByJobId === 'object') {
-      const scheduleUpdates: ReturnType<typeof prisma.publishJob.updateMany>[] = [];
+      const scheduleUpdates: Array<{ jobId: string; parsedDate: Date }> = [];
 
-      Object.entries(body.scheduledForByJobId).forEach(([jobId, scheduledFor]) => {
+      for (const [jobId, scheduledFor] of Object.entries(body.scheduledForByJobId)) {
         const parsedDate = new Date(scheduledFor);
         if (Number.isNaN(parsedDate.getTime())) {
-          return;
+          continue;
         }
 
-        scheduleUpdates.push(
-          prisma.publishJob.updateMany({
-            where: {
-              id: jobId,
-              videoId: video.id,
-              status: 'PENDING',
-            },
-            data: {
-              scheduledFor: parsedDate,
-            },
-          }),
-        );
-      });
+        await assertScheduleWindowAllowed(user.userId, parsedDate);
+        scheduleUpdates.push({ jobId, parsedDate });
+      }
 
       if (scheduleUpdates.length > 0) {
         hasUpdates = true;
-        await prisma.$transaction(scheduleUpdates);
+        await prisma.$transaction(
+          scheduleUpdates.map((item) =>
+            prisma.publishJob.updateMany({
+              where: {
+                id: item.jobId,
+                videoId: video.id,
+                status: 'PENDING',
+              },
+              data: {
+                scheduledFor: item.parsedDate,
+              },
+            }),
+          ),
+        );
       }
     }
 
@@ -103,6 +107,10 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ c
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return unauthorized();
+    }
+
+    if (error instanceof Error && error.message.startsWith('Plan FREE pozwala planować publikacje')) {
+      return badRequest(error.message);
     }
 
     return serverError(error);

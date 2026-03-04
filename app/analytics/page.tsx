@@ -2,8 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Sidebar } from '@/components/Sidebar';
-import { Header } from '@/components/Header';
 import { useAuth } from '@/contexts/auth-context';
 import { apiClient } from '@/lib/api-client';
 
@@ -83,13 +81,7 @@ export default function AnalyticsPage() {
   }
 
   return (
-    <div className="min-h-screen flex bg-background dark">
-      <Sidebar />
-
-      <div className="flex-1 flex flex-col min-w-0">
-        <Header />
-
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 lg:pb-6">
+    <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 lg:pb-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
             <h2 className="text-lg font-semibold text-foreground">Analityka</h2>
             <select
@@ -177,8 +169,6 @@ export default function AnalyticsPage() {
               )}
             </div>
           </section>
-        </main>
-      </div>
-    </div>
+    </main>
   );
 }
