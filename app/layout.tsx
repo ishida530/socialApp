@@ -7,11 +7,11 @@ import { GlobalPostComposerSheet } from '@/components/GlobalPostComposerSheet';
 import { AppShell } from '@/components/AppShell';
 
 export const metadata: Metadata = {
-  title: 'Postfly Dashboard',
-  description: 'Postfly social publishing dashboard',
+  title: 'Panel Postfly',
+  description: 'Panel Postfly do planowania i publikacji treści w social media.',
   openGraph: {
-    title: 'Postfly Dashboard',
-    description: 'Postfly social publishing dashboard',
+    title: 'Panel Postfly',
+    description: 'Panel Postfly do planowania i publikacji treści w social media.',
     siteName: 'Postfly',
     type: 'website',
   },
@@ -24,11 +24,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pl" className="dark">
-      <body>
+      <body className="flex min-h-dvh flex-col overflow-hidden">
         <AuthProvider>
-          <AppShell>{children}</AppShell>
-          <footer className="border-t border-border bg-card/70">
-            <div className="mx-auto flex max-w-7xl items-center justify-center gap-6 px-6 py-4 text-sm text-muted-foreground">
+          <div className="min-h-0 flex-1">
+            <AppShell>{children}</AppShell>
+          </div>
+          <footer className="w-full overflow-x-clip border-t border-border bg-card/70">
+            <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-center gap-x-6 gap-y-2 px-4 py-4 text-center text-sm text-muted-foreground sm:px-6">
               <Link href="/terms" className="hover:text-foreground transition-colors">
                 Regulamin
               </Link>
