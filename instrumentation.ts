@@ -7,6 +7,6 @@ export async function register() {
     return;
   }
 
-  const { verifySmtpConnectionOnce } = await import('./lib/mail/transporter');
-  await verifySmtpConnectionOnce();
+  const { verifyMailProviderOnce } = await import('./lib/mail/service');
+  await verifyMailProviderOnce();
 }
