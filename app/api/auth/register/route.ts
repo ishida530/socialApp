@@ -4,6 +4,7 @@ import { badRequest, serverError, tooManyRequests } from '@/lib/server/http';
 import { hashPassword } from '@/lib/server/crypto';
 import { prisma } from '@/lib/server/prisma';
 import { consumeRateLimit, getRequestIp } from '@/lib/server/rate-limit';
+import { sendWelcomeEmail } from '@/lib/mail/service';
 
 function resolveCookieMaxAge() {
   const raw = Number(process.env.JWT_EXPIRES_IN ?? 3600);
@@ -58,6 +59,12 @@ export async function POST(request: NextRequest) {
         passwordHash: hashPassword(body.password),
       },
     });
+
+    try {
+      await sendWelcomeEmail(user.email, user.name);
+    } catch (emailError) {
+      console.error('[mail] Welcome email sending failed.', emailError);
+    }
 
     const accessToken = issueAccessToken(user.id, user.email);
     const response = NextResponse.json({

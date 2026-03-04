@@ -6,6 +6,7 @@ const scriptSrc = isDev
 
 const nextConfig = {
   reactStrictMode: true,
+  serverExternalPackages: ['nodemailer'],
   turbopack: {
     root: process.cwd(),
   },

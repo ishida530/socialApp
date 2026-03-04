@@ -1,6 +1,6 @@
 import { PlanTier } from '@prisma/client';
 
-export const NEW_USER_PRO_TRIAL_DAYS = 14;
+export const NEW_USER_PRO_TRIAL_DAYS = 7;
 export const FREE_MAX_SCHEDULE_AHEAD_HOURS = 72;
 
 export type BillingInterval = 'MONTHLY' | 'YEARLY';

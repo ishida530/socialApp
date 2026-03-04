@@ -226,7 +226,7 @@ function BillingPageContent() {
                 </p>
                 {snapshot?.subscription.trial?.isActive && snapshot.subscription.basePlan === 'FREE' && (
                   <p className="text-xs text-primary mt-1">
-                    Okres próbny PRO: {trialRemainingHours}h {trialRemainingMinutes}m (do{' '}
+                    Okres próbny PRO (7 dni): {trialRemainingHours}h {trialRemainingMinutes}m (do{' '}
                     {new Date(snapshot.subscription.trial.endsAt).toLocaleString('pl-PL')})
                   </p>
                 )}
@@ -274,6 +274,7 @@ function BillingPageContent() {
 
             <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-secondary/20 p-3">
               <p className="text-sm text-foreground">Rozliczenie</p>
+              <p className="text-xs text-muted-foreground">Każdy płatny plan obejmuje 7 dni okresu próbnego.</p>
               <div className="inline-flex rounded-lg border border-border overflow-hidden">
                 <button
                   onClick={() => setBillingInterval('MONTHLY')}

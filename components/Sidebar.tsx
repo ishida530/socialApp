@@ -67,7 +67,7 @@ export function Sidebar() {
           const remainingMs = Math.max(0, endsAt - Date.now());
           const days = Math.floor(remainingMs / (1000 * 60 * 60 * 24));
           const hours = Math.floor((remainingMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-          setTrialLabel(`Trial PRO: ${days}d ${hours}h`);
+          setTrialLabel(`Trial PRO (7 dni): ${days}d ${hours}h`);
         } else {
           setTrialLabel(null);
         }
