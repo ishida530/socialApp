@@ -2,8 +2,8 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from 'crypto';
 import { decrypt, encrypt } from './crypto';
 import { prisma } from './prisma';
 
-type OAuthProvider = 'youtube' | 'tiktok';
-type PrismaPlatform = 'YOUTUBE' | 'TIKTOK';
+type OAuthProvider = 'youtube' | 'tiktok' | 'facebook' | 'instagram';
+type PrismaPlatform = 'YOUTUBE' | 'TIKTOK' | 'FACEBOOK' | 'INSTAGRAM';
 
 type TokenResult = {
   accessToken: string;
@@ -33,7 +33,15 @@ function getProvider(platformInput: string): OAuthProvider {
     return 'tiktok';
   }
 
-  throw new Error('Unsupported platform. Use youtube or tiktok.');
+  if (normalized === 'facebook') {
+    return 'facebook';
+  }
+
+  if (normalized === 'instagram') {
+    return 'instagram';
+  }
+
+  throw new Error('Unsupported platform. Use youtube, tiktok, facebook or instagram.');
 }
 
 function requireConfig(key: string) {
@@ -77,6 +85,42 @@ function resolveTikTokScope() {
   }
 
   return scopes.join(',');
+}
+
+function resolveMetaApiVersion() {
+  return process.env.META_GRAPH_API_VERSION || 'v23.0';
+}
+
+function resolveFacebookScope() {
+  return process.env.FACEBOOK_OAUTH_SCOPES || 'public_profile,email,pages_show_list';
+}
+
+function resolveInstagramScope() {
+  return process.env.INSTAGRAM_OAUTH_SCOPES || 'instagram_basic,pages_show_list,business_management';
+}
+
+function resolveMetaClientId(provider: 'facebook' | 'instagram') {
+  if (provider === 'instagram') {
+    return requireAnyConfig(['INSTAGRAM_CLIENT_ID', 'FACEBOOK_CLIENT_ID']);
+  }
+
+  return requireConfig('FACEBOOK_CLIENT_ID');
+}
+
+function resolveMetaClientSecret(provider: 'facebook' | 'instagram') {
+  if (provider === 'instagram') {
+    return requireAnyConfig(['INSTAGRAM_CLIENT_SECRET', 'FACEBOOK_CLIENT_SECRET']);
+  }
+
+  return requireConfig('FACEBOOK_CLIENT_SECRET');
+}
+
+function resolveMetaRedirectUri(provider: 'facebook' | 'instagram') {
+  if (provider === 'instagram') {
+    return requireAnyConfig(['INSTAGRAM_REDIRECT_URI', 'FACEBOOK_REDIRECT_URI']);
+  }
+
+  return requireConfig('FACEBOOK_REDIRECT_URI');
 }
 
 function generateCodeVerifier() {
@@ -140,7 +184,19 @@ function verifyOAuthState(state: string) {
 }
 
 function toPrismaPlatform(provider: OAuthProvider): PrismaPlatform {
-  return provider === 'youtube' ? 'YOUTUBE' : 'TIKTOK';
+  if (provider === 'youtube') {
+    return 'YOUTUBE';
+  }
+
+  if (provider === 'tiktok') {
+    return 'TIKTOK';
+  }
+
+  if (provider === 'facebook') {
+    return 'FACEBOOK';
+  }
+
+  return 'INSTAGRAM';
 }
 
 export function buildAuthUrl(
@@ -164,6 +220,21 @@ export function buildAuthUrl(
 
     return {
       url: `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`,
+    };
+  }
+
+  if (provider === 'facebook' || provider === 'instagram') {
+    const version = resolveMetaApiVersion();
+    const params = new URLSearchParams({
+      client_id: resolveMetaClientId(provider),
+      redirect_uri: resolveMetaRedirectUri(provider),
+      response_type: 'code',
+      state,
+      scope: provider === 'facebook' ? resolveFacebookScope() : resolveInstagramScope(),
+    });
+
+    return {
+      url: `https://www.facebook.com/${version}/dialog/oauth?${params.toString()}`,
     };
   }
 
@@ -281,6 +352,45 @@ async function exchangeTikTokCode(code: string, codeVerifier?: string): Promise<
   };
 }
 
+async function exchangeMetaCode(code: string, provider: 'facebook' | 'instagram'): Promise<TokenResult> {
+  const version = resolveMetaApiVersion();
+  const params = new URLSearchParams({
+    client_id: resolveMetaClientId(provider),
+    client_secret: resolveMetaClientSecret(provider),
+    redirect_uri: resolveMetaRedirectUri(provider),
+    code,
+  });
+
+  const response = await fetch(
+    `https://graph.facebook.com/${version}/oauth/access_token?${params.toString()}`,
+    {
+      method: 'GET',
+    },
+  );
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`Meta token exchange failed: ${errorBody || response.statusText}`);
+  }
+
+  const tokenJson = (await response.json()) as {
+    access_token?: string;
+    expires_in?: number;
+  };
+
+  if (!tokenJson.access_token) {
+    throw new Error('Meta token exchange failed: missing access_token');
+  }
+
+  return {
+    accessToken: tokenJson.access_token,
+    refreshToken: tokenJson.access_token,
+    expiresAt: tokenJson.expires_in
+      ? new Date(Date.now() + tokenJson.expires_in * 1000)
+      : undefined,
+  };
+}
+
 async function refreshGoogleToken(refreshToken: string): Promise<TokenResult> {
   const params = new URLSearchParams({
     client_id: requireConfig('GOOGLE_CLIENT_ID'),
@@ -357,6 +467,45 @@ async function refreshTikTokToken(refreshToken: string): Promise<TokenResult> {
   };
 }
 
+async function refreshMetaToken(accessToken: string, provider: 'facebook' | 'instagram'): Promise<TokenResult> {
+  const version = resolveMetaApiVersion();
+  const params = new URLSearchParams({
+    grant_type: 'fb_exchange_token',
+    client_id: resolveMetaClientId(provider),
+    client_secret: resolveMetaClientSecret(provider),
+    fb_exchange_token: accessToken,
+  });
+
+  const response = await fetch(
+    `https://graph.facebook.com/${version}/oauth/access_token?${params.toString()}`,
+    {
+      method: 'GET',
+    },
+  );
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`Meta token refresh failed: ${errorBody || response.statusText}`);
+  }
+
+  const tokenJson = (await response.json()) as {
+    access_token?: string;
+    expires_in?: number;
+  };
+
+  if (!tokenJson.access_token) {
+    throw new Error('Meta token refresh failed: missing access_token');
+  }
+
+  return {
+    accessToken: tokenJson.access_token,
+    refreshToken: tokenJson.access_token,
+    expiresAt: tokenJson.expires_in
+      ? new Date(Date.now() + tokenJson.expires_in * 1000)
+      : undefined,
+  };
+}
+
 async function fetchGoogleProfile(accessToken: string) {
   const response = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
     headers: {
@@ -409,6 +558,136 @@ async function fetchTikTokProfile(accessToken: string) {
   };
 }
 
+async function fetchFacebookProfile(accessToken: string) {
+  const version = resolveMetaApiVersion();
+  const response = await fetch(
+    `https://graph.facebook.com/${version}/me?fields=id,name&access_token=${encodeURIComponent(accessToken)}`,
+    {
+      method: 'GET',
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error('Unable to fetch Facebook user profile');
+  }
+
+  const profile = (await response.json()) as {
+    id?: string;
+    name?: string;
+  };
+
+  return {
+    externalId: profile.id ?? null,
+    handle: profile.name ?? 'Facebook account',
+  };
+}
+
+async function fetchInstagramProfile(accessToken: string) {
+  const version = resolveMetaApiVersion();
+  const response = await fetch(
+    `https://graph.facebook.com/${version}/me/accounts?fields=id,name,instagram_business_account{id,username}&access_token=${encodeURIComponent(accessToken)}`,
+    {
+      method: 'GET',
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error('Unable to fetch Instagram business account profile');
+  }
+
+  const payload = (await response.json()) as {
+    data?: Array<{
+      instagram_business_account?: {
+        id?: string;
+        username?: string;
+      };
+    }>;
+  };
+
+  const matched = payload.data?.find((entry) => !!entry.instagram_business_account?.id)
+    ?.instagram_business_account;
+
+  if (matched?.id) {
+    return {
+      externalId: matched.id,
+      handle: matched.username ? `@${matched.username}` : 'Instagram business account',
+    };
+  }
+
+  return {
+    externalId: null,
+    handle: 'Instagram account',
+  };
+}
+
+async function fetchMetaManagedPages(accessToken: string) {
+  const version = resolveMetaApiVersion();
+  const response = await fetch(
+    `https://graph.facebook.com/${version}/me/accounts?fields=id,name,access_token,instagram_business_account{id,username}&access_token=${encodeURIComponent(accessToken)}`,
+    {
+      method: 'GET',
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error('Unable to fetch Meta managed pages');
+  }
+
+  const payload = (await response.json()) as {
+    data?: Array<{
+      id?: string;
+      name?: string;
+      access_token?: string;
+      instagram_business_account?: {
+        id?: string;
+        username?: string;
+      };
+    }>;
+  };
+
+  return payload.data ?? [];
+}
+
+async function resolveMetaPublishingContext(
+  provider: 'facebook' | 'instagram',
+  userAccessToken: string,
+) {
+  const pages = await fetchMetaManagedPages(userAccessToken);
+
+  if (provider === 'facebook') {
+    const page = pages.find((item) => !!item.id && !!item.access_token);
+    if (!page?.id || !page.access_token) {
+      throw new Error('Brak zarządzanej strony Facebook z aktywnym access tokenem');
+    }
+
+    return {
+      externalId: page.id,
+      handle: page.name ?? 'Facebook page',
+      accessToken: page.access_token,
+      refreshToken: undefined,
+      expiresAt: undefined,
+    };
+  }
+
+  const pageWithInstagram = pages.find(
+    (item) => !!item.access_token && !!item.instagram_business_account?.id,
+  );
+
+  if (!pageWithInstagram?.access_token || !pageWithInstagram.instagram_business_account?.id) {
+    throw new Error('Brak konta Instagram Business powiązanego z zarządzaną stroną Facebook');
+  }
+
+  return {
+    externalId: pageWithInstagram.instagram_business_account.id,
+    handle: pageWithInstagram.instagram_business_account.username
+      ? `@${pageWithInstagram.instagram_business_account.username}`
+      : 'Instagram business account',
+    accessToken: pageWithInstagram.access_token,
+    refreshToken: undefined,
+    expiresAt: undefined,
+  };
+}
+
 export async function handleOAuthCallback(
   platformInput: string,
   query: OAuthCallbackQuery,
@@ -428,12 +707,26 @@ export async function handleOAuthCallback(
   const tokenResult =
     provider === 'youtube'
       ? await exchangeGoogleCode(query.code)
-      : await exchangeTikTokCode(query.code, options?.tiktokCodeVerifier);
+      : provider === 'tiktok'
+        ? await exchangeTikTokCode(query.code, options?.tiktokCodeVerifier)
+        : await exchangeMetaCode(query.code, provider);
+
+  const metaContext =
+    provider === 'facebook' || provider === 'instagram'
+      ? await resolveMetaPublishingContext(provider, tokenResult.accessToken)
+      : null;
 
   const profile =
     provider === 'youtube'
       ? await fetchGoogleProfile(tokenResult.accessToken)
-      : await fetchTikTokProfile(tokenResult.accessToken);
+      : provider === 'tiktok'
+        ? await fetchTikTokProfile(tokenResult.accessToken)
+        : provider === 'facebook' || provider === 'instagram'
+          ? {
+              externalId: metaContext?.externalId ?? null,
+              handle: metaContext?.handle ?? 'Meta account',
+            }
+          : await fetchFacebookProfile(tokenResult.accessToken);
 
   const prismaPlatform = toPrismaPlatform(provider);
 
@@ -444,9 +737,13 @@ export async function handleOAuthCallback(
     },
   });
 
-  const encryptedAccessToken = encrypt(tokenResult.accessToken);
-  const encryptedRefreshToken = tokenResult.refreshToken
-    ? encrypt(tokenResult.refreshToken)
+  const accessTokenToStore = metaContext?.accessToken ?? tokenResult.accessToken;
+  const refreshTokenToStore = metaContext?.refreshToken ?? tokenResult.refreshToken;
+  const expiresAtToStore = metaContext?.expiresAt ?? tokenResult.expiresAt;
+
+  const encryptedAccessToken = encrypt(accessTokenToStore);
+  const encryptedRefreshToken = refreshTokenToStore
+    ? encrypt(refreshTokenToStore)
     : existing?.refreshToken;
 
   const saved = existing
@@ -459,7 +756,7 @@ export async function handleOAuthCallback(
           externalId: profile.externalId,
           accessToken: encryptedAccessToken,
           refreshToken: encryptedRefreshToken,
-          expiresAt: tokenResult.expiresAt,
+          expiresAt: expiresAtToStore,
         },
       })
     : await prisma.socialAccount.create({
@@ -470,7 +767,7 @@ export async function handleOAuthCallback(
           externalId: profile.externalId,
           accessToken: encryptedAccessToken,
           refreshToken: encryptedRefreshToken,
-          expiresAt: tokenResult.expiresAt,
+          expiresAt: expiresAtToStore,
         },
       });
 
@@ -479,7 +776,15 @@ export async function handleOAuthCallback(
     platform: provider,
     accountId: saved.id,
     handle: saved.handle,
-    message: `Konto ${provider === 'youtube' ? 'YouTube' : 'TikTok'} połączone!`,
+    message: `Konto ${
+      provider === 'youtube'
+        ? 'YouTube'
+        : provider === 'tiktok'
+          ? 'TikTok'
+          : provider === 'facebook'
+            ? 'Facebook'
+            : 'Instagram'
+    } połączone!`,
   };
 }
 
@@ -497,6 +802,7 @@ export async function refreshSocialAccessToken(accountId: string) {
     select: {
       id: true,
       platform: true,
+      accessToken: true,
       refreshToken: true,
     },
   });
@@ -506,18 +812,45 @@ export async function refreshSocialAccessToken(accountId: string) {
   }
 
   const decryptedRefreshToken = decryptToken(account.refreshToken);
-  if (!decryptedRefreshToken) {
-    throw new Error('Brak refresh token dla konta social');
-  }
+  const decryptedAccessToken = decryptToken(account.accessToken);
 
-  const tokenResult =
+  const tokenResult = await (
     account.platform === 'YOUTUBE'
-      ? await refreshGoogleToken(decryptedRefreshToken)
+      ? (() => {
+          if (!decryptedRefreshToken) {
+            throw new Error('Brak refresh token dla konta social');
+          }
+
+          return refreshGoogleToken(decryptedRefreshToken);
+        })()
       : account.platform === 'TIKTOK'
-        ? await refreshTikTokToken(decryptedRefreshToken)
+        ? (() => {
+            if (!decryptedRefreshToken) {
+              throw new Error('Brak refresh token dla konta social');
+            }
+
+            return refreshTikTokToken(decryptedRefreshToken);
+          })()
+        : account.platform === 'FACEBOOK'
+          ? (() => {
+              if (!decryptedAccessToken) {
+                throw new Error('Brak access token dla konta social');
+              }
+
+              return refreshMetaToken(decryptedAccessToken, 'facebook');
+            })()
+          : account.platform === 'INSTAGRAM'
+            ? (() => {
+                if (!decryptedAccessToken) {
+                  throw new Error('Brak access token dla konta social');
+                }
+
+                return refreshMetaToken(decryptedAccessToken, 'instagram');
+              })()
         : (() => {
             throw new Error(`Refresh token nieobsługiwany dla platformy ${account.platform}`);
-          })();
+              })()
+      );
 
   const encryptedAccessToken = encrypt(tokenResult.accessToken);
   const encryptedRefreshToken = tokenResult.refreshToken

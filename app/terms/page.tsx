@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 
 export const metadata: Metadata = {
   title: 'Regulamin | FlowState',
@@ -9,6 +10,15 @@ export default function TermsPage() {
   return (
     <main className="min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-3xl px-6 py-16">
+        <div className="mb-6">
+          <Link
+            href="/"
+            className="inline-flex items-center justify-center px-3 py-2 rounded-lg border border-border bg-secondary/30 text-sm text-foreground hover:bg-secondary/50"
+          >
+            ← Powrót do Pulpitu
+          </Link>
+        </div>
+
         <h1 className="text-3xl font-semibold tracking-tight">Regulamin usługi FlowState</h1>
         <p className="mt-6 text-sm text-muted-foreground">Data wejścia w życie: 2 marca 2026 r.</p>
 

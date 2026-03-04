@@ -44,6 +44,18 @@ type BillingSnapshot = {
   };
 };
 
+function subscriptionStatusLabel(status: 'ACTIVE' | 'CANCELED' | 'PAST_DUE') {
+  if (status === 'ACTIVE') return 'Aktywna';
+  if (status === 'PAST_DUE') return 'Wymaga płatności';
+  return 'Anulowana';
+}
+
+function planLabel(plan: 'FREE' | 'PRO' | 'PREMIUM') {
+  if (plan === 'FREE') return 'Free';
+  if (plan === 'PRO') return 'Pro';
+  return 'Premium';
+}
+
 function BillingPageContent() {
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
@@ -102,14 +114,14 @@ function BillingPageContent() {
     handledCheckoutState.current = checkoutState;
 
     if (checkoutState === 'success') {
-      toast.success('Payment successful');
+      toast.success('Płatność zakończona pomyślnie.');
       void loadSnapshot();
       router.refresh();
       return;
     }
 
     if (checkoutState === 'cancel') {
-      toast('Payment cancelled');
+      toast('Płatność anulowana.');
       router.replace(pathname);
     }
   }, [loadSnapshot, pathname, router, searchParams]);
@@ -121,7 +133,7 @@ function BillingPageContent() {
     }
 
     if (portalState === 'mock') {
-      toast.info('Portal subskrypcji nie jest aktywny w trybie mock. Skonfiguruj Stripe Billing Portal URL.');
+      toast.info('Portal subskrypcji jest chwilowo niedostępny. Spróbuj ponownie później.');
       router.replace(pathname);
     }
   }, [pathname, router, searchParams]);
@@ -139,10 +151,10 @@ function BillingPageContent() {
         return;
       }
 
-      toast.success(`Plan został zaktualizowany do ${plan}.`);
+      toast.success(`Plan został zaktualizowany do ${planLabel(plan)}.`);
       await loadSnapshot();
     } catch {
-      toast.error('Uruchomienie checkout nie powiodło się.');
+      toast.error('Nie udało się uruchomić płatności.');
     } finally {
       setIsSubmitting(false);
     }
@@ -152,7 +164,7 @@ function BillingPageContent() {
     try {
       setIsSubmitting(true);
       await apiClient.patch('/billing/subscription', { plan: 'FREE' });
-      toast.success('Plan został przełączony na FREE.');
+      toast.success('Plan został przełączony na Free.');
       await loadSnapshot();
     } catch {
       toast.error('Zmiana planu nie powiodła się.');
@@ -171,7 +183,7 @@ function BillingPageContent() {
       }>('/billing/portal');
 
       if (response.data.mode === 'mock' && !response.data.hasExternalPortal) {
-        toast.info('Portal subskrypcji jest dostępny po włączeniu Stripe mode i BILLING_PORTAL_URL.');
+        toast.info('Portal subskrypcji jest chwilowo niedostępny. Spróbuj ponownie później.');
       }
 
       if (!response.data.url) {
@@ -209,11 +221,11 @@ function BillingPageContent() {
               <div className="p-4 rounded-lg border border-border bg-secondary/20">
                 <p className="text-xs text-muted-foreground">Plan</p>
                 <p className="text-xl font-semibold text-foreground mt-1">
-                  {snapshot?.subscription.plan ?? '-'}
+                  {snapshot?.subscription.plan ? planLabel(snapshot.subscription.plan) : '-'}
                 </p>
                 {snapshot?.subscription.trial?.isActive && snapshot.subscription.basePlan === 'FREE' && (
                   <p className="text-xs text-primary mt-1">
-                    Trial PRO: {trialRemainingHours}h {trialRemainingMinutes}m (do{' '}
+                    Okres próbny PRO: {trialRemainingHours}h {trialRemainingMinutes}m (do{' '}
                     {new Date(snapshot.subscription.trial.endsAt).toLocaleString('pl-PL')})
                   </p>
                 )}
@@ -222,7 +234,7 @@ function BillingPageContent() {
               <div className="p-4 rounded-lg border border-border bg-secondary/20">
                 <p className="text-xs text-muted-foreground">Status</p>
                 <p className="text-xl font-semibold text-foreground mt-1">
-                  {snapshot?.subscription.status ?? '-'}
+                  {snapshot?.subscription.status ? subscriptionStatusLabel(snapshot.subscription.status) : '-'}
                 </p>
               </div>
 
@@ -295,7 +307,7 @@ function BillingPageContent() {
                       >
                         {isCurrentPlan
                           ? snapshot?.subscription.trial?.isActive && snapshot.subscription.basePlan === 'FREE'
-                            ? 'Trial aktywny'
+                            ? 'Okres próbny aktywny'
                             : 'Aktualny plan'
                           : `Kup ${plan.title}`}
                       </button>

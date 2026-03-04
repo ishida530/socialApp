@@ -9,7 +9,7 @@ import { badRequest, serverError, unauthorized } from '@/lib/server/http';
 import { ensureUploadsDirectory } from '@/lib/server/uploads';
 import { assertUsageAllowed, incrementUsage } from '@/lib/server/subscription';
 
-const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024;
+const MAX_MEDIA_SIZE_BYTES = 500 * 1024 * 1024;
 
 function sanitizeFileName(value: string) {
   return value.replace(/[^a-zA-Z0-9.-]/g, '-').toLowerCase();
@@ -31,12 +31,18 @@ export async function POST(request: NextRequest) {
     }
 
     const extension = extname(file.name).toLowerCase();
-    const allowed = extension === '.mp4' || extension === '.mov';
+    const allowed =
+      extension === '.mp4' ||
+      extension === '.mov' ||
+      extension === '.jpg' ||
+      extension === '.jpeg' ||
+      extension === '.png' ||
+      extension === '.webp';
     if (!allowed) {
-      return badRequest('Dozwolone formaty plików: .mp4, .mov');
+      return badRequest('Dozwolone formaty plików: .mp4, .mov, .jpg, .jpeg, .png, .webp');
     }
 
-    if (file.size > MAX_VIDEO_SIZE_BYTES) {
+    if (file.size > MAX_MEDIA_SIZE_BYTES) {
       return badRequest('Maksymalny rozmiar pliku to 500MB');
     }
 
@@ -65,7 +71,7 @@ export async function POST(request: NextRequest) {
       localPath = filePath;
     }
 
-    const title = baseName || `video-${Date.now()}`;
+    const title = baseName || `media-${Date.now()}`;
 
     const video = await prisma.video.create({
       data: {

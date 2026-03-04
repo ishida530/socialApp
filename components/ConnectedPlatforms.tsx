@@ -1,6 +1,14 @@
 "use client";
 
-import { Youtube, Music2, CheckCircle2, XCircle, RefreshCw } from 'lucide-react';
+import {
+  Youtube,
+  Music2,
+  Instagram,
+  Facebook,
+  CheckCircle2,
+  XCircle,
+  RefreshCw,
+} from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { toast } from 'sonner';
@@ -9,7 +17,7 @@ type PlatformCard = {
   name: string;
   icon: typeof Youtube;
   color: string;
-  apiPlatform: 'youtube' | 'tiktok';
+  apiPlatform: 'youtube' | 'tiktok' | 'instagram' | 'facebook';
 };
 
 const platforms: PlatformCard[] = [
@@ -24,6 +32,18 @@ const platforms: PlatformCard[] = [
     icon: Music2,
     color: 'text-slate-400',
     apiPlatform: 'tiktok',
+  },
+  {
+    name: 'Instagram',
+    icon: Instagram,
+    color: 'text-pink-500',
+    apiPlatform: 'instagram',
+  },
+  {
+    name: 'Facebook',
+    icon: Facebook,
+    color: 'text-blue-500',
+    apiPlatform: 'facebook',
   },
 ];
 
@@ -55,7 +75,7 @@ export function ConnectedPlatforms() {
   }, []);
 
   const accountByPlatform = useMemo(() => {
-    const map = new Map<'youtube' | 'tiktok', SocialAccountDto>();
+    const map = new Map<'youtube' | 'tiktok' | 'instagram' | 'facebook', SocialAccountDto>();
 
     accounts.forEach((account) => {
       if (account.platform === 'YOUTUBE') {
@@ -65,12 +85,20 @@ export function ConnectedPlatforms() {
       if (account.platform === 'TIKTOK') {
         map.set('tiktok', account);
       }
+
+      if (account.platform === 'INSTAGRAM') {
+        map.set('instagram', account);
+      }
+
+      if (account.platform === 'FACEBOOK') {
+        map.set('facebook', account);
+      }
     });
 
     return map;
   }, [accounts]);
 
-  const connectAccount = async (platform: 'youtube' | 'tiktok') => {
+  const connectAccount = async (platform: 'youtube' | 'tiktok' | 'instagram' | 'facebook') => {
     try {
       setLoadingPlatform(platform);
       const response = await apiClient.get<{ url?: string }>(
@@ -206,7 +234,7 @@ export function ConnectedPlatforms() {
                   }`}
                 >
                   <RefreshCw className="w-4 h-4" />
-                  <span>Reconnect</span>
+                  <span>Połącz ponownie</span>
                 </button>
 
                 <button

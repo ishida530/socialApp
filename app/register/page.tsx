@@ -45,6 +45,7 @@ export default function RegisterPage() {
         <div className="space-y-2">
           <label className="text-sm text-foreground">Imię i nazwisko</label>
           <input
+            autoFocus
             value={name}
             onChange={(event) => setName(event.target.value)}
             type="text"
@@ -77,6 +78,7 @@ export default function RegisterPage() {
             className="w-full px-3 py-2 rounded-lg bg-background border border-border text-foreground"
             placeholder="Minimum 8 znaków"
           />
+          <p className="text-xs text-muted-foreground">Hasło musi mieć co najmniej 8 znaków.</p>
         </div>
 
         <button

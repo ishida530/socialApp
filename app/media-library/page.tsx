@@ -14,17 +14,52 @@ type VideoStatus = 'UPLOADED' | 'PROCESSING' | 'READY' | 'FAILED';
 type VideoItem = {
   id: string;
   title: string;
+  description?: string | null;
   status: VideoStatus;
   createdAt: string;
 };
 
+function buildAiTags(video: VideoItem) {
+  const source = `${video.title} ${video.description || ''}`.toLowerCase();
+  const tags: string[] = [];
+
+  if (source.includes('tutorial') || source.includes('poradnik')) {
+    tags.push('#tutorial');
+  }
+
+  if (source.includes('tech') || source.includes('technolog') || source.includes('ładowark')) {
+    tags.push('#technologia');
+  }
+
+  if (source.includes('produkt') || source.includes('review') || source.includes('recenz')) {
+    tags.push('#produkt');
+  }
+
+  if (source.includes('promocj') || source.includes('sale') || source.includes('oferta')) {
+    tags.push('#promocja');
+  }
+
+  if (tags.length === 0) {
+    tags.push('#content', '#video');
+  }
+
+  return Array.from(new Set(tags)).slice(0, 4);
+}
+
 const statuses: Array<{ value: '' | VideoStatus; label: string }> = [
   { value: '', label: 'Wszystkie statusy' },
-  { value: 'UPLOADED', label: 'UPLOADED' },
-  { value: 'PROCESSING', label: 'PROCESSING' },
-  { value: 'READY', label: 'READY' },
-  { value: 'FAILED', label: 'FAILED' },
+  { value: 'UPLOADED', label: 'Przesłane' },
+  { value: 'PROCESSING', label: 'Przetwarzanie' },
+  { value: 'READY', label: 'Gotowe' },
+  { value: 'FAILED', label: 'Błąd' },
 ];
+
+function videoStatusLabel(status: VideoStatus) {
+  if (status === 'UPLOADED') return 'Przesłane';
+  if (status === 'PROCESSING') return 'Przetwarzanie';
+  if (status === 'READY') return 'Gotowe';
+  return 'Błąd';
+}
 
 export default function MediaLibraryPage() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -137,7 +172,23 @@ export default function MediaLibraryPage() {
               )}
 
               {!loadingVideos && videos.length === 0 && (
-                <p className="text-sm text-muted-foreground">Brak filmów.</p>
+                <div className="rounded-lg border border-border bg-secondary/20 p-4 space-y-3">
+                  <p className="text-sm text-muted-foreground">Brak filmów w bibliotece.</p>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => router.push('/')}
+                      className="px-3 py-1.5 text-xs rounded-lg bg-primary text-primary-foreground"
+                    >
+                      Utwórz pierwszy post
+                    </button>
+                    <button
+                      onClick={() => router.push('/social-accounts')}
+                      className="px-3 py-1.5 text-xs rounded-lg bg-secondary border border-border text-foreground"
+                    >
+                      Połącz konto social
+                    </button>
+                  </div>
+                </div>
               )}
 
               {videos.map((video) => (
@@ -146,10 +197,27 @@ export default function MediaLibraryPage() {
                   className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 rounded-lg border border-border bg-secondary/20"
                 >
                   <div>
-                    <p className="text-sm font-medium text-foreground">{video.title}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {video.status} • {new Date(video.createdAt).toLocaleString('pl-PL')}
+                    <p className="text-sm font-medium text-foreground flex items-center gap-2">
+                      {video.title}
+                      {video.status === 'READY' && (
+                        <span className="inline-flex items-center rounded-md border border-primary/30 bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
+                          Gotowe do AI
+                        </span>
+                      )}
                     </p>
+                    <p className="text-xs text-muted-foreground">
+                      {videoStatusLabel(video.status)} • {new Date(video.createdAt).toLocaleString('pl-PL')}
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {buildAiTags(video).map((tag) => (
+                        <span
+                          key={`${video.id}-${tag}`}
+                          className="inline-flex rounded-md border border-border bg-background/40 px-2 py-0.5 text-[11px] text-muted-foreground"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
                   </div>
 
                   <button

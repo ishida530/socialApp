@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUserFromRequest } from '@/lib/server/auth';
 import { prisma } from '@/lib/server/prisma';
 import { badRequest, serverError, unauthorized } from '@/lib/server/http';
-import { assertUsageAllowed, incrementUsage } from '@/lib/server/subscription';
+import { assertUsageAllowed, getSubscriptionSnapshot, incrementUsage } from '@/lib/server/subscription';
 import { processPublishJobImmediately } from '@/lib/server/publish-processor';
 
 type SocialPlatform = 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'FACEBOOK';
@@ -32,11 +32,11 @@ function normalizePlatform(value: string): SocialPlatform {
 export async function POST(request: NextRequest) {
   try {
     const user = getAuthUserFromRequest(request);
-    await assertUsageAllowed(user.userId, 'publish_jobs');
     const body = (await request.json()) as {
       videoId?: string;
       scheduledDate?: string;
       publishNow?: boolean;
+      targetPlatforms?: string[];
       platformSettings?: {
         platform?: string;
         title?: string;
@@ -46,10 +46,9 @@ export async function POST(request: NextRequest) {
       };
     };
 
-    if (!body.videoId || !body.platformSettings?.platform) {
+    if (!body.videoId) {
       return badRequest('Validation failed', [
         'videoId: videoId jest wymagany',
-        'platformSettings.platform: platform jest wymagany',
       ]);
     }
 
@@ -67,56 +66,125 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const platform = normalizePlatform(body.platformSettings.platform);
+    const requestedPlatforms = Array.isArray(body.targetPlatforms)
+      ? body.targetPlatforms
+      : body.platformSettings?.platform
+        ? [body.platformSettings.platform]
+        : [];
 
-    const [video, socialAccount] = await Promise.all([
+    if (requestedPlatforms.length === 0) {
+      return badRequest('Validation failed', [
+        'targetPlatforms: wymagane co najmniej 1 platforma (lub platformSettings.platform)',
+      ]);
+    }
+
+    const targetPlatforms = Array.from(
+      new Set(requestedPlatforms.map((platform) => normalizePlatform(platform))),
+    );
+
+    const snapshot = await getSubscriptionSnapshot(user.userId);
+    const userPlan = snapshot.subscription.plan;
+
+    if (userPlan === 'FREE' && targetPlatforms.length > 2) {
+      return badRequest('Plan Free pozwala publikować jednocześnie maksymalnie na 2 platformach.');
+    }
+
+    const [video, socialAccounts] = await Promise.all([
       prisma.video.findFirst({ where: { id: body.videoId, userId: user.userId } }),
-      prisma.socialAccount.findFirst({ where: { userId: user.userId, platform } }),
+      prisma.socialAccount.findMany({
+        where: {
+          userId: user.userId,
+          platform: {
+            in: targetPlatforms,
+          },
+        },
+      }),
     ]);
 
     if (!video) {
       return badRequest('videoId nie należy do zalogowanego użytkownika');
     }
 
-    if (!socialAccount) {
-      return badRequest(`Brak podłączonego konta dla platformy ${platform}`);
+    const socialAccountByPlatform = new Map(
+      socialAccounts.map((socialAccount) => [socialAccount.platform, socialAccount]),
+    );
+
+    const missingPlatforms = targetPlatforms.filter(
+      (platform) => !socialAccountByPlatform.has(platform),
+    );
+
+    if (missingPlatforms.length > 0) {
+      return badRequest(
+        `Brak podłączonych kont dla platform: ${missingPlatforms.join(', ')}`,
+      );
     }
 
-    const publishJob = await prisma.publishJob.create({
-      data: {
-        status: 'PENDING',
-        scheduledFor: scheduledDate,
-        video: { connect: { id: video.id } },
-        socialAccount: { connect: { id: socialAccount.id } },
-      },
-      include: {
-        video: true,
-        socialAccount: true,
-      },
-    });
+    for (let index = 0; index < targetPlatforms.length; index += 1) {
+      await assertUsageAllowed(user.userId, 'publish_jobs');
+    }
 
-    const delay = Math.max(0, scheduledDate.getTime() - Date.now());
-
-    await incrementUsage(user.userId, 'publish_jobs');
-
-    const immediateOutcome = publishNow
-      ? await processPublishJobImmediately(publishJob.id)
-      : null;
-
-    const responseJob = publishNow
-      ? await prisma.publishJob.findUnique({
-          where: { id: publishJob.id },
+    const createdJobs = await prisma.$transaction(
+      targetPlatforms.map((platform) =>
+        prisma.publishJob.create({
+          data: {
+            status: 'PENDING',
+            scheduledFor: scheduledDate,
+            video: { connect: { id: video.id } },
+            socialAccount: { connect: { id: socialAccountByPlatform.get(platform)!.id } },
+          },
           include: {
             video: true,
             socialAccount: true,
           },
+        }),
+      ),
+    );
+
+    const delay = Math.max(0, scheduledDate.getTime() - Date.now());
+
+    await incrementUsage(user.userId, 'publish_jobs', createdJobs.length);
+
+    const immediateOutcomes = publishNow
+      ? await Promise.all(
+          createdJobs.map(async (publishJob) => ({
+            jobId: publishJob.id,
+            platform: publishJob.socialAccount.platform,
+            outcome: await processPublishJobImmediately(publishJob.id),
+          })),
+        )
+      : [];
+
+    const responseJobs = publishNow
+      ? await prisma.publishJob.findMany({
+          where: { id: { in: createdJobs.map((job) => job.id) } },
+          include: {
+            video: true,
+            socialAccount: true,
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
         })
-      : publishJob;
+      : createdJobs;
+
+    const immediateOutcome =
+      immediateOutcomes.length === 0
+        ? null
+        : immediateOutcomes.some((item) => item.outcome === 'failed')
+          ? 'failed'
+          : immediateOutcomes.some((item) => item.outcome === 'retryScheduled')
+            ? 'retryScheduled'
+            : immediateOutcomes.some((item) => item.outcome === 'skipped')
+              ? 'skipped'
+              : 'succeeded';
 
     return NextResponse.json({
       success: true,
-      publishJob: responseJob ?? publishJob,
+      publishJob: responseJobs[0] ?? null,
+      publishJobs: responseJobs,
+      targetsCount: targetPlatforms.length,
       immediateOutcome,
+      immediateOutcomes,
       queue: {
         name: 'next-inline-queue',
         delay,

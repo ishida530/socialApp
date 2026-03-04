@@ -1,8 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/server/prisma';
 import { readFile } from 'fs/promises';
+import { getAuthUserFromRequest } from '@/lib/server/auth';
+import { isValidSignedVideoSource } from '@/lib/server/video-source-signature';
 
 export const dynamic = 'force-dynamic';
+
+function hasValidSourceSignature(request: NextRequest, videoId: string) {
+  const exp = request.nextUrl.searchParams.get('exp');
+  const sig = request.nextUrl.searchParams.get('sig');
+  return isValidSignedVideoSource(videoId, exp, sig);
+}
+
+function isUnauthorizedAuthError(error: unknown) {
+  return error instanceof Error && error.message === 'Unauthorized';
+}
+
+function unauthorizedSourceResponse() {
+  return NextResponse.json({ message: 'Unauthorized video source access' }, { status: 401 });
+}
 
 async function resolveSourceResponse(videoId: string) {
   const video = await prisma.video.findUnique({
@@ -52,10 +68,36 @@ async function resolveSourceResponse(videoId: string) {
 }
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> },
 ) {
   const params = await context.params;
+  const video = await prisma.video.findUnique({
+    where: { id: params.id },
+    select: { userId: true },
+  });
+
+  if (!video) {
+    return NextResponse.json({ message: 'Video source unavailable' }, { status: 404 });
+  }
+
+  const signedAccess = hasValidSourceSignature(request, params.id);
+
+  if (!signedAccess) {
+    try {
+      const user = getAuthUserFromRequest(request);
+      if (user.userId !== video.userId) {
+        return unauthorizedSourceResponse();
+      }
+    } catch (error) {
+      if (isUnauthorizedAuthError(error)) {
+        return unauthorizedSourceResponse();
+      }
+
+      throw error;
+    }
+  }
+
   const response = await resolveSourceResponse(params.id);
 
   if (!response) {
@@ -66,13 +108,14 @@ export async function GET(
 }
 
 export async function HEAD(
-  _request: NextRequest,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> },
 ) {
   const params = await context.params;
   const video = await prisma.video.findUnique({
     where: { id: params.id },
     select: {
+      userId: true,
       sourceUrl: true,
       status: true,
     },
@@ -80,6 +123,22 @@ export async function HEAD(
 
   if (!video || video.status !== 'READY') {
     return new NextResponse(null, { status: 404 });
+  }
+
+  const signedAccess = hasValidSourceSignature(request, params.id);
+  if (!signedAccess) {
+    try {
+      const user = getAuthUserFromRequest(request);
+      if (user.userId !== video.userId) {
+        return new NextResponse(null, { status: 401 });
+      }
+    } catch (error) {
+      if (isUnauthorizedAuthError(error)) {
+        return new NextResponse(null, { status: 401 });
+      }
+
+      throw error;
+    }
   }
 
   const upstream = await fetch(video.sourceUrl, {

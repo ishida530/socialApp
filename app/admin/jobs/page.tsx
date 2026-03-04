@@ -47,6 +47,14 @@ type PublishOpsResponse = {
   }>;
 };
 
+function statusLabel(status: 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'CANCELED') {
+  if (status === 'PENDING') return 'Oczekujące';
+  if (status === 'RUNNING') return 'W trakcie';
+  if (status === 'SUCCESS') return 'Sukces';
+  if (status === 'FAILED') return 'Błąd';
+  return 'Anulowane';
+}
+
 export default function AdminJobsPage() {
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
@@ -120,24 +128,24 @@ export default function AdminJobsPage() {
               <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                 {Object.entries(summary).map(([key, value]) => (
                   <div key={key} className="bg-card border border-border rounded-xl p-4">
-                    <p className="text-xs text-muted-foreground">{key}</p>
+                    <p className="text-xs text-muted-foreground">{statusLabel(key as 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'CANCELED')}</p>
                     <p className="text-2xl font-semibold text-foreground mt-1">{value}</p>
                   </div>
                 ))}
               </div>
 
               <div className="bg-card border border-border rounded-xl p-4 space-y-3">
-                <h3 className="text-sm font-medium text-foreground">Panel operacyjny publish</h3>
+                <h3 className="text-sm font-medium text-foreground">Panel operacyjny publikacji</h3>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div className="rounded-lg border border-border p-3">
-                    <p className="text-xs text-muted-foreground">Success rate (overall)</p>
+                    <p className="text-xs text-muted-foreground">Skuteczność (łącznie)</p>
                     <p className="text-xl font-semibold text-foreground mt-1">
                       {ops ? `${ops.overall.successRate}%` : '-'}
                     </p>
                   </div>
                   <div className="rounded-lg border border-border p-3">
-                    <p className="text-xs text-muted-foreground">SUCCESS / FAILED</p>
+                    <p className="text-xs text-muted-foreground">SUKCES / BŁĄD</p>
                     <p className="text-xl font-semibold text-foreground mt-1">
                       {ops ? `${ops.overall.success} / ${ops.overall.failed}` : '-'}
                     </p>
@@ -151,13 +159,13 @@ export default function AdminJobsPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <p className="text-xs text-muted-foreground">Success rate per platform</p>
+                  <p className="text-xs text-muted-foreground">Skuteczność per platforma</p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     {(ops?.perPlatform ?? []).map((row) => (
                       <div key={row.platform} className="rounded-lg border border-border p-3">
                         <p className="text-sm text-foreground font-medium">{row.platform}</p>
                         <p className="text-xs text-muted-foreground mt-1">
-                          {row.successRate}% ({row.success} success / {row.failed} failed)
+                          {row.successRate}% ({row.success} sukces / {row.failed} błąd)
                         </p>
                       </div>
                     ))}
@@ -168,7 +176,7 @@ export default function AdminJobsPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <p className="text-xs text-muted-foreground">Najczęstsze retry reason</p>
+                  <p className="text-xs text-muted-foreground">Najczęstsze powody ponowień</p>
                   <div className="flex flex-wrap gap-2">
                     {(ops?.retryReasons ?? []).map((item) => (
                       <span
@@ -179,7 +187,7 @@ export default function AdminJobsPage() {
                       </span>
                     ))}
                     {!ops?.retryReasons.length && (
-                      <p className="text-sm text-muted-foreground">Brak retry reason.</p>
+                      <p className="text-sm text-muted-foreground">Brak powodów ponowień.</p>
                     )}
                   </div>
                 </div>

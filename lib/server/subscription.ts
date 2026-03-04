@@ -2,11 +2,12 @@ import { PlanTier, SubscriptionStatus } from '@prisma/client';
 import { prisma } from './prisma';
 import { resolveBillingMode } from './billing-mode';
 
-type UsageMetric = 'video_uploads' | 'publish_jobs';
+type UsageMetric = 'video_uploads' | 'publish_jobs' | 'ai_autopilot_runs';
 
 type PlanLimitConfig = {
   video_uploads: number | null;
   publish_jobs: number | null;
+  ai_autopilot_runs: number | null;
 };
 
 const NEW_USER_PRO_TRIAL_HOURS = 48;
@@ -15,14 +16,17 @@ const PLAN_LIMITS: Record<PlanTier, PlanLimitConfig> = {
   FREE: {
     video_uploads: 25,
     publish_jobs: 100,
+    ai_autopilot_runs: 0,
   },
   PRO: {
     video_uploads: 250,
     publish_jobs: 1000,
+    ai_autopilot_runs: 40,
   },
   PREMIUM: {
     video_uploads: null,
     publish_jobs: null,
+    ai_autopilot_runs: null,
   },
 };
 
@@ -31,16 +35,19 @@ const PLAN_FEATURES: Record<PlanTier, string[]> = {
     'Do 25 uploadów miesięcznie',
     'Do 100 zadań publikacji miesięcznie',
     'Podstawowy harmonogram publikacji',
+    'Auto-Pilot AI niedostępny',
   ],
   PRO: [
     'Do 250 uploadów miesięcznie',
     'Do 1000 zadań publikacji miesięcznie',
     'Priorytetowe przetwarzanie kolejki',
+    'Auto-Pilot Lite (do 40 uruchomień/miesiąc, tryb draft)',
   ],
   PREMIUM: [
     'Nielimitowane uploady i publikacje',
     'Priorytetowe wsparcie i SLA',
     'Rozszerzona analityka',
+    'Pełny Auto-Pilot AI bez limitu uruchomień',
   ],
 };
 
@@ -105,6 +112,10 @@ function resolveEffectivePlan(subscriptionPlan: PlanTier, userCreatedAt: Date) {
 function resolveLimitMessage(metric: UsageMetric, limit: number) {
   if (metric === 'video_uploads') {
     return `Przekroczono limit planu (${limit} uploadów wideo / miesiąc).`;
+  }
+
+  if (metric === 'ai_autopilot_runs') {
+    return `Przekroczono limit planu (${limit} uruchomień Auto-Pilot AI / miesiąc).`;
   }
 
   return `Przekroczono limit planu (${limit} zadań publikacji / miesiąc).`;
@@ -264,9 +275,10 @@ export async function getSubscriptionSnapshot(userId: string) {
 
   const effective = resolveEffectivePlan(subscription.plan, user.createdAt);
 
-  const [videoUsage, publishUsage] = await Promise.all([
+  const [videoUsage, publishUsage, aiUsage] = await Promise.all([
     getCurrentUsage(userId, 'video_uploads'),
     getCurrentUsage(userId, 'publish_jobs'),
+    getCurrentUsage(userId, 'ai_autopilot_runs'),
   ]);
 
   return {
@@ -296,6 +308,10 @@ export async function getSubscriptionSnapshot(userId: string) {
       publish_jobs: {
         count: publishUsage.count,
         limit: resolvePlanLimits(effective.effectivePlan).publish_jobs,
+      },
+      ai_autopilot_runs: {
+        count: aiUsage.count,
+        limit: resolvePlanLimits(effective.effectivePlan).ai_autopilot_runs,
       },
     },
   };

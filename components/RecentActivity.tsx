@@ -12,7 +12,7 @@ interface Activity {
   videoName: string;
   platforms: PlatformKey[];
   status: 'success' | 'pending' | 'failed';
-  statusLabel: 'SCHEDULED' | 'QUEUED' | 'SUCCESS' | 'FAILED';
+  statusLabel: 'ZAPLANOWANE' | 'W KOLEJCE' | 'SUKCES' | 'BŁĄD';
   scheduledDate: string;
   errorMessage?: string;
 }
@@ -78,12 +78,12 @@ export function RecentActivity() {
                 : 'pending',
           statusLabel:
             job.status === 'SUCCESS'
-              ? 'SUCCESS'
+              ? 'SUKCES'
               : job.status === 'FAILED' || job.status === 'CANCELED'
-                ? 'FAILED'
+                ? 'BŁĄD'
                 : isScheduled
-                  ? 'SCHEDULED'
-                  : 'QUEUED',
+                  ? 'ZAPLANOWANE'
+                  : 'W KOLEJCE',
           scheduledDate: scheduledFor.toLocaleString('pl-PL'),
           errorMessage: job.errorMessage ?? undefined,
         };

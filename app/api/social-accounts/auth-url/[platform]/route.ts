@@ -60,7 +60,7 @@ export async function GET(
     if (
       error instanceof Error &&
       (error.message.startsWith('Missing required config') ||
-        error.message === 'Unsupported platform. Use youtube or tiktok.')
+        error.message.startsWith('Unsupported platform.'))
     ) {
       return badRequest(error.message);
     }

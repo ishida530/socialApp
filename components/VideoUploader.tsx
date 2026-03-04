@@ -13,11 +13,23 @@ type UploadedVideo = {
   localPath?: string | null;
 };
 
-export function VideoUploader() {
+const MAX_MEDIA_SIZE_BYTES = 500 * 1024 * 1024;
+
+function isSupportedMedia(file: File) {
+  const extension = file.name.split('.').pop()?.toLowerCase();
+  const allowed = new Set(['mp4', 'mov', 'jpg', 'jpeg', 'png', 'webp']);
+  return extension ? allowed.has(extension) : false;
+}
+
+function isVideoMedia(file: File) {
+  return file.type.includes('video') || ['mp4', 'mov'].includes(file.name.split('.').pop()?.toLowerCase() || '');
+}
+
+export function VideoUploader({ compact = false }: { compact?: boolean }) {
   const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [uploadedFile, setUploadedFile] = useState<{ name: string; size: string; previewUrl?: string } | null>(null);
+  const [uploadedFile, setUploadedFile] = useState<{ name: string; size: string; previewUrl?: string; mediaType: 'video' | 'image' } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -33,7 +45,7 @@ export function VideoUploader() {
     e.preventDefault();
     setIsDragging(false);
     const files = e.dataTransfer.files;
-    if (files.length > 0 && files[0].type.includes('video')) {
+    if (files.length > 0 && isSupportedMedia(files[0])) {
       handleFileUpload(files[0]);
     }
   };
@@ -45,13 +57,12 @@ export function VideoUploader() {
   };
 
   const handleFileUpload = (file: File) => {
-    const extension = file.name.split('.').pop()?.toLowerCase();
-    if (extension !== 'mp4' && extension !== 'mov') {
-      toast.error('Dozwolone formaty plików: .mp4, .mov');
+    if (!isSupportedMedia(file)) {
+      toast.error('Dozwolone formaty plików: .mp4, .mov, .jpg, .jpeg, .png, .webp');
       return;
     }
 
-    if (file.size > 500 * 1024 * 1024) {
+    if (file.size > MAX_MEDIA_SIZE_BYTES) {
       toast.error('Maksymalny rozmiar pliku to 500MB');
       return;
     }
@@ -77,10 +88,23 @@ export function VideoUploader() {
         name: file.name,
         size: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
         previewUrl: blob.url,
+        mediaType: isVideoMedia(file) ? 'video' : 'image',
       });
       setProgress(100);
-      toast.success('Wideo zostało przesłane.');
+      toast.success('Materiał został przesłany.');
       window.dispatchEvent(new Event('videos:refresh'));
+    };
+
+    const isMissingBlobConfigError = (error: unknown) => {
+      const data = (error as {
+        response?: {
+          data?: {
+            message?: string;
+          };
+        };
+      })?.response?.data;
+
+      return Boolean(data?.message?.includes('Brak konfiguracji storage'));
     };
 
     const uploadViaApiRoute = async () => {
@@ -105,22 +129,29 @@ export function VideoUploader() {
         name: file.name,
         size: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
         previewUrl: response.data.sourceUrl,
+        mediaType: isVideoMedia(file) ? 'video' : 'image',
       });
       setProgress(100);
-      toast.success('Wideo zostało przesłane lokalnie.');
+      toast.success('Materiał został przesłany lokalnie.');
       window.dispatchEvent(new Event('videos:refresh'));
     };
 
     void uploadDirectToBlob()
-      .catch(async () => {
-        if (file.size > 4 * 1024 * 1024) {
-          throw new Error('upload-large-file-failed');
+      .catch(async (error) => {
+        if (isMissingBlobConfigError(error)) {
+          await uploadViaApiRoute();
+          return;
         }
 
-        await uploadViaApiRoute();
+        if (file.size <= 4 * 1024 * 1024) {
+          await uploadViaApiRoute();
+          return;
+        }
+
+        throw error;
       })
       .catch(() => {
-        toast.error('Przesyłanie wideo nie powiodło się. Sprawdź konfigurację Blob Storage.');
+        toast.error('Przesyłanie materiału nie powiodło się. Spróbuj ponownie za chwilę.');
       })
       .finally(() => {
         setUploading(false);
@@ -136,8 +167,8 @@ export function VideoUploader() {
   };
 
   return (
-    <div className="bg-card border border-border rounded-xl p-6 backdrop-blur-sm">
-      <h2 className="text-lg font-semibold text-foreground mb-4">Prześlij wideo</h2>
+    <div className={`${compact ? 'bg-transparent border-0 p-0' : 'bg-card border border-border rounded-xl p-6 backdrop-blur-sm'}`}>
+      {!compact && <h2 className="text-lg font-semibold text-foreground mb-4">Prześlij materiał</h2>}
 
       {!uploadedFile ? (
         <div
@@ -154,7 +185,7 @@ export function VideoUploader() {
           <input
             ref={fileInputRef}
             type="file"
-            accept="video/*"
+            accept="video/*,image/*"
             onChange={handleFileSelect}
             className="hidden"
           />
@@ -164,7 +195,7 @@ export function VideoUploader() {
               <Upload className="w-8 h-8 text-primary" />
             </div>
             <p className="text-foreground font-medium mb-2">
-              Przeciągnij i upuść plik .mp4 tutaj
+              Przeciągnij i upuść materiał (.mp4/.mov/.jpg/.png/.webp)
             </p>
             <p className="text-sm text-muted-foreground mb-4">
               lub kliknij, aby wybrać plik
@@ -178,10 +209,16 @@ export function VideoUploader() {
         <div className="space-y-4">
           {/* Video preview */}
           <div className="relative rounded-xl overflow-hidden aspect-video bg-secondary">
-            {uploadedFile.previewUrl ? (
+            {uploadedFile.previewUrl && uploadedFile.mediaType === 'video' ? (
               <video
                 src={uploadedFile.previewUrl}
                 controls
+                className="w-full h-full object-cover"
+              />
+            ) : uploadedFile.previewUrl ? (
+              <img
+                src={uploadedFile.previewUrl}
+                alt={uploadedFile.name}
                 className="w-full h-full object-cover"
               />
             ) : (
@@ -191,6 +228,7 @@ export function VideoUploader() {
             )}
             <button
               onClick={handleRemove}
+              aria-label="Usuń podgląd materiału"
               className="absolute top-3 right-3 w-8 h-8 bg-background/80 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-destructive transition-colors"
             >
               <X className="w-4 h-4" />

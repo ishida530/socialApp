@@ -43,7 +43,17 @@ Główny plik środowiskowy:
 Wymagane klucze OAuth:
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`
 - `TIKTOK_CLIENT_ID`, `TIKTOK_CLIENT_SECRET`, `TIKTOK_REDIRECT_URI`
+- `FACEBOOK_CLIENT_ID`, `FACEBOOK_CLIENT_SECRET`, `FACEBOOK_REDIRECT_URI`
+- `INSTAGRAM_CLIENT_ID`, `INSTAGRAM_CLIENT_SECRET`, `INSTAGRAM_REDIRECT_URI`
 - `TIKTOK_WEBHOOK_SECRET`
+- `VIDEO_SOURCE_SIGNING_SECRET` (zalecane; fallback to `JWT_SECRET` jeśli brak)
+
+Dodatkowo dla Meta Graph API:
+- `META_GRAPH_API_VERSION` (domyślnie `v23.0`)
+
+Zalecane scope dla publikacji:
+- Facebook: `pages_show_list,pages_manage_posts,pages_read_engagement`
+- Instagram: `instagram_basic,instagram_content_publish,pages_show_list,business_management`
 
 Uwagi:
 - `NEXT_PUBLIC_API_URL` dla fullstack Next powinno pozostać ustawione na `/api`.

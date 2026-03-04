@@ -2,21 +2,21 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Link2, Image, Calendar, BarChart3 } from 'lucide-react';
+import { LayoutDashboard, Link2, Image, BarChart3, Layers } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
 
 const navItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', href: '/' },
+  { icon: LayoutDashboard, label: 'Pulpit', href: '/' },
+  { icon: Layers, label: 'Kampanie', href: '/campaigns' },
   { icon: Link2, label: 'Połączone konta', href: '/social-accounts' },
   { icon: Image, label: 'Biblioteka mediów', href: '/media-library' },
-  { icon: Calendar, label: 'Harmonogram', href: '/schedule' },
   { icon: BarChart3, label: 'Analityka', href: '/analytics' },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
-  const [planLabel, setPlanLabel] = useState('Plan Free');
+  const [planLabel, setPlanLabel] = useState('Plan bezpłatny');
   const [usageLabel, setUsageLabel] = useState('0/0 filmów w tym miesiącu');
   const [trialLabel, setTrialLabel] = useState<string | null>(null);
   const [usageProgress, setUsageProgress] = useState(0);
@@ -42,7 +42,7 @@ export function Sidebar() {
         }>('/billing/subscription');
 
         const activePlan = response.data.subscription.plan;
-        setPlanLabel(activePlan === 'FREE' ? 'Plan Free' : activePlan === 'PRO' ? 'Plan Pro' : 'Plan Premium');
+        setPlanLabel(activePlan === 'FREE' ? 'Plan bezpłatny' : activePlan === 'PRO' ? 'Plan Pro' : 'Plan Premium');
 
         const count = response.data.usage.video_uploads.count;
         const limit = response.data.usage.video_uploads.limit;
@@ -59,12 +59,12 @@ export function Sidebar() {
           const remainingMs = Math.max(0, endsAt - Date.now());
           const hours = Math.floor(remainingMs / (1000 * 60 * 60));
           const minutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
-          setTrialLabel(`Trial PRO: ${hours}h ${minutes}m`);
+          setTrialLabel(`Okres próbny PRO: ${hours}h ${minutes}m`);
         } else {
           setTrialLabel(null);
         }
       } catch {
-        setPlanLabel('Plan Free');
+        setPlanLabel('Plan bezpłatny');
         setUsageLabel('0/0 filmów w tym miesiącu');
         setUsageProgress(0);
         setTrialLabel(null);

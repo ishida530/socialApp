@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
         }
 
         return {
-          allowedContentTypes: ['video/mp4', 'video/quicktime'],
+          allowedContentTypes: ['video/mp4', 'video/quicktime', 'image/jpeg', 'image/png', 'image/webp'],
           addRandomSuffix: true,
           tokenPayload: JSON.stringify({
             userId: user.userId,
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
           throw new Error('Missing userId in upload token payload');
         }
 
-        const title = sanitizeTitle(payload?.title ?? 'Nowe wideo');
+        const title = sanitizeTitle(payload?.title ?? 'Nowy materiał');
 
         const existing = await prisma.video.findFirst({
           where: {

@@ -1,12 +1,31 @@
 import { Plus, ChevronDown, Wifi, WifiOff } from 'lucide-react';
+import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { useAuth } from '@/contexts/auth-context';
 
 export function Header() {
+  const pathname = usePathname();
   const [apiConnected, setApiConnected] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const { logout, user } = useAuth();
+
+  const pageTitle =
+    pathname === '/'
+      ? 'Pulpit'
+      : pathname.startsWith('/schedule') || pathname.startsWith('/campaigns')
+        ? 'Kampanie i harmonogram'
+        : pathname.startsWith('/social-accounts')
+          ? 'Połączone konta'
+          : pathname.startsWith('/media-library')
+            ? 'Biblioteka mediów'
+            : pathname.startsWith('/analytics')
+              ? 'Analityka'
+              : pathname.startsWith('/billing')
+                ? 'Subskrypcja'
+                : pathname.startsWith('/admin')
+                  ? 'Panel administracyjny'
+                  : 'Pulpit';
 
   useEffect(() => {
     let isMounted = true;
@@ -38,7 +57,7 @@ export function Header() {
   return (
     <header className="min-h-16 bg-card border-b border-border px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
       <div className="flex items-center gap-3 min-w-0">
-        <h1 className="text-base sm:text-xl font-semibold text-foreground truncate">Dashboard</h1>
+        <h1 className="text-base sm:text-xl font-semibold text-foreground truncate">{pageTitle}</h1>
       </div>
 
       <div className="flex items-center gap-2 sm:gap-4 w-full sm:w-auto justify-end">
@@ -58,8 +77,7 @@ export function Header() {
 
         <button
           onClick={() => {
-            const composer = document.getElementById('post-composer');
-            composer?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            window.dispatchEvent(new Event('post-composer:open'));
           }}
           className="flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-2.5 bg-gradient-to-r from-primary to-accent text-primary-foreground rounded-xl hover:shadow-lg hover:shadow-primary/30 transition-all"
         >

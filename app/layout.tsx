@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { Toaster } from 'sonner';
 import { AuthProvider } from '@/contexts/auth-context';
+import { GlobalPostComposerSheet } from '@/components/GlobalPostComposerSheet';
 
 export const metadata: Metadata = {
   title: 'FlowState Dashboard',
@@ -18,6 +19,7 @@ export default function RootLayout({
       <body>
         <AuthProvider>
           {children}
+          <GlobalPostComposerSheet />
           <Toaster richColors position="top-right" />
         </AuthProvider>
       </body>

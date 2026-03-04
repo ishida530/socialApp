@@ -46,7 +46,7 @@ export default function CallbackPage() {
   return (
     <main className="min-h-screen bg-background flex items-center justify-center p-6">
       <div className="w-full max-w-xl bg-card border border-border rounded-xl p-8 text-center space-y-4">
-        <h1 className="text-2xl font-semibold text-foreground">FlowState OAuth</h1>
+        <h1 className="text-2xl font-semibold text-foreground">Łączenie konta social</h1>
         <p className="text-muted-foreground">{message}</p>
 
         <div className="pt-2">
@@ -65,7 +65,7 @@ export default function CallbackPage() {
           href="/"
           className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
         >
-          Powrót do Dashboard
+          Powrót do Pulpitu
         </Link>
       </div>
     </main>

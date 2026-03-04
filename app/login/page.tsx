@@ -22,7 +22,7 @@ export default function LoginPage() {
       toast.success('Zalogowano pomyślnie.');
       router.replace('/');
     } catch {
-      toast.error('Logowanie nie powiodło się. Sprawdź dane.');
+      toast.error('Logowanie nie powiodło się. Sprawdź e-mail i hasło.');
     } finally {
       setIsSubmitting(false);
     }
@@ -44,6 +44,7 @@ export default function LoginPage() {
         <div className="space-y-2">
           <label className="text-sm text-foreground">Email</label>
           <input
+            autoFocus
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             type="email"

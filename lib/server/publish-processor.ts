@@ -2,13 +2,15 @@ import { prisma } from './prisma';
 import { logError, logEvent } from './observability';
 import { decryptToken, refreshSocialAccessToken } from './social-oauth';
 import { readFile } from 'fs/promises';
+import { buildSignedVideoSourceUrl } from './video-source-signature';
+import { cleanupMediaAfterFullPublish } from './media-lifecycle';
 
 type ClaimedJobRow = {
   id: string;
 };
 
 type PublishTransportResult = {
-  provider: 'YOUTUBE' | 'TIKTOK';
+  provider: 'YOUTUBE' | 'TIKTOK' | 'FACEBOOK' | 'INSTAGRAM';
   remoteId?: string;
   postUrl?: string;
 };
@@ -277,7 +279,11 @@ function buildTikTokPullSourceUrl(videoId: string, fallbackSourceUrl: string) {
     return resolvePublicVideoUrl(fallbackSourceUrl);
   }
 
-  return new URL(`/api/videos/${videoId}/source`, frontendUrl).toString();
+  return buildSignedVideoSourceUrl(frontendUrl, videoId, 60 * 60);
+}
+
+function resolveMetaApiVersion() {
+  return process.env.META_GRAPH_API_VERSION || 'v23.0';
 }
 
 async function resolveVideoBytes(job: {
@@ -312,7 +318,7 @@ async function publishToYouTube(job: {
     sourceUrl: string;
     localPath: string | null;
   };
-}, accessToken: string) {
+}, accessToken: string): Promise<PublishTransportResult> {
   const fileBytes = await resolveVideoBytes(job);
   const boundary = `flowstate-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
@@ -371,7 +377,7 @@ async function publishToYouTube(job: {
 
 async function publishToTikTok(job: {
   video: { id: string; title: string; sourceUrl: string };
-}, accessToken: string) {
+}, accessToken: string): Promise<PublishTransportResult> {
   const sourceUrl = buildTikTokPullSourceUrl(job.video.id, job.video.sourceUrl);
 
   const response = await fetch('https://open.tiktokapis.com/v2/post/publish/video/init/', {
@@ -420,8 +426,170 @@ async function publishToTikTok(job: {
   };
 }
 
+async function publishToFacebook(job: {
+  socialAccount: { externalId: string | null };
+  video: {
+    title: string;
+    description: string | null;
+    sourceUrl: string;
+  };
+}, accessToken: string): Promise<PublishTransportResult> {
+  const pageId = job.socialAccount.externalId;
+  if (!pageId) {
+    throw new Error('Brak externalId strony Facebook dla konta social');
+  }
+
+  const sourceUrl = resolvePublicVideoUrl(job.video.sourceUrl);
+  const version = resolveMetaApiVersion();
+  const params = new URLSearchParams({
+    access_token: accessToken,
+    file_url: sourceUrl,
+    title: job.video.title.slice(0, 255),
+    description: (job.video.description ?? '').slice(0, 5000),
+    published: 'true',
+  });
+
+  const response = await fetch(
+    `https://graph.facebook.com/${version}/${pageId}/videos`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: params.toString(),
+    },
+  );
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+
+    if (response.status === 401 || response.status === 403) {
+      throw new PublishAuthError(
+        `Facebook access token invalid/expired: ${errorBody || response.statusText}`,
+        response.status,
+      );
+    }
+
+    throw new Error(`Facebook publish failed: ${errorBody || response.statusText}`);
+  }
+
+  const payload = (await response.json()) as {
+    id?: string;
+    post_id?: string;
+  };
+
+  return {
+    provider: 'FACEBOOK' as const,
+    remoteId: payload.post_id ?? payload.id,
+    postUrl: payload.post_id ? `https://www.facebook.com/${payload.post_id}` : undefined,
+  };
+}
+
+async function publishToInstagram(job: {
+  socialAccount: { externalId: string | null };
+  video: {
+    title: string;
+    description: string | null;
+    sourceUrl: string;
+  };
+}, accessToken: string): Promise<PublishTransportResult> {
+  const igUserId = job.socialAccount.externalId;
+  if (!igUserId) {
+    throw new Error('Brak externalId konta Instagram Business dla konta social');
+  }
+
+  const sourceUrl = resolvePublicVideoUrl(job.video.sourceUrl);
+  const version = resolveMetaApiVersion();
+  const caption = [job.video.title.trim(), job.video.description?.trim() ?? '']
+    .filter(Boolean)
+    .join('\n\n')
+    .slice(0, 2200);
+
+  const createParams = new URLSearchParams({
+    access_token: accessToken,
+    media_type: 'REELS',
+    video_url: sourceUrl,
+    caption,
+    share_to_feed: 'true',
+  });
+
+  const createResponse = await fetch(
+    `https://graph.facebook.com/${version}/${igUserId}/media`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: createParams.toString(),
+    },
+  );
+
+  if (!createResponse.ok) {
+    const errorBody = await createResponse.text();
+
+    if (createResponse.status === 401 || createResponse.status === 403) {
+      throw new PublishAuthError(
+        `Instagram access token invalid/expired: ${errorBody || createResponse.statusText}`,
+        createResponse.status,
+      );
+    }
+
+    throw new Error(`Instagram container create failed: ${errorBody || createResponse.statusText}`);
+  }
+
+  const createPayload = (await createResponse.json()) as {
+    id?: string;
+  };
+
+  if (!createPayload.id) {
+    throw new Error('Instagram container create failed: missing creation_id');
+  }
+
+  const publishParams = new URLSearchParams({
+    access_token: accessToken,
+    creation_id: createPayload.id,
+  });
+
+  const publishResponse = await fetch(
+    `https://graph.facebook.com/${version}/${igUserId}/media_publish`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: publishParams.toString(),
+    },
+  );
+
+  if (!publishResponse.ok) {
+    const errorBody = await publishResponse.text();
+
+    if (publishResponse.status === 401 || publishResponse.status === 403) {
+      throw new PublishAuthError(
+        `Instagram access token invalid/expired: ${errorBody || publishResponse.statusText}`,
+        publishResponse.status,
+      );
+    }
+
+    throw new Error(`Instagram publish failed: ${errorBody || publishResponse.statusText}`);
+  }
+
+  const publishPayload = (await publishResponse.json()) as {
+    id?: string;
+  };
+
+  return {
+    provider: 'INSTAGRAM' as const,
+    remoteId: publishPayload.id ?? createPayload.id,
+    postUrl: undefined,
+  };
+}
+
 async function publishToPlatform(job: {
-  socialAccount: { platform: 'YOUTUBE' | 'TIKTOK' };
+  socialAccount: {
+    platform: 'YOUTUBE' | 'TIKTOK' | 'FACEBOOK' | 'INSTAGRAM';
+    externalId: string | null;
+  };
   video: {
     id: string;
     title: string;
@@ -429,13 +597,21 @@ async function publishToPlatform(job: {
     sourceUrl: string;
     localPath: string | null;
   };
-}, accessToken: string) {
+}, accessToken: string): Promise<PublishTransportResult> {
   if (job.socialAccount.platform === 'YOUTUBE') {
     return publishToYouTube(job, accessToken);
   }
 
   if (job.socialAccount.platform === 'TIKTOK') {
     return publishToTikTok(job, accessToken);
+  }
+
+  if (job.socialAccount.platform === 'FACEBOOK') {
+    return publishToFacebook(job, accessToken);
+  }
+
+  if (job.socialAccount.platform === 'INSTAGRAM') {
+    return publishToInstagram(job, accessToken);
   }
 
   throw new Error(`Nieobsługiwana platforma publikacji: ${job.socialAccount.platform}`);
@@ -508,7 +684,8 @@ async function processClaimedJob(jobId: string) {
 
   const publishInput = {
     socialAccount: {
-      platform: job.socialAccount.platform as 'YOUTUBE' | 'TIKTOK',
+      platform: job.socialAccount.platform as 'YOUTUBE' | 'TIKTOK' | 'FACEBOOK' | 'INSTAGRAM',
+      externalId: job.socialAccount.externalId,
     },
     video: {
       id: job.video.id,
@@ -539,6 +716,10 @@ async function processClaimedJob(jobId: string) {
       });
     }
 
+    if (!accessToken) {
+      throw new Error('Brak access token dla konta social po próbie odświeżenia');
+    }
+
     if (tiktokTrackingState) {
       const status = await fetchTikTokPublishStatus(
         tiktokTrackingState.publishId,
@@ -550,6 +731,7 @@ async function processClaimedJob(jobId: string) {
           remoteId: status.postId ?? tiktokTrackingState.publishId,
           postUrl: status.postUrl,
         });
+        await cleanupMediaAfterFullPublish(job.video.id);
 
         logEvent('publish-processor', 'job-succeeded', {
           jobId: job.id,
@@ -625,6 +807,7 @@ async function processClaimedJob(jobId: string) {
       remoteId: publishResult.remoteId,
       postUrl: publishResult.postUrl,
     });
+    await cleanupMediaAfterFullPublish(job.video.id);
 
     logEvent('publish-processor', 'job-succeeded', {
       jobId: job.id,
@@ -671,6 +854,7 @@ async function processClaimedJob(jobId: string) {
               remoteId: status.postId ?? tiktokTrackingState.publishId,
               postUrl: status.postUrl,
             });
+            await cleanupMediaAfterFullPublish(job.video.id);
 
             logEvent('publish-processor', 'job-succeeded-after-token-refresh', {
               jobId: job.id,
@@ -748,6 +932,7 @@ async function processClaimedJob(jobId: string) {
           remoteId: publishResult.remoteId,
           postUrl: publishResult.postUrl,
         });
+        await cleanupMediaAfterFullPublish(job.video.id);
 
         logEvent('publish-processor', 'job-succeeded-after-token-refresh', {
           jobId: job.id,

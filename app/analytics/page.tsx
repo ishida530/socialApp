@@ -91,7 +91,7 @@ export default function AnalyticsPage() {
 
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 lg:pb-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-            <h2 className="text-lg font-semibold text-foreground">Analytics</h2>
+            <h2 className="text-lg font-semibold text-foreground">Analityka</h2>
             <select
               value={selectedRange}
               onChange={(event) => setSelectedRange(event.target.value as RangeKey)}
@@ -119,7 +119,7 @@ export default function AnalyticsPage() {
             </div>
 
             <div className="bg-card border border-border rounded-xl p-5">
-              <p className="text-sm text-muted-foreground">SUCCESS / FAILED</p>
+              <p className="text-sm text-muted-foreground">SUKCES / BŁĄD</p>
               <p className="text-3xl font-semibold text-foreground mt-2">
                 {metrics
                   ? `${metrics.totals.jobsSucceeded} / ${metrics.totals.jobsFailed}`
@@ -128,7 +128,7 @@ export default function AnalyticsPage() {
             </div>
 
             <div className="bg-card border border-border rounded-xl p-5">
-              <p className="text-sm text-muted-foreground">Success rate</p>
+              <p className="text-sm text-muted-foreground">Skuteczność</p>
               <p className="text-3xl font-semibold text-foreground mt-2">
                 {metrics ? `${metrics.totals.successRate}%` : '-'}
               </p>
@@ -162,7 +162,7 @@ export default function AnalyticsPage() {
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
                       <span>{row.date}</span>
                       <span>
-                        V:{row.videos} J:{row.jobsCreated} S:{row.success} F:{row.failed}
+                        Wideo:{row.videos} Joby:{row.jobsCreated} Sukces:{row.success} Błąd:{row.failed}
                       </span>
                     </div>
                     <div className="h-2 w-full bg-secondary/40 rounded-full overflow-hidden">
