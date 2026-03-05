@@ -488,6 +488,18 @@ export function LandingExperience() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  const scrollToPricing = () => {
+    const section = document.getElementById('pricing');
+    if (!section) {
+      return;
+    }
+
+    section.scrollIntoView({
+      behavior: reduceMotion ? 'auto' : 'smooth',
+      block: 'start',
+    });
+  };
+
   return (
     <main className="relative min-h-full bg-background text-foreground">
       <ScrollProgressWithLogo />
@@ -533,14 +545,16 @@ export function LandingExperience() {
             </Link>
             <Link
               href="#pricing"
-              onClick={() =>
+              onClick={(event) => {
+                event.preventDefault();
+                scrollToPricing();
                 trackLandingEvent({
                   event: 'landing_cta_click',
                   cta: 'hero_compare_plans',
                   href: '#pricing',
                   source: 'landing',
-                })
-              }
+                });
+              }}
               className="inline-flex items-center rounded-xl border border-border bg-card/40 px-5 py-3 text-sm font-semibold text-foreground hover:bg-card/70"
             >
               Sprawdź plany
