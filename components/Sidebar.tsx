@@ -2,21 +2,26 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Link2, Image, BarChart3, Layers } from 'lucide-react';
+import { LayoutDashboard, Link2, Image as ImageIcon, BarChart3, Layers } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
+import { BrandLogo } from '@/components/BrandLogo';
+import { planLabel } from '@/lib/billing/labels';
+import type { PlanTier } from '@/lib/billing/types';
+import { useBillingCapabilities } from '@/hooks/useBillingCapabilities';
 
 const navItems = [
-  { icon: LayoutDashboard, label: 'Pulpit', href: '/' },
+  { icon: LayoutDashboard, label: 'Pulpit', href: '/dashboard' },
   { icon: Layers, label: 'Kampanie', href: '/campaigns' },
   { icon: Link2, label: 'Połączone konta', href: '/social-accounts' },
-  { icon: Image, label: 'Biblioteka mediów', href: '/media-library' },
+  { icon: ImageIcon, label: 'Biblioteka mediów', href: '/media-library' },
   { icon: BarChart3, label: 'Analityka', href: '/analytics' },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
-  const [planLabel, setPlanLabel] = useState('Plan bezpłatny');
+  const capabilities = useBillingCapabilities();
+  const [currentPlanLabel, setCurrentPlanLabel] = useState('Plan bezplatny');
   const [usageLabel, setUsageLabel] = useState('0/0 filmów w tym miesiącu');
   const [trialLabel, setTrialLabel] = useState<string | null>(null);
   const [usageProgress, setUsageProgress] = useState(0);
@@ -26,8 +31,8 @@ export function Sidebar() {
       try {
         const response = await apiClient.get<{
           subscription: {
-            plan: 'FREE' | 'STARTER' | 'PRO' | 'BUSINESS';
-            basePlan?: 'FREE' | 'STARTER' | 'PRO' | 'BUSINESS';
+            plan: PlanTier;
+            basePlan?: PlanTier;
             trial?: {
               isActive: boolean;
               endsAt: string;
@@ -42,15 +47,7 @@ export function Sidebar() {
         }>('/billing/subscription');
 
         const activePlan = response.data.subscription.plan;
-        setPlanLabel(
-          activePlan === 'FREE'
-            ? 'Plan Free'
-            : activePlan === 'STARTER'
-              ? 'Plan Starter'
-              : activePlan === 'PRO'
-                ? 'Plan Pro'
-                : 'Plan Business',
-        );
+        setCurrentPlanLabel(`Plan ${planLabel(activePlan)}`);
 
         const count = response.data.usage.video_uploads.count;
         const limit = response.data.usage.video_uploads.limit;
@@ -67,12 +64,12 @@ export function Sidebar() {
           const remainingMs = Math.max(0, endsAt - Date.now());
           const days = Math.floor(remainingMs / (1000 * 60 * 60 * 24));
           const hours = Math.floor((remainingMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-          setTrialLabel(`Trial PRO (7 dni): ${days}d ${hours}h`);
+          setTrialLabel(`Trial PRO (${capabilities.trial.days} dni): ${days}d ${hours}h`);
         } else {
           setTrialLabel(null);
         }
       } catch {
-        setPlanLabel('Plan bezpłatny');
+        setCurrentPlanLabel('Plan bezplatny');
         setUsageLabel('0/0 filmów w tym miesiącu');
         setUsageProgress(0);
         setTrialLabel(null);
@@ -88,26 +85,20 @@ export function Sidebar() {
     return () => {
       window.clearInterval(timer);
     };
-  }, []);
+  }, [capabilities.trial.days]);
 
   return (
     <>
       <aside className="hidden lg:flex w-64 bg-card border-r border-border flex-col">
         <div className="p-6 border-b border-border">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-primary to-accent rounded-xl flex items-center justify-center">
-              <span className="text-xl font-bold text-white">PF</span>
-            </div>
-            <span className="text-xl font-bold text-foreground">Postfly</span>
+          <div className="flex items-center">
+            <BrandLogo className="h-16 w-auto" priority />
           </div>
         </div>
 
         <nav className="flex-1 p-4 space-y-2">
           {navItems.map((item) => {
-            const isActive =
-              item.href === '/'
-                ? pathname === '/'
-                : pathname === item.href || pathname.startsWith(`${item.href}/`);
+            const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
 
             return (
               <Link
@@ -128,7 +119,7 @@ export function Sidebar() {
 
         <div className="p-4 border-t border-border">
           <div className="bg-gradient-to-br from-primary/10 to-accent/10 backdrop-blur-sm border border-primary/20 rounded-xl p-4">
-            <p className="text-sm text-foreground font-medium mb-2">{planLabel}</p>
+            <p className="text-sm text-foreground font-medium mb-2">{currentPlanLabel}</p>
             <p className="text-xs text-muted-foreground mb-3">
               {usageLabel}
             </p>
@@ -152,10 +143,7 @@ export function Sidebar() {
       <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 border-t border-border bg-card/95 backdrop-blur-sm">
         <div className="grid grid-cols-5 px-1 py-1">
           {navItems.map((item) => {
-            const isActive =
-              item.href === '/'
-                ? pathname === '/'
-                : pathname === item.href || pathname.startsWith(`${item.href}/`);
+            const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
 
             return (
               <Link

@@ -2,6 +2,9 @@ import { Hash, Calendar, Send, Sparkles, Gem } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
+import { planLabel } from '@/lib/billing/labels';
+import type { PlanTier } from '@/lib/billing/types';
+import { useBillingCapabilities } from '@/hooks/useBillingCapabilities';
 import { VideoUploader } from './VideoUploader';
 
 type PlatformKey = keyof typeof platformLimits;
@@ -31,33 +34,6 @@ const hashtagPresets = [
 
 const platformOrder: PlatformKey[] = ['youtube', 'tiktok', 'instagram', 'facebook'];
 
-const planComposerConfig = {
-  FREE: {
-    maxPlatforms: 1,
-    aiMode: 'single-lite',
-    aiLabel: 'AI Mini (1 opis)',
-    subtitle: 'Free: 1 kanał social, planowanie do 72h',
-  },
-  STARTER: {
-    maxPlatforms: 3,
-    aiMode: 'all-lite',
-    aiLabel: 'AI niedostępne',
-    subtitle: 'Starter: 3 kanały i 15 wideo / miesiąc',
-  },
-  PRO: {
-    maxPlatforms: 10,
-    aiMode: 'all-lite',
-    aiLabel: 'AI niedostępne',
-    subtitle: 'PRO: 10 kanałów, soft limit 100 wideo/mies.',
-  },
-  BUSINESS: {
-    maxPlatforms: 25,
-    aiMode: 'all-full',
-    aiLabel: 'Auto-Pilot',
-    subtitle: 'Business: AI Autopilot + priorytetowy support',
-  },
-} as const;
-
 function createInitialCampaignContent(initialCaption = ''): Record<PlatformKey, CampaignPlatformContent> {
   return {
     youtube: { caption: initialCaption, hashtags: [] },
@@ -72,13 +48,6 @@ function apiPlatformToKey(platform: 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'FACEBO
   if (platform === 'TIKTOK') return 'tiktok';
   if (platform === 'INSTAGRAM') return 'instagram';
   return 'facebook';
-}
-
-function planLabel(plan: 'FREE' | 'STARTER' | 'PRO' | 'BUSINESS') {
-  if (plan === 'FREE') return 'Free';
-  if (plan === 'STARTER') return 'Starter';
-  if (plan === 'PRO') return 'Pro';
-  return 'Business';
 }
 
 export function PostComposer() {
@@ -111,8 +80,10 @@ export function PostComposer() {
       video?: { id: string; title: string } | null;
     }>
   >([]);
-  const [effectivePlan, setEffectivePlan] = useState<'FREE' | 'STARTER' | 'PRO' | 'BUSINESS'>('FREE');
+  const [effectivePlan, setEffectivePlan] = useState<PlanTier>('FREE');
   const [aiRunUsage, setAiRunUsage] = useState<{ count: number; limit: number | null }>({ count: 0, limit: null });
+  const [socialAccountsLimit, setSocialAccountsLimit] = useState(1);
+  const capabilities = useBillingCapabilities();
   const [isPlanLoading, setIsPlanLoading] = useState(true);
 
   const bootstrapComposerData = useCallback(async () => {
@@ -134,9 +105,15 @@ export function PostComposer() {
           >('/drafts'),
           apiClient.get<{
             subscription: {
-              plan: 'FREE' | 'STARTER' | 'PRO' | 'BUSINESS';
-              effectivePlan?: 'FREE' | 'STARTER' | 'PRO' | 'BUSINESS';
+              plan: PlanTier;
+              effectivePlan?: PlanTier;
             };
+            catalog?: Array<{
+              tier: PlanTier;
+              limits: {
+                social_accounts: number;
+              };
+            }>;
             usage?: {
               ai_autopilot_runs?: {
                 count: number;
@@ -163,6 +140,10 @@ export function PostComposer() {
           billingResponse.data.subscription.effectivePlan ||
           billingResponse.data.subscription.plan;
         setEffectivePlan(currentEffectivePlan);
+
+        const currentPlanCatalog = billingResponse.data.catalog?.find((plan) => plan.tier === currentEffectivePlan);
+        setSocialAccountsLimit(currentPlanCatalog?.limits.social_accounts ?? 1);
+
         setAiRunUsage({
           count: billingResponse.data.usage?.ai_autopilot_runs?.count ?? 0,
           limit: billingResponse.data.usage?.ai_autopilot_runs?.limit ?? null,
@@ -179,20 +160,38 @@ export function PostComposer() {
         setSelectedPublishPlatforms(new Set());
         setDrafts([]);
         setEffectivePlan('FREE');
+        setSocialAccountsLimit(1);
         setAiRunUsage({ count: 0, limit: 0 });
         setIsPlanLoading(false);
       }
     }, []);
 
-  const planConfig = planComposerConfig[effectivePlan];
+  const maxSelectablePlatforms = Math.max(1, Math.min(socialAccountsLimit, platformOrder.length));
+
+  const planSubtitle = useMemo(() => {
+    if (effectivePlan === 'FREE') {
+      return capabilities.free.subtitle;
+    }
+
+    const slug = effectivePlan.toLowerCase() as 'starter' | 'pro' | 'business';
+    const plan = capabilities.plans.find((item) => item.slug === slug);
+    if (!plan) {
+      return 'Plan płatny aktywny.';
+    }
+
+    return `${plan.name}: ${plan.platformsLabel}, konta na platformę: ${plan.accountsPerPlatformLabel}, ${plan.monthlyVideoLabel} wideo/mies.`;
+  }, [capabilities.free.subtitle, capabilities.plans, effectivePlan]);
+
   const autoPilotTierLabel =
     effectivePlan === 'BUSINESS'
-      ? 'Business Auto-Pilot'
+      ? 'Business Auto-Pilot (bez limitu)'
       : effectivePlan === 'PRO'
-        ? 'PRO bez Auto-Pilot'
+        ? 'PRO Auto-Pilot Lite (15 / mies.)'
         : effectivePlan === 'STARTER'
           ? 'Starter bez Auto-Pilot'
         : 'Free AI Mini (1 opis/post)';
+
+  const hasAutoPilotLiteAccess = effectivePlan === 'PRO' || effectivePlan === 'BUSINESS';
 
   useEffect(() => {
     void bootstrapComposerData();
@@ -242,8 +241,8 @@ export function PostComposer() {
     [connectedPlatforms],
   );
   const publishablePlatformList = useMemo(
-    () => connectedPlatformList.slice(0, planConfig.maxPlatforms),
-    [connectedPlatformList, planConfig.maxPlatforms],
+    () => connectedPlatformList.slice(0, maxSelectablePlatforms),
+    [connectedPlatformList, maxSelectablePlatforms],
   );
 
   const updatePlatformContent = (
@@ -280,7 +279,7 @@ export function PostComposer() {
       return;
     }
 
-    if (effectivePlan !== 'BUSINESS') {
+    if (!hasAutoPilotLiteAccess) {
       const trimmed = campaignBrief.trim();
       const generated = `${trimmed}\n\nSprawdź więcej w bio i daj znać w komentarzu, co testujemy następnie.`;
       const defaultTags = hashtagPresets.slice(0, 3);
@@ -292,7 +291,7 @@ export function PostComposer() {
         aiScore: 0.58,
       }));
 
-      toast.success('AI Mini wygenerował opis dla wybranej platformy. Odblokuj Business dla pełnego Auto-Pilot.');
+      toast.success('AI Mini wygenerował opis dla wybranej platformy. Odblokuj Pro, aby korzystać z AI Autopilot Lite.');
       return;
     }
 
@@ -429,7 +428,7 @@ export function PostComposer() {
       }).response?.data;
 
       if (responseData?.code === 'FEATURE_NOT_AVAILABLE') {
-        toast.error('Auto-Pilot AI jest dostępny od planu Business.');
+        toast.error('Auto-Pilot AI jest dostępny od planu Pro.');
         return;
       }
 
@@ -475,8 +474,8 @@ export function PostComposer() {
       return;
     }
 
-    if (effectivePlan === 'FREE' && targetPlatforms.length > planConfig.maxPlatforms) {
-      toast.error('Plan Free pozwala publikować na maksymalnie 1 kanale social.');
+    if (targetPlatforms.length > maxSelectablePlatforms) {
+      toast.error(`Twój plan pozwala publikować na maksymalnie ${maxSelectablePlatforms} kanałach social.`);
       return;
     }
 
@@ -600,8 +599,8 @@ export function PostComposer() {
       if (next.has(platform)) {
         next.delete(platform);
       } else {
-        if (effectivePlan === 'FREE' && next.size >= planConfig.maxPlatforms) {
-          toast.warning('Plan Free: możesz wybrać maksymalnie 1 kanał. Odblokuj Starter lub wyżej.');
+        if (next.size >= maxSelectablePlatforms) {
+          toast.warning(`Maksymalnie ${maxSelectablePlatforms} kanałów dla Twojego planu.`);
           return next;
         }
         next.add(platform);
@@ -745,7 +744,7 @@ export function PostComposer() {
           {isPlanLoading ? 'Sprawdzanie planu...' : autoPilotTierLabel}
         </p>
         <p className="text-xs text-muted-foreground mt-1">
-          {isPlanLoading ? '...' : planConfig.subtitle}
+          {isPlanLoading ? '...' : planSubtitle}
         </p>
       </div>
 
@@ -849,42 +848,44 @@ export function PostComposer() {
                     <span>
                       {isAutoPilotRunning
                         ? 'AI generuje opisy...'
-                        : effectivePlan !== 'BUSINESS'
+                        : !hasAutoPilotLiteAccess
                           ? 'Generuj AI (1 platforma)'
-                          : 'Generuj AI (wszystkie platformy)'}
+                          : effectivePlan === 'BUSINESS'
+                            ? 'Generuj AI (wszystkie platformy)'
+                            : 'Generuj AI (Auto-Pilot Lite)'}
                     </span>
                   </button>
 
-                  {effectivePlan !== 'BUSINESS' && (
+                  {!hasAutoPilotLiteAccess && (
                     <p className="text-xs text-muted-foreground">
-                      🔒 Ulepsz do Business, aby odblokować pełny Auto-Pilot.
+                      🔒 Ulepsz do Pro, aby odblokować AI Auto-Pilot Lite.
                     </p>
                   )}
-                  {effectivePlan === 'BUSINESS' && (
+                  {hasAutoPilotLiteAccess && (
                     <p className="text-xs text-muted-foreground">
                       Wykorzystano {aiRunUsage.count}/{aiRunUsage.limit ?? '∞'} uruchomień AI w tym miesiącu.
                     </p>
                   )}
                 </div>
 
-                {!isPlanLoading && effectivePlan !== 'BUSINESS' && (
+                {!isPlanLoading && (effectivePlan === 'FREE' || effectivePlan === 'STARTER' || effectivePlan === 'PRO') && (
                   <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
                     <p className="text-xs text-foreground flex items-center gap-2 font-medium">
                       <Gem className="w-3.5 h-3.5 text-primary" />
                       {effectivePlan === 'PRO'
-                        ? 'Business odblokowuje AI Autopilot i priorytetowy support.'
-                        : 'Przejdź na Starter/Pro/Business zgodnie z potrzebnym limitem kanałów i funkcji.'}
+                        ? 'Business odblokowuje nielimitowany AI Autopilot i priorytetowy support.'
+                        : 'Przejdź na Pro, aby odblokować AI Autopilot Lite (15 uruchomień / miesiąc).'}
                     </p>
                     <div className="mt-3 flex flex-wrap gap-2">
-                      {effectivePlan === 'FREE' && (
+                      {(effectivePlan === 'FREE' || effectivePlan === 'STARTER') && (
                         <button
                           onClick={() => {
-                            void startPlanCheckout('STARTER');
+                            void startPlanCheckout('PRO');
                           }}
                           disabled={isCheckoutLoading}
                           className="px-3 py-1.5 rounded-lg border border-border bg-secondary text-foreground text-xs disabled:opacity-60"
                         >
-                          {isCheckoutLoading ? 'Uruchamianie...' : 'Odblokuj STARTER'}
+                          {isCheckoutLoading ? 'Uruchamianie...' : 'Odblokuj PRO (AI Lite)'}
                         </button>
                       )}
                       <button
@@ -1120,13 +1121,13 @@ export function PostComposer() {
       <div className="border-t border-border p-3 sm:p-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <p className="text-xs text-muted-foreground">
-            {effectivePlan === 'BUSINESS'
+            {hasAutoPilotLiteAccess
               ? `AI: ${aiRunUsage.count}/${aiRunUsage.limit ?? '∞'} w tym miesiącu`
               : effectivePlan === 'FREE'
                 ? 'Free: AI dla 1 platformy i planowanie do 72h'
                 : effectivePlan === 'STARTER'
-                  ? 'Starter: 3 kanały, bez AI Auto-Pilot'
-                  : 'PRO: 10 kanałów, soft limit 100 wideo/mies.'}
+                    ? 'Starter: sloty YT/TikTok/IG/FB, bez AI Autopilot'
+                    : 'PRO: Auto-Pilot Lite i limit miękki 100 wideo/mies.'}
           </p>
 
           <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 justify-end">
@@ -1158,7 +1159,7 @@ export function PostComposer() {
                 <button
                   onClick={() => enqueuePublishJob(false)}
                   disabled={isSubmitting || !selectedVideoId || publishablePlatformList.length === 0}
-                  className="col-span-2 sm:col-span-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-gradient-to-r from-primary to-accent text-primary-foreground text-sm disabled:opacity-60"
+                  className="col-span-2 sm:col-span-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm hover:bg-primary/90 disabled:opacity-60"
                 >
                   <Send className="w-4 h-4" />
                   {isSubmitting ? 'Dodawanie...' : 'Zaplanuj kampanię'}

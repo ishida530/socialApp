@@ -310,7 +310,7 @@ export default function SchedulePage() {
     void loadMediaLibrary();
   }, [isAuthenticated]);
 
-  const hasAutoPilotAccess = effectivePlan === 'BUSINESS';
+  const hasAutoPilotAccess = effectivePlan === 'PRO' || effectivePlan === 'BUSINESS';
 
   const freePlanMaxDateTimeLocal = useMemo(() => {
     const maxDate = new Date(Date.now() + 72 * 60 * 60 * 1000);
@@ -319,7 +319,7 @@ export default function SchedulePage() {
 
   const runAiSchedule = async (mode: 'preview' | 'apply' | 'automanage' = 'preview') => {
     if (!hasAutoPilotAccess && !isPlanLoading) {
-      toast.error('AI harmonogram jest dostępny od planu Business.');
+      toast.error('AI harmonogram jest dostępny od planu Pro.');
       return;
     }
 

@@ -3,6 +3,30 @@
 Data: 2026-03-04  
 Zakres: aplikacja Next.js (`app/**`, `lib/**`, `prisma/**`, konfiguracje runtime/deploy)
 
+Aktualizacja: 2026-03-05
+- Wdrożono pełny dark mode oparty o `next-themes` (tryby: `light` / `dark`) z przełącznikiem w nagłówku.
+- Ujednolicono system tokenów kolorystycznych i hierarchię CTA pod kątem spójności UX/UI i konwersji.
+- Wdrożono event tracking landingu (`landing_view`, `landing_section_view`, `landing_cta_click`, `landing_plan_click`) oraz przeniesiono flow pricing na ścieżkę publiczną, by ograniczyć drop-off przed rejestracją.
+
+## 0) Analiza konwersji landing flow (eventy i skutki)
+
+### Eventy w lejku
+- `landing_view`: wejście użytkownika na landing.
+- `landing_section_view`: dotarcie do sekcji (`hero`, `features`, `pricing`, `final-cta`).
+- `landing_cta_click`: kliknięcia przycisków CTA (`hero_start_trial`, `hero_login`, `pricing_compare`, `final_start_trial`, `final_login`).
+- `landing_plan_click`: wybór planu (`starter`, `pro`, `business`) na sekcji pricing.
+
+### Skutki biznesowe monitorowane przez eventy
+- Spadek między `landing_view` a `landing_section_view(pricing)` = problem z message fit above the fold.
+- Spadek między `landing_section_view(pricing)` a `landing_plan_click` = problem z ofertą/copy planów.
+- Spadek między `landing_plan_click` a sukcesem rejestracji/logowania = tarcie w auth flow.
+- Wysoki udział `hero_login` vs `hero_start_trial` = niższa intencja trial i potencjał do testów copy CTA.
+
+### Zmiany UX pod konwersję (wdrożone)
+- Usunięto ścieżkę z CTA pricing do prywatnego `/billing` (wcześniej wymuszała login i obniżała konwersję TOFU).
+- Wybór planu na landingu przekazuje intencję do `/register?source=landing&intent=...`.
+- Rejestracja z intencją planu płatnego przekierowuje na `/billing` po utworzeniu konta, skracając time-to-checkout.
+
 ## 1) Executive summary
 
 FlowState jest **produktem na etapie MVP+** z dobrze domkniętym core flow (auth → upload → planowanie/publikacja → analytics → billing). Fundament techniczny jest dobry: kompilacja produkcyjna przechodzi, schema danych jest spójna, a krytyczne ścieżki (cron, webhooki, publish processor) mają podstawowe zabezpieczenia i retry.

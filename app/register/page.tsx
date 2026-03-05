@@ -2,9 +2,11 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/auth-context';
+import { trackLandingEvent } from '@/lib/landing-events';
+import { BrandLogo } from '@/components/BrandLogo';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -13,6 +15,24 @@ export default function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [source, setSource] = useState('');
+  const [intent, setIntent] = useState('');
+  const fromLanding = source === 'landing';
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setSource(params.get('source') ?? '');
+    setIntent(params.get('intent') ?? '');
+  }, []);
+
+  const intentLabel =
+    intent === 'pro'
+      ? 'Chcesz zaczac od planu Pro.'
+      : intent === 'starter'
+        ? 'Chcesz zaczac od planu Starter.'
+        : intent === 'business'
+          ? 'Chcesz zaczac od planu Business.'
+          : 'Zaczynasz darmowy okres probny.';
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -20,8 +40,24 @@ export default function RegisterPage() {
     try {
       setIsSubmitting(true);
       await register({ name, email, password });
+
+      if (fromLanding) {
+        trackLandingEvent({
+          event: 'landing_cta_click',
+          cta: 'register_success',
+          source: 'landing',
+          plan: intent || 'trial',
+        });
+      }
+
       toast.success('Konto utworzone.');
-      router.replace('/');
+
+      if (fromLanding && (intent === 'starter' || intent === 'pro' || intent === 'business')) {
+        router.replace('/billing');
+        return;
+      }
+
+      router.replace('/dashboard');
     } catch {
       toast.error('Rejestracja nie powiodła się.');
     } finally {
@@ -35,11 +71,18 @@ export default function RegisterPage() {
         onSubmit={onSubmit}
         className="w-full max-w-md bg-card border border-border rounded-xl p-8 space-y-5"
       >
+        <div className="flex justify-center">
+          <BrandLogo className="h-12 w-auto" priority />
+        </div>
+
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Rejestracja</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Utwórz konto i zacznij publikować
           </p>
+          {fromLanding ? (
+            <p className="mt-2 text-xs text-primary">{intentLabel}</p>
+          ) : null}
         </div>
 
         <div className="space-y-2">

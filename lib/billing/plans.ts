@@ -35,7 +35,7 @@ export const PLAN_LIMITS: Record<PlanTier, PlanLimitConfig> = {
     social_accounts: 10,
     video_uploads: null,
     publish_jobs: null,
-    ai_autopilot_runs: 0,
+    ai_autopilot_runs: 15,
     max_schedule_ahead_hours: null,
     soft_video_uploads_limit: 100,
   },
@@ -56,19 +56,22 @@ export const PLAN_FEATURES: Record<PlanTier, string[]> = {
     'Planowanie maksymalnie 3 dni do przodu',
   ],
   STARTER: [
-    '3 kanały social',
-    '15 wideo miesięcznie',
+    'Do 3 kont social łącznie (także wiele kont na jednej platformie)',
+    'Do 15 wideo miesiecznie',
     'Dla freelancerów i małych marek',
   ],
   PRO: [
-    '10 kanałów social',
-    'Brak twardego limitu wideo (soft limit: 100/miesiąc)',
+    'Do 10 kont social łącznie (także wiele kont na jednej platformie)',
+    'Brak twardego limitu publikacji',
+    'Limit miękki: 100 wideo/miesiąc',
+    'AI Autopilot Lite: 15 uruchomień / miesiąc (draft mode)',
     'Plan flagowy do regularnego publikowania',
   ],
   BUSINESS: [
-    '25 kanałów social',
-    'AI Autopilot',
-    'Priorytetowy support',
+    'Do 25 kont social łącznie (także wiele kont na jednej platformie)',
+    'Brak twardego limitu publikacji',
+    'AI Autopilot bez limitu uruchomień (pełny)',
+    'Priorytetowe wsparcie',
   ],
 };
 

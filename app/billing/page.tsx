@@ -5,13 +5,16 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/auth-context';
 import { apiClient } from '@/lib/api-client';
+import { planLabel, subscriptionStatusLabel } from '@/lib/billing/labels';
+import type { PaidPlanTier, PlanTier, SubscriptionStatus } from '@/lib/billing/types';
+import { useBillingCapabilities } from '@/hooks/useBillingCapabilities';
 
 type BillingSnapshot = {
   subscription: {
-    plan: 'FREE' | 'STARTER' | 'PRO' | 'BUSINESS';
-    basePlan?: 'FREE' | 'STARTER' | 'PRO' | 'BUSINESS';
-    effectivePlan?: 'FREE' | 'STARTER' | 'PRO' | 'BUSINESS';
-    status: 'ACTIVE' | 'CANCELED' | 'PAST_DUE';
+    plan: PlanTier;
+    basePlan?: PlanTier;
+    effectivePlan?: PlanTier;
+    status: SubscriptionStatus;
     currentPeriodEnd?: string | null;
     trial?: {
       isActive: boolean;
@@ -20,7 +23,7 @@ type BillingSnapshot = {
     } | null;
   };
   catalog: Array<{
-    tier: 'FREE' | 'STARTER' | 'PRO' | 'BUSINESS';
+    tier: PlanTier;
     title: string;
     description: string;
     priceMonthly: string;
@@ -45,19 +48,6 @@ type BillingSnapshot = {
   };
 };
 
-function subscriptionStatusLabel(status: 'ACTIVE' | 'CANCELED' | 'PAST_DUE') {
-  if (status === 'ACTIVE') return 'Aktywna';
-  if (status === 'PAST_DUE') return 'Wymaga płatności';
-  return 'Anulowana';
-}
-
-function planLabel(plan: 'FREE' | 'STARTER' | 'PRO' | 'BUSINESS') {
-  if (plan === 'FREE') return 'Free';
-  if (plan === 'STARTER') return 'Starter';
-  if (plan === 'PRO') return 'Pro';
-  return 'Business';
-}
-
 function BillingPageContent() {
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
@@ -65,6 +55,7 @@ function BillingPageContent() {
   const searchParams = useSearchParams();
   const handledCheckoutState = useRef<string | null>(null);
   const [snapshot, setSnapshot] = useState<BillingSnapshot | null>(null);
+  const capabilities = useBillingCapabilities();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [billingInterval, setBillingInterval] = useState<'MONTHLY' | 'YEARLY'>('MONTHLY');
@@ -142,7 +133,7 @@ function BillingPageContent() {
     }
   }, [pathname, router, searchParams]);
 
-  const startCheckout = async (plan: 'STARTER' | 'PRO' | 'BUSINESS') => {
+  const startCheckout = async (plan: PaidPlanTier) => {
     try {
       setIsSubmitting(true);
       const response = await apiClient.post<{ mode: 'mock' | 'live'; url?: string }>(
@@ -226,7 +217,7 @@ function BillingPageContent() {
                 </p>
                 {snapshot?.subscription.trial?.isActive && snapshot.subscription.basePlan === 'FREE' && (
                   <p className="text-xs text-primary mt-1">
-                    Okres próbny PRO (7 dni): {trialRemainingHours}h {trialRemainingMinutes}m (do{' '}
+                    Okres próbny PRO ({capabilities.trial.days} dni): {trialRemainingHours}h {trialRemainingMinutes}m (do{' '}
                     {new Date(snapshot.subscription.trial.endsAt).toLocaleString('pl-PL')})
                   </p>
                 )}
@@ -274,7 +265,7 @@ function BillingPageContent() {
 
             <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-secondary/20 p-3">
               <p className="text-sm text-foreground">Rozliczenie</p>
-              <p className="text-xs text-muted-foreground">Każdy płatny plan obejmuje 7 dni okresu próbnego.</p>
+              <p className="text-xs text-muted-foreground">{capabilities.trial.days} dni okresu próbnego ({capabilities.trial.eligibilityNote.toLowerCase()}) przy pierwszej subskrypcji.</p>
               <div className="inline-flex rounded-lg border border-border overflow-hidden">
                 <button
                   onClick={() => setBillingInterval('MONTHLY')}
@@ -286,7 +277,7 @@ function BillingPageContent() {
                   onClick={() => setBillingInterval('YEARLY')}
                   className={`px-3 py-1.5 text-xs ${billingInterval === 'YEARLY' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-foreground'}`}
                 >
-                  Rocznie (2 miesiące gratis)
+                  Rocznie (oszczędź przy płatności rocznej)
                 </button>
               </div>
             </div>

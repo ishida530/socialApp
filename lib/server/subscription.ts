@@ -176,7 +176,7 @@ async function resolveSubscriptionContext(userId: string) {
   ]);
 
   if (!user) {
-    throw new Error('Nie znaleziono użytkownika.');
+    throw new Error('Unauthorized');
   }
 
   return { subscription, user };
@@ -246,7 +246,7 @@ export async function getSubscriptionSnapshot(userId: string) {
   ]);
 
   if (!user) {
-    throw new Error('Nie znaleziono użytkownika.');
+    throw new Error('Unauthorized');
   }
 
   const effective = resolveEffectivePlan(subscription.plan, user.createdAt);

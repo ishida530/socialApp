@@ -2,9 +2,11 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/auth-context';
+import { trackLandingEvent } from '@/lib/landing-events';
+import { BrandLogo } from '@/components/BrandLogo';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -13,6 +15,25 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
+  const [source, setSource] = useState('');
+  const fromLanding = source === 'landing';
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setSource(params.get('source') ?? '');
+  }, []);
+
+  useEffect(() => {
+    if (!fromLanding) {
+      return;
+    }
+
+    trackLandingEvent({
+      event: 'landing_cta_click',
+      cta: 'login_view',
+      source: 'landing',
+    });
+  }, [fromLanding]);
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -20,8 +41,17 @@ export default function LoginPage() {
     try {
       setIsSubmitting(true);
       await login({ email, password });
+
+      if (fromLanding) {
+        trackLandingEvent({
+          event: 'landing_cta_click',
+          cta: 'login_success',
+          source: 'landing',
+        });
+      }
+
       toast.success('Zalogowano pomyślnie.');
-      router.replace('/');
+      router.replace('/dashboard');
     } catch {
       toast.error('Logowanie nie powiodło się. Sprawdź e-mail i hasło.');
     } finally {
@@ -32,6 +62,14 @@ export default function LoginPage() {
   const handleGoogleLogin = () => {
     try {
       setIsGoogleSubmitting(true);
+      if (fromLanding) {
+        trackLandingEvent({
+          event: 'landing_cta_click',
+          cta: 'login_google_start',
+          source: 'landing',
+          href: '/api/auth/google',
+        });
+      }
       window.location.assign('/api/auth/google');
     } catch {
       setIsGoogleSubmitting(false);
@@ -45,6 +83,10 @@ export default function LoginPage() {
         onSubmit={onSubmit}
         className="w-full max-w-md bg-card border border-border rounded-xl p-8 space-y-5"
       >
+        <div className="flex justify-center">
+          <BrandLogo className="h-12 w-auto" priority />
+        </div>
+
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Logowanie</h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -75,6 +117,11 @@ export default function LoginPage() {
             className="w-full px-3 py-2 rounded-lg bg-background border border-border text-foreground"
             placeholder="••••••••"
           />
+          <div className="flex justify-end">
+            <Link className="text-sm text-primary hover:underline" href="/forgot-password">
+              Zapomniales hasla?
+            </Link>
+          </div>
         </div>
 
         <button

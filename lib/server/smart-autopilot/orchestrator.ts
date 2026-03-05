@@ -167,7 +167,7 @@ export async function orchestrateContent(userId: string, input: OrchestrateConte
     throw new OrchestrationBusinessError(
       403,
       'FEATURE_NOT_AVAILABLE',
-      'Tryb ai-autopilot jest dostępny od planu BUSINESS.',
+      'Tryb ai-autopilot jest dostępny od planu PRO.',
     );
   }
 

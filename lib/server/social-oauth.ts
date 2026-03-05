@@ -692,7 +692,7 @@ async function resolveMetaPublishingContext(
 export async function handleOAuthCallback(
   platformInput: string,
   query: OAuthCallbackQuery,
-  options?: { tiktokCodeVerifier?: string },
+  options?: { tiktokCodeVerifier?: string; reconnectAccountId?: string },
 ) {
   if (query.error) {
     throw new Error(query.error_description || `OAuth error: ${query.error}`);
@@ -730,13 +730,41 @@ export async function handleOAuthCallback(
           : await fetchFacebookProfile(tokenResult.accessToken);
 
   const prismaPlatform = toPrismaPlatform(provider);
+  const reconnectAccountId = options?.reconnectAccountId;
 
-  const existing = await prisma.socialAccount.findFirst({
-    where: {
-      userId: ownerId,
-      platform: prismaPlatform,
-    },
-  });
+  const reconnectTarget = reconnectAccountId
+    ? await prisma.socialAccount.findFirst({
+        where: {
+          id: reconnectAccountId,
+          userId: ownerId,
+          platform: prismaPlatform,
+        },
+      })
+    : null;
+
+  if (reconnectAccountId && !reconnectTarget) {
+    throw new Error('Nie znaleziono konta do ponownej autoryzacji.');
+  }
+
+  const existingByExternalId = profile.externalId
+    ? await prisma.socialAccount.findFirst({
+        where: {
+          platform: prismaPlatform,
+          externalId: profile.externalId,
+        },
+      })
+    : null;
+
+  if (existingByExternalId && existingByExternalId.userId !== ownerId) {
+    throw new Error('To konto social jest już połączone z innym użytkownikiem.');
+  }
+
+  const existingOwnedByExternal =
+    existingByExternalId && existingByExternalId.userId === ownerId
+      ? existingByExternalId
+      : null;
+
+  const accountToUpdate = reconnectTarget ?? existingOwnedByExternal;
 
   const accessTokenToStore = metaContext?.accessToken ?? tokenResult.accessToken;
   const refreshTokenToStore = metaContext?.refreshToken ?? tokenResult.refreshToken;
@@ -745,11 +773,11 @@ export async function handleOAuthCallback(
   const encryptedAccessToken = encrypt(accessTokenToStore);
   const encryptedRefreshToken = refreshTokenToStore
     ? encrypt(refreshTokenToStore)
-    : existing?.refreshToken;
+    : accountToUpdate?.refreshToken;
 
-  const saved = existing
+  const saved = accountToUpdate
     ? await prisma.socialAccount.update({
-        where: { id: existing.id },
+        where: { id: accountToUpdate.id },
         data: {
           userId: ownerId,
           platform: prismaPlatform,

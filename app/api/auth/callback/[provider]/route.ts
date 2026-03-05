@@ -9,6 +9,8 @@ import { logError, logEvent } from '@/lib/server/observability';
 
 const TIKTOK_PKCE_COOKIE = 'tiktok_pkce';
 const TIKTOK_PKCE_COOKIE_PATH = '/api/auth/callback/tiktok';
+const OAUTH_RECONNECT_ACCOUNT_COOKIE = 'oauth_reconnect_account_id';
+const OAUTH_RECONNECT_ACCOUNT_COOKIE_PATH = '/api/auth/callback';
 
 export async function GET(
   request: NextRequest,
@@ -46,6 +48,7 @@ export async function GET(
 
     const result = await handleOAuthCallback(normalizedProvider, query, {
       tiktokCodeVerifier,
+      reconnectAccountId: request.cookies.get(OAUTH_RECONNECT_ACCOUNT_COOKIE)?.value,
     });
 
     logEvent('oauth-callback', 'success', {
@@ -66,6 +69,10 @@ export async function GET(
         maxAge: 0,
       });
     }
+    response.cookies.set(OAUTH_RECONNECT_ACCOUNT_COOKIE, '', {
+      path: OAUTH_RECONNECT_ACCOUNT_COOKIE_PATH,
+      maxAge: 0,
+    });
 
     return response;
   } catch (error) {
@@ -83,6 +90,10 @@ export async function GET(
         maxAge: 0,
       });
     }
+    response.cookies.set(OAUTH_RECONNECT_ACCOUNT_COOKIE, '', {
+      path: OAUTH_RECONNECT_ACCOUNT_COOKIE_PATH,
+      maxAge: 0,
+    });
 
     return response;
   }

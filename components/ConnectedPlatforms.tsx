@@ -74,25 +74,39 @@ export function ConnectedPlatforms() {
     loadAccounts();
   }, []);
 
-  const accountByPlatform = useMemo(() => {
-    const map = new Map<'youtube' | 'tiktok' | 'instagram' | 'facebook', SocialAccountDto>();
+  const accountsByPlatform = useMemo(() => {
+    const map = new Map<'youtube' | 'tiktok' | 'instagram' | 'facebook', SocialAccountDto[]>();
+
+    map.set('youtube', []);
+    map.set('tiktok', []);
+    map.set('instagram', []);
+    map.set('facebook', []);
 
     accounts.forEach((account) => {
       if (account.platform === 'YOUTUBE') {
-        map.set('youtube', account);
+        map.get('youtube')?.push(account);
       }
 
       if (account.platform === 'TIKTOK') {
-        map.set('tiktok', account);
+        map.get('tiktok')?.push(account);
       }
 
       if (account.platform === 'INSTAGRAM') {
-        map.set('instagram', account);
+        map.get('instagram')?.push(account);
       }
 
       if (account.platform === 'FACEBOOK') {
-        map.set('facebook', account);
+        map.get('facebook')?.push(account);
       }
+    });
+
+    map.forEach((value, key) => {
+      map.set(
+        key,
+        [...value].sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        ),
+      );
     });
 
     return map;
@@ -159,15 +173,18 @@ export function ConnectedPlatforms() {
 
   return (
     <div className="bg-card border border-border rounded-xl p-6 backdrop-blur-sm">
-      <h2 className="text-lg font-semibold text-foreground mb-4">Połączone platformy</h2>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {platforms.map((platform) => (
-          (() => {
-            const account = accountByPlatform.get(platform.apiPlatform);
-            const connected = !!account;
+      <h2 className="text-lg font-semibold text-foreground mb-1">Połączone platformy</h2>
+      <p className="text-xs text-muted-foreground mb-4">Liczba kont: {accounts.length}</p>
+      <p className="text-xs text-muted-foreground mb-4">
+        Przy publikacji używane jest ostatnio autoryzowane konto dla danej platformy.
+      </p>
 
-            return (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {platforms.map((platform) => {
+          const platformAccounts = accountsByPlatform.get(platform.apiPlatform) ?? [];
+          const connected = platformAccounts.length > 0;
+
+          return (
           <div
             key={platform.name}
             className="bg-secondary/30 border border-border rounded-xl p-4 hover:border-primary/50 transition-all backdrop-blur-sm"
@@ -193,67 +210,74 @@ export function ConnectedPlatforms() {
             
             <h3 className="text-sm font-semibold text-foreground mb-3">{platform.name}</h3>
 
-            {connected && account ? (
+            {connected ? (
               <p className="text-xs text-muted-foreground mb-3">
-                Połączono: {formatDate(account.createdAt)}
+                Połączonych kont: {platformAccounts.length}
               </p>
             ) : (
               <p className="text-xs text-muted-foreground mb-3">
                 {isLoading ? 'Sprawdzanie statusu...' : 'Konto niepołączone'}
               </p>
             )}
-            
-            {!connected && (
-              <button
-                onClick={() => connectAccount(platform.apiPlatform)}
-                disabled={loadingPlatform === platform.apiPlatform}
-                className={`w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm transition-all bg-primary/10 text-primary hover:bg-primary/20 ${
-                  loadingPlatform === platform.apiPlatform
-                    ? 'opacity-60 cursor-not-allowed'
-                    : ''
-                }`}
-              >
-                <RefreshCw className="w-4 h-4" />
-                <span>
-                  {loadingPlatform === platform.apiPlatform
-                    ? 'Przekierowanie...'
+
+            <button
+              onClick={() => connectAccount(platform.apiPlatform)}
+              disabled={loadingPlatform === platform.apiPlatform}
+              className={`w-full mb-3 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm transition-all bg-primary/10 text-primary hover:bg-primary/20 ${
+                loadingPlatform === platform.apiPlatform
+                  ? 'opacity-60 cursor-not-allowed'
+                  : ''
+              }`}
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>
+                {loadingPlatform === platform.apiPlatform
+                  ? 'Przekierowanie...'
+                  : connected
+                    ? 'Dodaj kolejne konto'
                     : 'Połącz'}
-                </span>
-              </button>
-            )}
+              </span>
+            </button>
 
-            {connected && account && (
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={() => reconnectAccount(account.id)}
-                  disabled={loadingPlatform === account.id}
-                  className={`flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm transition-all bg-secondary/50 text-foreground hover:bg-secondary ${
-                    loadingPlatform === account.id
-                      ? 'opacity-60 cursor-not-allowed'
-                      : ''
-                  }`}
-                >
-                  <RefreshCw className="w-4 h-4" />
-                  <span>Połącz ponownie</span>
-                </button>
+            {connected && (
+              <div className="space-y-2">
+                {platformAccounts.map((account) => (
+                  <div key={account.id} className="rounded-lg border border-border bg-background/40 p-2.5">
+                    <p className="text-xs font-medium text-foreground truncate">{account.handle || 'Konto bez nazwy'}</p>
+                    <p className="text-[11px] text-muted-foreground mt-1">Połączono: {formatDate(account.createdAt)}</p>
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      <button
+                        onClick={() => reconnectAccount(account.id)}
+                        disabled={loadingPlatform === account.id}
+                        className={`flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm transition-all bg-secondary/50 text-foreground hover:bg-secondary ${
+                          loadingPlatform === account.id
+                            ? 'opacity-60 cursor-not-allowed'
+                            : ''
+                        }`}
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                        <span>Połącz ponownie</span>
+                      </button>
 
-                <button
-                  onClick={() => disconnectAccount(account.id)}
-                  disabled={loadingPlatform === account.id}
-                  className={`px-3 py-2 rounded-lg text-sm transition-all bg-destructive/10 border border-destructive/30 text-destructive hover:bg-destructive/20 ${
-                    loadingPlatform === account.id
-                      ? 'opacity-60 cursor-not-allowed'
-                      : ''
-                  }`}
-                >
-                  Rozłącz
-                </button>
+                      <button
+                        onClick={() => disconnectAccount(account.id)}
+                        disabled={loadingPlatform === account.id}
+                        className={`px-3 py-2 rounded-lg text-sm transition-all bg-destructive/10 border border-destructive/30 text-destructive hover:bg-destructive/20 ${
+                          loadingPlatform === account.id
+                            ? 'opacity-60 cursor-not-allowed'
+                            : ''
+                        }`}
+                      >
+                        Rozłącz
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
-            );
-          })()
-        ))}
+          );
+        })}
       </div>
     </div>
   );

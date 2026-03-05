@@ -105,6 +105,10 @@ export async function POST(request: NextRequest) {
             in: targetPlatforms,
           },
         },
+        orderBy: [
+          { updatedAt: 'desc' },
+          { createdAt: 'desc' },
+        ],
       }),
     ]);
 
@@ -112,9 +116,13 @@ export async function POST(request: NextRequest) {
       return badRequest('videoId nie należy do zalogowanego użytkownika');
     }
 
-    const socialAccountByPlatform = new Map(
-      socialAccounts.map((socialAccount) => [socialAccount.platform, socialAccount]),
-    );
+    // For platforms with multiple linked accounts, pick the most recently updated one.
+    const socialAccountByPlatform = new Map<typeof socialAccounts[number]['platform'], typeof socialAccounts[number]>();
+    socialAccounts.forEach((socialAccount) => {
+      if (!socialAccountByPlatform.has(socialAccount.platform)) {
+        socialAccountByPlatform.set(socialAccount.platform, socialAccount);
+      }
+    });
 
     const missingPlatforms = targetPlatforms.filter(
       (platform) => !socialAccountByPlatform.has(platform),

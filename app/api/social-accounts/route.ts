@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
     const user = getAuthUserFromRequest(request);
     const accounts = await prisma.socialAccount.findMany({
       where: { userId: user.userId },
-      include: { user: true },
+      orderBy: { createdAt: 'desc' },
     });
 
     return NextResponse.json(accounts);
