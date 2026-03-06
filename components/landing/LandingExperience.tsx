@@ -357,7 +357,7 @@ function MobileStickyCTA({ visible }: { visible: boolean }) {
         }
         className="flex w-full items-center justify-center gap-2 rounded-xl border border-primary/40 bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-2xl"
       >
-        Zacznij okres próbny
+        Wypróbuj za darmo przez 7 dni
         <ArrowUpRight className="h-4 w-4" />
       </Link>
     </motion.div>
@@ -540,7 +540,7 @@ export function LandingExperience() {
                 animate={{ x: ['-180%', '420%'] }}
                 transition={{ duration: 2.2, repeat: Number.POSITIVE_INFINITY, repeatDelay: 1.4, ease: 'easeInOut' }}
               />
-              <span className="relative">Wypróbuj autopilota</span>
+              <span className="relative">Wypróbuj za darmo przez 7 dni</span>
               <ArrowUpRight className="h-4 w-4" />
             </Link>
             <Link
@@ -820,7 +820,7 @@ export function LandingExperience() {
                 }
                 className="rounded-xl bg-accent px-5 py-3 text-sm font-semibold text-accent-foreground hover:brightness-95"
               >
-                Wypróbuj autopilota
+                Wypróbuj za darmo przez 7 dni
               </Link>
               <Link
                 href="/login?source=landing"
