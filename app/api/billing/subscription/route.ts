@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PlanTier } from '@prisma/client';
+import { PlanTier, Prisma } from '@prisma/client';
 import { getAuthUserFromRequest } from '@/lib/server/auth';
 import { badRequest, serverError, unauthorized } from '@/lib/server/http';
 import { getSubscriptionSnapshot, setUserPlan } from '@/lib/server/subscription';
@@ -11,8 +11,23 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(snapshot);
   } catch (error) {
+    if (
+      error instanceof Error &&
+      (error.message.includes('PlanTier_old') ||
+        (error.message.includes('PlanTier') && error.message.includes('is of type')))
+    ) {
+      return badRequest('Baza danych wymaga migracji billingu (PlanTier). Uruchom prisma migrate deploy na produkcji.');
+    }
+
     if (error instanceof Error && error.message === 'Unauthorized') {
       return unauthorized();
+    }
+
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === 'P2003' || error.code === 'P2025') {
+        return unauthorized();
+      }
+      return badRequest('Nie udało się pobrać danych subskrypcji.');
     }
 
     return serverError(error);
@@ -37,8 +52,23 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ success: true, subscription });
   } catch (error) {
+    if (
+      error instanceof Error &&
+      (error.message.includes('PlanTier_old') ||
+        (error.message.includes('PlanTier') && error.message.includes('is of type')))
+    ) {
+      return badRequest('Baza danych wymaga migracji billingu (PlanTier). Uruchom prisma migrate deploy na produkcji.');
+    }
+
     if (error instanceof Error && error.message === 'Unauthorized') {
       return unauthorized();
+    }
+
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === 'P2003' || error.code === 'P2025') {
+        return unauthorized();
+      }
+      return badRequest('Zmiana planu nie powiodła się.');
     }
 
     return serverError(error);
