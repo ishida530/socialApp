@@ -3,7 +3,6 @@ import './globals.css';
 import { AuthProvider } from '@/contexts/auth-context';
 import { GlobalPostComposerSheet } from '@/components/GlobalPostComposerSheet';
 import { AppShell } from '@/components/AppShell';
-import { SiteFooter } from '@/components/SiteFooter';
 import { ThemeProvider } from '@/components/theme-provider';
 import { Toaster } from '@/components/ui/sonner';
 
@@ -42,7 +41,6 @@ export default function RootLayout({
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} disableTransitionOnChange>
           <AuthProvider>
             <AppShell>{children}</AppShell>
-            <SiteFooter />
             <GlobalPostComposerSheet />
             <Toaster richColors position="top-right" />
           </AuthProvider>

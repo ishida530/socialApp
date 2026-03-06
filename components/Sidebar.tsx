@@ -89,7 +89,7 @@ export function Sidebar() {
 
   return (
     <>
-      <aside className="hidden lg:flex w-64 bg-card border-r border-border flex-col">
+      <aside className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:flex lg:h-dvh lg:w-64 lg:flex-col lg:border-r lg:border-border lg:bg-card">
         <div className="p-6 border-b border-border">
           <div className="flex items-center">
             <BrandLogo className="h-16 w-auto" priority />
