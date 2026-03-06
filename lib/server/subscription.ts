@@ -167,17 +167,16 @@ export async function incrementUsage(userId: string, metric: UsageMetric, amount
 }
 
 async function resolveSubscriptionContext(userId: string) {
-  const [subscription, user] = await Promise.all([
-    ensureUserSubscription(userId),
-    prisma.user.findUnique({
-      where: { id: userId },
-      select: { createdAt: true },
-    }),
-  ]);
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { createdAt: true },
+  });
 
   if (!user) {
     throw new Error('Unauthorized');
   }
+
+  const subscription = await ensureUserSubscription(userId);
 
   return { subscription, user };
 }
@@ -237,17 +236,16 @@ export async function assertScheduleWindowAllowed(userId: string, scheduledFor: 
 }
 
 export async function getSubscriptionSnapshot(userId: string) {
-  const [subscription, user] = await Promise.all([
-    ensureUserSubscription(userId),
-    prisma.user.findUnique({
-      where: { id: userId },
-      select: { createdAt: true },
-    }),
-  ]);
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { createdAt: true },
+  });
 
   if (!user) {
     throw new Error('Unauthorized');
   }
+
+  const subscription = await ensureUserSubscription(userId);
 
   const effective = resolveEffectivePlan(subscription.plan, user.createdAt);
 

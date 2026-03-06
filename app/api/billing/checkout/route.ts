@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PlanTier, SubscriptionStatus } from '@prisma/client';
+import Stripe from 'stripe';
 import { getAuthUserFromRequest } from '@/lib/server/auth';
 import { badRequest, serverError, unauthorized } from '@/lib/server/http';
 import { setUserPlan } from '@/lib/server/subscription';
@@ -25,6 +26,27 @@ function parseRequestedPlan(value?: string) {
 
 function parseBillingInterval(value?: string): BillingInterval {
   return value?.toUpperCase() === 'YEARLY' ? 'YEARLY' : 'MONTHLY';
+}
+
+async function stripeCustomerExists(stripe: Stripe, customerId: string) {
+  try {
+    const customer = await stripe.customers.retrieve(customerId);
+    return !('deleted' in customer && customer.deleted);
+  } catch (error) {
+    if (
+      error &&
+      typeof error === 'object' &&
+      'type' in error &&
+      'message' in error &&
+      (error as { type?: string }).type === 'StripeInvalidRequestError' &&
+      typeof (error as { message?: string }).message === 'string' &&
+      (error as { message: string }).message.toLowerCase().includes('no such customer')
+    ) {
+      return false;
+    }
+
+    throw error;
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -77,6 +99,13 @@ export async function POST(request: NextRequest) {
     });
 
     let customerId = existingSubscription?.providerCustomerId ?? null;
+    if (customerId) {
+      const isValidCustomer = await stripeCustomerExists(stripe, customerId);
+      if (!isValidCustomer) {
+        customerId = null;
+      }
+    }
+
     if (!customerId) {
       const customer = await stripe.customers.create({
         email: userRecord.email,
