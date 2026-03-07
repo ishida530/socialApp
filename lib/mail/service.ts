@@ -99,7 +99,17 @@ function resolveCategoryLabel(category: ContactCategory) {
 
 export async function sendContactMessageEmail(input: ContactMessageInput) {
   const from = process.env.EMAIL_FROM ?? 'PostFly <hello@postfly.pl>';
-  const to = process.env;
+  const configuredRecipients = process.env.CONTACT_EMAIL_TO;
+  const to = configuredRecipients
+    ?.split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  if (!to || to.length === 0) {
+    throw new Error('Missing required mail config: CONTACT_EMAIL_TO');
+  }
+
+  const recipients = to.length === 1 ? to[0] : to;
   const safeName = escapeHtml(input.name);
   const safeEmail = escapeHtml(input.email);
   const safeCategory = escapeHtml(resolveCategoryLabel(input.category));
@@ -110,7 +120,7 @@ export async function sendContactMessageEmail(input: ContactMessageInput) {
 
   const result = await getResendClient().emails.send({
     from,
-    to,
+    to: recipients,
     replyTo: input.email,
     subject: `[Kontakt] ${resolveCategoryLabel(input.category)} - ${input.name}`,
     text:
