@@ -188,6 +188,18 @@ type ComparisonRow = {
   business: ReactNode;
 };
 
+function getComparisonCellValue(row: ComparisonRow, slug: MarketingPlan['slug']): ReactNode {
+  if (slug === 'starter') {
+    return row.starter;
+  }
+
+  if (slug === 'pro') {
+    return row.pro;
+  }
+
+  return row.business;
+}
+
 type ScrollDirection = 'up' | 'down';
 
 type SectionRevealProps = {
@@ -432,6 +444,7 @@ export function LandingExperience() {
   const reduceMotion = shouldReduceMotion ?? false;
   const [isLowPowerDevice, setIsLowPowerDevice] = useState(false);
   const [scrollDirection, setScrollDirection] = useState<ScrollDirection>('down');
+  const [selectedPlanSlug, setSelectedPlanSlug] = useState<MarketingPlan['slug']>('pro');
   const [showMobileStickyCta, setShowMobileStickyCta] = useState(false);
   const [activeHeroStep, setActiveHeroStep] = useState(0);
   const [heroReady, setHeroReady] = useState(false);
@@ -443,15 +456,18 @@ export function LandingExperience() {
   const [contactFormStartedAt] = useState(() => Date.now());
   const [isContactSubmitting, setIsContactSubmitting] = useState(false);
   const [contactStatus, setContactStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const pricingTableScrollRef = useRef<HTMLDivElement | null>(null);
+  const pricingColumnRefs = useRef<Record<string, HTMLTableCellElement | null>>({});
 
   const plansBySlug = useMemo(
-    () => new Map(capabilities.plans.map((plan) => [plan.slug, plan])),
+    () => new Map<string, MarketingPlan>(capabilities.plans.map((plan) => [plan.slug, plan])),
     [capabilities.plans],
   );
 
   const starterPlan = plansBySlug.get('starter');
   const proPlan = plansBySlug.get('pro');
   const businessPlan = plansBySlug.get('business');
+  const selectedPlan = plansBySlug.get(selectedPlanSlug) ?? proPlan ?? capabilities.plans[0];
 
   const starterMonthlyVideoLimit = extractFirstNumber(starterPlan?.monthlyVideoLabel ?? '', 15);
   const proMonthlySoftLimit = extractFirstNumber(proPlan?.monthlyVideoLabel ?? '', 100);
@@ -496,6 +512,12 @@ export function LandingExperience() {
     ],
     [capabilities.trial.days, proMonthlySoftLimit, proPlan?.aiAutopilotLabel, starterMonthlyVideoLimit],
   );
+
+  useEffect(() => {
+    if (!plansBySlug.has(selectedPlanSlug)) {
+      setSelectedPlanSlug(proPlan?.slug ?? capabilities.plans[0]?.slug ?? 'pro');
+    }
+  }, [capabilities.plans, plansBySlug, proPlan?.slug, selectedPlanSlug]);
 
   useEffect(() => {
     trackLandingEvent({ event: 'landing_view', source: 'landing' });
@@ -581,6 +603,28 @@ export function LandingExperience() {
   const interactiveTap = motionBudgetReduced ? undefined : { scale: 0.98 };
   const heroEnterDuration = motionBudgetReduced ? 0.3 : 0.68;
   const heroStagger = motionBudgetReduced ? 0.05 : 0.11;
+
+  useEffect(() => {
+    const isMobileViewport = window.matchMedia('(max-width: 767px)').matches;
+    if (!isMobileViewport) {
+      return;
+    }
+
+    const container = pricingTableScrollRef.current;
+    const column = pricingColumnRefs.current[selectedPlanSlug];
+
+    if (!container || !column) {
+      return;
+    }
+
+    const targetLeft = column.offsetLeft - (container.clientWidth - column.clientWidth) / 2;
+    const boundedLeft = Math.max(0, Math.min(targetLeft, container.scrollWidth - container.clientWidth));
+
+    container.scrollTo({
+      left: boundedLeft,
+      behavior: motionBudgetReduced ? 'auto' : 'smooth',
+    });
+  }, [motionBudgetReduced, selectedPlanSlug]);
 
   const heroContainerVariants = {
     hidden: { opacity: 0 },
@@ -1009,14 +1053,25 @@ export function LandingExperience() {
             </div>
           </motion.div>
 
-          <motion.div variants={item} className="mt-8 overflow-x-auto rounded-2xl border border-border bg-card/50">
+          <motion.div ref={pricingTableScrollRef} variants={item} className="mt-8 overflow-x-auto rounded-2xl border border-border bg-card/50">
             <table className="min-w-[760px] w-full text-sm" aria-label="Porównanie planów Postfly">
               <caption className="sr-only">Porównanie planów Starter, Pro i Business</caption>
               <thead>
                 <tr className="border-b border-border bg-card/70">
                   <th scope="col" className="px-4 py-3 text-left font-medium text-muted-foreground">Porównanie</th>
                   {capabilities.plans.map((plan) => (
-                    <th key={plan.slug} scope="col" className="px-4 py-3 text-left font-semibold text-foreground">
+                    <th
+                      key={plan.slug}
+                      ref={(node) => {
+                        pricingColumnRefs.current[plan.slug] = node;
+                      }}
+                      scope="col"
+                      className={`px-4 py-3 text-left font-semibold transition-colors duration-300 ${
+                        plan.slug === selectedPlanSlug
+                          ? 'bg-primary/15 text-foreground'
+                          : 'text-foreground'
+                      }`}
+                    >
                       {plan.name}
                     </th>
                   ))}
@@ -1026,7 +1081,16 @@ export function LandingExperience() {
                 <tr className="border-b border-border/80">
                   <th scope="row" className="px-4 py-3 text-left font-medium text-muted-foreground">Cena / miesiąc</th>
                   {capabilities.plans.map((plan) => (
-                    <td key={`${plan.slug}-price`} className="px-4 py-3">{plan.priceMonthly}</td>
+                    <td
+                      key={`${plan.slug}-price`}
+                      className={`px-4 py-3 transition-colors duration-300 ${
+                        plan.slug === selectedPlanSlug
+                          ? 'bg-primary/10 font-semibold text-foreground'
+                          : 'text-foreground'
+                      }`}
+                    >
+                      {plan.priceMonthly}
+                    </td>
                   ))}
                 </tr>
                 {comparisonRows.map((row) => (
@@ -1034,9 +1098,18 @@ export function LandingExperience() {
                     <th scope="row" className="px-4 py-3 text-left font-medium text-muted-foreground">
                       {row.label === 'AI_AUTOPILOT_LABEL' ? <AiAutopilotLabel /> : row.label}
                     </th>
-                    <td className="px-4 py-3">{row.starter}</td>
-                    <td className="px-4 py-3">{row.pro}</td>
-                    <td className="px-4 py-3">{row.business}</td>
+                    {capabilities.plans.map((plan) => (
+                      <td
+                        key={`${row.label}-${plan.slug}`}
+                        className={`px-4 py-3 transition-colors duration-300 ${
+                          plan.slug === selectedPlanSlug
+                            ? 'bg-primary/10 font-semibold text-foreground'
+                            : 'text-foreground'
+                        }`}
+                      >
+                        {getComparisonCellValue(row, plan.slug)}
+                      </td>
+                    ))}
                   </tr>
                 ))}
               </tbody>
@@ -1054,34 +1127,79 @@ export function LandingExperience() {
                 whileHover={interactiveLift}
                 whileTap={interactiveTap}
               >
-                <Link
-                  href={resolvePlanHref(plan)}
+                <motion.button
+                  type="button"
                   onClick={() =>
-                    trackLandingEvent({
-                      event: 'landing_plan_click',
-                      plan: plan.slug,
-                      href: resolvePlanHref(plan),
-                      source: 'landing',
-                    })
+                    {
+                      setSelectedPlanSlug(plan.slug);
+                      trackLandingEvent({
+                        event: 'landing_plan_click',
+                        plan: plan.slug,
+                        href: resolvePlanHref(plan),
+                        source: 'landing',
+                      });
+                    }
                   }
-                  className={`relative inline-flex w-full items-center justify-center rounded-xl border px-4 py-3 text-sm font-semibold transition-colors ${
-                    plan.featured
-                      ? 'border-primary/45 bg-primary text-primary-foreground shadow-[0_0_0_1px_rgba(245,158,11,0.35)] hover:opacity-95'
-                      : 'border-border/70 bg-transparent text-foreground hover:bg-card/40'
+                  aria-pressed={plan.slug === selectedPlanSlug}
+                  className={`relative inline-flex w-full items-center justify-center rounded-xl border px-4 py-3 text-sm font-semibold transition-colors duration-300 ${
+                    plan.slug === selectedPlanSlug
+                      ? 'border-primary/55 text-primary-foreground shadow-[0_0_0_1px_rgba(245,158,11,0.35)]'
+                      : plan.featured
+                        ? 'border-primary/40 bg-card/25 text-foreground hover:bg-card/45'
+                        : 'border-border/70 bg-transparent text-foreground hover:bg-card/40'
                   }`}
                 >
-                  {plan.featured ? (
-                    <span className="absolute -top-2 rounded-full border border-primary/40 bg-background px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] text-primary">
-                      Najczęściej wybierany
+                  {plan.slug === selectedPlanSlug ? (
+                    <motion.span
+                      key={`plan-bg-${plan.slug}-${selectedPlanSlug}`}
+                      aria-hidden="true"
+                      className="absolute inset-0 rounded-xl bg-primary"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ duration: motionBudgetReduced ? 0 : 0.28, ease: 'easeOut' }}
+                    />
+                  ) : null}
+                  {plan.slug === selectedPlanSlug ? (
+                    <span className="absolute -top-2 z-10 rounded-full border border-primary/40 bg-background px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] text-primary">
+                      {plan.featured ? 'Najczęściej wybierany' : 'Wybrany'}
                     </span>
                   ) : null}
-                  <span>{`Odbierz dostęp: ${plan.name}`}</span>
-                  <span className="mx-2 text-foreground/45" aria-hidden="true">|</span>
-                  <span className="text-xs font-medium opacity-85">{`${plan.priceMonthly} / mies.`}</span>
-                </Link>
+                  <span className="relative z-10">{`Odbierz dostęp: ${plan.name}`}</span>
+                  <span className="relative z-10 mx-2 text-foreground/45" aria-hidden="true">|</span>
+                  <span className="relative z-10 text-xs font-medium opacity-85">{`${plan.priceMonthly} / mies.`}</span>
+                </motion.button>
               </motion.div>
             ))}
           </motion.div>
+
+          {selectedPlan ? (
+            <motion.div variants={item} className="mt-4 rounded-xl border border-primary/25 bg-primary/10 p-3 sm:p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-foreground">
+                  Wybrany plan:
+                  {' '}
+                  <span className="font-semibold text-primary">{selectedPlan.name}</span>
+                  {' '}
+                  <span className="text-muted-foreground">{`${selectedPlan.priceMonthly} / mies.`}</span>
+                </p>
+                <Link
+                  href={resolvePlanHref(selectedPlan)}
+                  onClick={() =>
+                    trackLandingEvent({
+                      event: 'landing_cta_click',
+                      cta: 'pricing_continue_with_selected_plan',
+                      href: resolvePlanHref(selectedPlan),
+                      source: 'landing',
+                    })
+                  }
+                  className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-95"
+                >
+                  Kontynuuj z planem
+                  <ArrowUpRight className="ml-1.5 h-4 w-4" />
+                </Link>
+              </div>
+            </motion.div>
+          ) : null}
         </SectionReveal>
       </section>
 
