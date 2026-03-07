@@ -1,10 +1,9 @@
 import type { Metadata } from 'next';
 import { LandingExperience } from '@/components/landing/LandingExperience';
+import { LANDING_FAQ_ITEMS } from '@/lib/landing-faq';
+import { getSiteUrl } from '@/lib/site-url';
 
-const siteUrl =
-  process.env.NEXT_PUBLIC_SITE_URL ||
-  process.env.NEXT_PUBLIC_SITE_ORIGIN ||
-  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+const siteUrl = getSiteUrl();
 
 const organizationJsonLd = {
   '@context': 'https://schema.org',
@@ -12,6 +11,15 @@ const organizationJsonLd = {
   name: 'Postfly',
   url: siteUrl,
   logo: `${siteUrl}/icon.png`,
+};
+
+const websiteJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: 'Postfly',
+  url: siteUrl,
+  inLanguage: 'pl-PL',
+  description: 'Aplikacja SaaS do planowania i publikacji treści social media.',
 };
 
 const softwareJsonLd = {
@@ -26,7 +34,7 @@ const softwareJsonLd = {
     {
       '@type': 'Offer',
       name: 'Starter',
-      price: '59',
+      price: '49',
       priceCurrency: 'PLN',
       url: `${siteUrl}/register?source=landing&intent=starter`,
     },
@@ -40,7 +48,7 @@ const softwareJsonLd = {
     {
       '@type': 'Offer',
       name: 'Business',
-      price: '279',
+      price: '299',
       priceCurrency: 'PLN',
       url: `${siteUrl}/register?source=landing&intent=business`,
     },
@@ -50,46 +58,39 @@ const softwareJsonLd = {
 const faqJsonLd = {
   '@context': 'https://schema.org',
   '@type': 'FAQPage',
-  mainEntity: [
-    {
-      '@type': 'Question',
-      name: 'Czy okres próbny trwa 7 dni dla każdego zakupu?',
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text: 'Nie. Okres próbny 7 dni dotyczy nowych kont i pierwszej subskrypcji.',
-      },
+  mainEntity: LANDING_FAQ_ITEMS.map((faqItem) => ({
+    '@type': 'Question',
+    name: faqItem.question,
+    acceptedAnswer: {
+      '@type': 'Answer',
+      text: faqItem.answer,
     },
-    {
-      '@type': 'Question',
-      name: 'Na jakich platformach mogę planować publikacje?',
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text: 'W jednym panelu zaplanujesz i opublikujesz treści na YouTube, TikTok, Instagram i Facebook.',
-      },
-    },
-    {
-      '@type': 'Question',
-      name: 'Czy plan Pro ma twardy limit publikacji?',
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text: 'Plan Pro nie ma twardego limitu publikacji, ale ma limit miękki 100 wideo miesięcznie.',
-      },
-    },
-    {
-      '@type': 'Question',
-      name: 'W którym planie dostępny jest AI Autopilot?',
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text: 'AI Autopilot Lite jest dostępny od planu Pro (limit miesięczny), a pełny AI Autopilot bez limitu w planie Business.',
-      },
-    },
-  ],
+  })),
 };
 
 export const metadata: Metadata = {
   title: 'Postfly | Planowanie publikacji: YouTube, TikTok, Instagram, Facebook',
   description:
-    'Planuj i publikuj treści w 4 platformach: YouTube, TikTok, Instagram i Facebook. Starter: 15 wideo/mies., Pro: 100 wideo/mies. + AI Autopilot Lite (limit), Business: AI Autopilot bez limitu. Okres próbny 7 dni dla nowych kont.',
+    'Planuj i publikuj treści na YouTube, TikTok, Instagram i Facebook z jednego panelu. Starter: do 3 kont i 15 wideo/mies., Pro: do 10 kont i limit miękki 100 wideo/mies. + AI Autopilot Lite, Business: do 25 kont i AI Autopilot bez limitu. Okres próbny 7 dni dla nowych kont i pierwszej subskrypcji.',
+  keywords: [
+    'planowanie publikacji social media',
+    'harmonogram publikacji tiktok',
+    'narzędzie do publikacji instagram reels',
+    'social media scheduler polska',
+    'automatyzacja publikacji youtube shorts',
+    'panel do publikacji social media',
+  ],
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+      'max-video-preview': -1,
+    },
+  },
   alternates: {
     canonical: '/',
   },
@@ -101,10 +102,10 @@ export const metadata: Metadata = {
     siteName: 'Postfly',
     images: [
       {
-        url: '/icon.png',
-        width: 512,
-        height: 512,
-        alt: 'Postfly',
+        url: '/opengraph-image',
+        width: 1200,
+        height: 630,
+        alt: 'Postfly - planowanie publikacji social media',
       },
     ],
     locale: 'pl_PL',
@@ -115,7 +116,7 @@ export const metadata: Metadata = {
     title: 'Postfly | Planowanie publikacji social media',
     description:
       'Jeden panel do planowania i publikacji treści na YouTube, TikTok, Instagram i Facebook.',
-    images: ['/icon.png'],
+    images: ['/twitter-image'],
   },
 };
 
@@ -133,6 +134,10 @@ export default function LandingPage() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
       />
       <LandingExperience />
     </>

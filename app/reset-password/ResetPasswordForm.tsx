@@ -30,6 +30,8 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
   const router = useRouter();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [hpWebsite, setHpWebsite] = useState('');
+  const [formStartedAt] = useState(() => Date.now());
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -52,7 +54,12 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
 
     try {
       setIsSubmitting(true);
-      await apiClient.post('/auth/reset-password', { token, password });
+      await apiClient.post('/auth/reset-password', {
+        token,
+        password,
+        hpWebsite,
+        formStartedAt,
+      });
       toast.success('Haslo zostalo ustawione. Mozesz sie teraz zalogowac.');
       router.replace('/login');
     } catch (error) {
@@ -98,6 +105,21 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
         </div>
 
         <div className="space-y-2">
+          <label className="absolute -left-[9999px] top-auto h-px w-px overflow-hidden" aria-hidden="true" htmlFor="reset-company-website">
+            Company website
+          </label>
+          <input
+            id="reset-company-website"
+            name="companyWebsite"
+            value={hpWebsite}
+            onChange={(event) => setHpWebsite(event.target.value)}
+            type="text"
+            autoComplete="off"
+            tabIndex={-1}
+            className="absolute -left-[9999px] top-auto h-px w-px overflow-hidden"
+            aria-hidden="true"
+          />
+
           <label className="text-sm text-foreground">Nowe haslo</label>
           <input
             autoFocus

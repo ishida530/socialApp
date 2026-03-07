@@ -8,6 +8,7 @@ import {
 } from '@/lib/server/http';
 import { prisma } from '@/lib/server/prisma';
 import { verifyPassword } from '@/lib/server/crypto';
+import { hasTrippedHoneypot } from '@/lib/server/honeypot';
 import { consumeRateLimit, getRequestIp } from '@/lib/server/rate-limit';
 
 function resolveCookieMaxAge() {
@@ -35,7 +36,13 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as {
       email?: string;
       password?: string;
+      hpWebsite?: string;
+      formStartedAt?: number | string;
     };
+
+    if (hasTrippedHoneypot(body)) {
+      return unauthorized('Invalid credentials');
+    }
 
     if (!body.email || !body.password) {
       return badRequest('Validation failed', [

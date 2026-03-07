@@ -22,6 +22,8 @@ function parseRetryAfterSeconds(raw: string | undefined) {
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
+  const [hpWebsite, setHpWebsite] = useState('');
+  const [formStartedAt] = useState(() => Date.now());
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -29,7 +31,11 @@ export default function ForgotPasswordPage() {
 
     try {
       setIsSubmitting(true);
-      await apiClient.post('/auth/forgot-password', { email });
+      await apiClient.post('/auth/forgot-password', {
+        email,
+        hpWebsite,
+        formStartedAt,
+      });
       toast.success('Jesli konto istnieje, wyslalismy wiadomosc e-mail z instrukcja resetu hasla.');
     } catch (error) {
       if (axios.isAxiosError(error)) {
@@ -73,6 +79,21 @@ export default function ForgotPasswordPage() {
         </div>
 
         <div className="space-y-2">
+          <label className="absolute -left-[9999px] top-auto h-px w-px overflow-hidden" aria-hidden="true" htmlFor="forgot-company-website">
+            Company website
+          </label>
+          <input
+            id="forgot-company-website"
+            name="companyWebsite"
+            value={hpWebsite}
+            onChange={(event) => setHpWebsite(event.target.value)}
+            type="text"
+            autoComplete="off"
+            tabIndex={-1}
+            className="absolute -left-[9999px] top-auto h-px w-px overflow-hidden"
+            aria-hidden="true"
+          />
+
           <label className="text-sm text-foreground">Email</label>
           <input
             autoFocus

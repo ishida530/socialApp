@@ -1,4 +1,5 @@
 import { Resend } from 'resend';
+import type { ContactCategory } from '@/lib/contact';
 
 let resendClient: Resend | null = null;
 
@@ -60,6 +61,77 @@ export async function sendPasswordResetEmail(userEmail: string, resetLink: strin
       `<p><a href="${safeResetLink}" target="_blank" rel="noopener noreferrer">Kliknij tutaj, aby ustawic nowe haslo</a></p>` +
       '<p>Link wygasa po <strong>30 minutach</strong>.</p>' +
       '<p>Jesli to nie Ty wysylales prosbe, zignoruj te wiadomosc.</p>' +
+      '</div>',
+  });
+
+  if (result.error) {
+    throw new Error(`[mail] Resend error ${result.error.statusCode}: ${result.error.message}`);
+  }
+}
+
+type ContactMessageInput = {
+  name: string;
+  email: string;
+  category: ContactCategory;
+  message: string;
+  source: string;
+  ip?: string;
+  userAgent?: string;
+};
+
+function resolveCategoryLabel(category: ContactCategory) {
+  switch (category) {
+    case 'bug':
+      return 'Blad techniczny';
+    case 'suggestion':
+      return 'Sugestia funkcji';
+    case 'pricing':
+      return 'Pytanie o plan lub cennik';
+    case 'account':
+      return 'Sprawa konta lub rozliczen';
+    case 'partnership':
+      return 'Wspolpraca';
+    case 'general':
+    default:
+      return 'Pytanie ogolne';
+  }
+}
+
+export async function sendContactMessageEmail(input: ContactMessageInput) {
+  const from = process.env.EMAIL_FROM ?? 'PostFly <hello@postfly.pl>';
+  const to = process.env;
+  const safeName = escapeHtml(input.name);
+  const safeEmail = escapeHtml(input.email);
+  const safeCategory = escapeHtml(resolveCategoryLabel(input.category));
+  const safeMessage = escapeHtml(input.message).replaceAll('\n', '<br/>');
+  const safeSource = escapeHtml(input.source);
+  const safeIp = escapeHtml(input.ip ?? 'unknown');
+  const safeUserAgent = escapeHtml(input.userAgent ?? 'unknown');
+
+  const result = await getResendClient().emails.send({
+    from,
+    to,
+    replyTo: input.email,
+    subject: `[Kontakt] ${resolveCategoryLabel(input.category)} - ${input.name}`,
+    text:
+      `Nowa wiadomosc kontaktowa\n\n` +
+      `Kategoria: ${resolveCategoryLabel(input.category)}\n` +
+      `Nadawca: ${input.name}\n` +
+      `Email: ${input.email}\n` +
+      `Zrodlo: ${input.source}\n` +
+      `IP: ${input.ip ?? 'unknown'}\n` +
+      `User-Agent: ${input.userAgent ?? 'unknown'}\n\n` +
+      `${input.message}`,
+    html:
+      '<div style="font-family:Inter,Arial,sans-serif;line-height:1.6;color:#111827">' +
+      '<p><strong>Nowa wiadomosc kontaktowa</strong></p>' +
+      `<p><strong>Kategoria:</strong> ${safeCategory}<br/>` +
+      `<strong>Nadawca:</strong> ${safeName}<br/>` +
+      `<strong>Email:</strong> ${safeEmail}<br/>` +
+      `<strong>Zrodlo:</strong> ${safeSource}<br/>` +
+      `<strong>IP:</strong> ${safeIp}<br/>` +
+      `<strong>User-Agent:</strong> ${safeUserAgent}</p>` +
+      `<p>${safeMessage}</p>` +
       '</div>',
   });
 

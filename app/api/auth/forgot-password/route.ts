@@ -2,6 +2,7 @@ import { createHash, randomBytes } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { sendPasswordResetEmail } from '@/lib/mail/service';
 import { badRequest, serverError, tooManyRequests } from '@/lib/server/http';
+import { hasTrippedHoneypot } from '@/lib/server/honeypot';
 import { prisma } from '@/lib/server/prisma';
 import { consumeRateLimit, getRequestIp } from '@/lib/server/rate-limit';
 
@@ -37,7 +38,15 @@ export async function POST(request: NextRequest) {
       return tooManyRequests('Too many password reset attempts. Try again later.', rateLimit.retryAfterSec);
     }
 
-    const body = (await request.json()) as { email?: string };
+    const body = (await request.json()) as {
+      email?: string;
+      hpWebsite?: string;
+      formStartedAt?: number | string;
+    };
+
+    if (hasTrippedHoneypot(body)) {
+      return genericSuccessResponse();
+    }
 
     if (!body.email) {
       return badRequest('Validation failed', ['email: Email jest wymagany']);

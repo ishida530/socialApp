@@ -19,11 +19,18 @@ type AuthContextValue = {
   user: AuthUser | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (payload: { email: string; password: string }) => Promise<void>;
+  login: (payload: {
+    email: string;
+    password: string;
+    hpWebsite?: string;
+    formStartedAt?: number;
+  }) => Promise<void>;
   register: (payload: {
     email: string;
     name: string;
     password: string;
+    hpWebsite?: string;
+    formStartedAt?: number;
   }) => Promise<void>;
   logout: () => void;
 };
@@ -52,13 +59,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     void bootstrap();
   }, [refreshSession]);
 
-  const login = useCallback(async (payload: { email: string; password: string }) => {
+  const login = useCallback(async (payload: {
+    email: string;
+    password: string;
+    hpWebsite?: string;
+    formStartedAt?: number;
+  }) => {
     await apiClient.post('/auth/login', payload);
     await refreshSession();
   }, [refreshSession]);
 
   const register = useCallback(
-    async (payload: { email: string; name: string; password: string }) => {
+    async (payload: {
+      email: string;
+      name: string;
+      password: string;
+      hpWebsite?: string;
+      formStartedAt?: number;
+    }) => {
       await apiClient.post('/auth/register', payload);
       await refreshSession();
     },

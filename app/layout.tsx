@@ -5,11 +5,10 @@ import { GlobalPostComposerSheet } from '@/components/GlobalPostComposerSheet';
 import { AppShell } from '@/components/AppShell';
 import { ThemeProvider } from '@/components/theme-provider';
 import { Toaster } from '@/components/ui/sonner';
+import { getSiteUrl } from '@/lib/site-url';
+import { WebVitalsReporter } from '@/components/WebVitalsReporter';
 
-const siteUrl =
-  process.env.NEXT_PUBLIC_SITE_URL ||
-  process.env.NEXT_PUBLIC_SITE_ORIGIN ||
-  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+const siteUrl = getSiteUrl();
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -42,6 +41,7 @@ export default function RootLayout({
           <AuthProvider>
             <AppShell>{children}</AppShell>
             <GlobalPostComposerSheet />
+            <WebVitalsReporter />
             <Toaster richColors position="top-right" />
           </AuthProvider>
         </ThemeProvider>

@@ -1,6 +1,7 @@
 import { createHash } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { hashPassword } from '@/lib/server/crypto';
+import { hasTrippedHoneypot } from '@/lib/server/honeypot';
 import { badRequest, serverError, tooManyRequests } from '@/lib/server/http';
 import { prisma } from '@/lib/server/prisma';
 import { consumeRateLimit, getRequestIp } from '@/lib/server/rate-limit';
@@ -23,7 +24,13 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as {
       token?: string;
       password?: string;
+      hpWebsite?: string;
+      formStartedAt?: number | string;
     };
+
+    if (hasTrippedHoneypot(body)) {
+      return badRequest('Token resetu hasla jest nieprawidlowy lub wygasl.');
+    }
 
     if (!body.token || !body.password) {
       return badRequest('Validation failed', [

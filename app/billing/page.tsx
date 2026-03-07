@@ -282,13 +282,15 @@ function BillingPageContent() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
               {snapshot?.catalog.map((plan) => {
                 const isCurrentPlan = snapshot.subscription.plan === plan.tier;
-                const canPurchasePaidPlan = plan.tier !== 'FREE';
 
                 return (
-                  <div key={plan.tier} className="p-4 rounded-lg border border-border bg-secondary/20 space-y-3">
+                  <div
+                    key={plan.tier}
+                    className="flex h-full flex-col rounded-lg border border-border bg-secondary/20 p-4"
+                  >
                     <div>
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-sm font-semibold text-foreground">{plan.title}</p>
@@ -304,37 +306,39 @@ function BillingPageContent() {
                       </p>
                     </div>
 
-                    <ul className="space-y-1">
+                    <ul className="mt-3 flex-1 space-y-1.5">
                       {plan.features.map((feature) => (
-                        <li key={feature} className="text-xs text-muted-foreground">• {feature}</li>
+                        <li key={feature} className="text-xs leading-relaxed text-muted-foreground">• {feature}</li>
                       ))}
                     </ul>
 
-                    {plan.tier === 'FREE' ? (
-                      <button
-                        onClick={switchToFree}
-                        disabled={isSubmitting || isCurrentPlan}
-                        className="w-full px-3 py-2 rounded-lg bg-secondary text-foreground border border-border disabled:opacity-60"
-                      >
-                        {isCurrentPlan ? 'Aktualny plan' : 'Przełącz na FREE'}
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => {
-                          if (plan.tier === 'STARTER' || plan.tier === 'PRO' || plan.tier === 'BUSINESS') {
-                            void startCheckout(plan.tier);
-                          }
-                        }}
-                        disabled={isSubmitting || isCurrentPlan}
-                        className="w-full px-3 py-2 rounded-lg bg-primary text-primary-foreground disabled:opacity-60"
-                      >
-                        {isCurrentPlan
-                          ? snapshot?.subscription.trial?.isActive && snapshot.subscription.basePlan === 'FREE'
-                            ? 'Okres próbny aktywny'
-                            : 'Aktualny plan'
-                          : `Kup ${plan.title}`}
-                      </button>
-                    )}
+                    <div className="mt-4 border-t border-border/60 pt-3">
+                      {plan.tier === 'FREE' ? (
+                        <button
+                          onClick={switchToFree}
+                          disabled={isSubmitting || isCurrentPlan}
+                          className="w-full rounded-lg border border-border bg-secondary px-3 py-2 font-medium text-foreground disabled:opacity-60"
+                        >
+                          {isCurrentPlan ? 'Aktualny plan' : 'Przełącz na FREE'}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            if (plan.tier === 'STARTER' || plan.tier === 'PRO' || plan.tier === 'BUSINESS') {
+                              void startCheckout(plan.tier);
+                            }
+                          }}
+                          disabled={isSubmitting || isCurrentPlan}
+                          className="w-full rounded-lg bg-primary px-3 py-2 font-semibold text-primary-foreground disabled:opacity-60"
+                        >
+                          {isCurrentPlan
+                            ? snapshot?.subscription.trial?.isActive && snapshot.subscription.basePlan === 'FREE'
+                              ? 'Okres próbny aktywny'
+                              : 'Aktualny plan'
+                            : `Kup ${plan.title}`}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 );
               })}

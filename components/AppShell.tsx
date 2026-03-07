@@ -74,10 +74,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </div>
 
       <nav
-        aria-label="Linki prawne"
+        aria-label="Nawigacja pomocnicza panelu"
         className="fixed bottom-20 right-3 z-50 rounded-full border border-border/70 bg-card/90 px-3 py-2 text-xs shadow-lg backdrop-blur-sm lg:bottom-4 lg:right-4"
       >
         <div className="flex items-center gap-3 text-muted-foreground">
+          <Link href="/" className="transition-colors hover:text-foreground">
+            Strona główna
+          </Link>
+          <span aria-hidden="true" className="text-border">|</span>
           <Link href="/terms" className="transition-colors hover:text-foreground">
             Regulamin
           </Link>

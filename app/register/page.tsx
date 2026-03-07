@@ -14,6 +14,8 @@ export default function RegisterPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [hpWebsite, setHpWebsite] = useState('');
+  const [formStartedAt] = useState(() => Date.now());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [source, setSource] = useState('');
   const [intent, setIntent] = useState('');
@@ -39,7 +41,13 @@ export default function RegisterPage() {
 
     try {
       setIsSubmitting(true);
-      await register({ name, email, password });
+      await register({
+        name,
+        email,
+        password,
+        hpWebsite,
+        formStartedAt,
+      });
 
       if (fromLanding) {
         trackLandingEvent({
@@ -86,6 +94,21 @@ export default function RegisterPage() {
         </div>
 
         <div className="space-y-2">
+          <label className="absolute -left-[9999px] top-auto h-px w-px overflow-hidden" aria-hidden="true" htmlFor="register-company-website">
+            Company website
+          </label>
+          <input
+            id="register-company-website"
+            name="companyWebsite"
+            value={hpWebsite}
+            onChange={(event) => setHpWebsite(event.target.value)}
+            type="text"
+            autoComplete="off"
+            tabIndex={-1}
+            className="absolute -left-[9999px] top-auto h-px w-px overflow-hidden"
+            aria-hidden="true"
+          />
+
           <label className="text-sm text-foreground">Imię i nazwisko</label>
           <input
             autoFocus
