@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { AnimatePresence, motion, useAnimationControls, useInView, useMotionValue, useReducedMotion, useScroll, useSpring, useTransform } from 'framer-motion';
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { ArrowUpRight, CalendarClock, Layers, Sparkles, Youtube, Music2, Instagram, Facebook, CircleCheckBig, CircleHelp } from 'lucide-react';
+import { ArrowUpRight, CalendarClock, Layers, Sparkles, Youtube, Music2, Instagram, Facebook, CircleCheckBig, CircleHelp, Moon, Sun } from 'lucide-react';
+import { useTheme } from 'next-themes';
 import { trackLandingEvent } from '@/lib/landing-events';
 import { BrandLogo } from '@/components/BrandLogo';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
@@ -289,9 +290,10 @@ function FloatingBackground({ reduceMotion }: { reduceMotion: boolean }) {
   );
 }
 
-function ScrollProgressWithLogo() {
+function ScrollProgressWithLogo({ mounted }: { mounted: boolean }) {
   const { scrollYProgress } = useScroll();
   const progress = useSpring(scrollYProgress, { stiffness: 120, damping: 24, mass: 0.2 });
+  const { theme, setTheme } = useTheme();
 
   return (
     <div className="pointer-events-none fixed inset-x-0 top-0 z-40 px-3 pt-3 sm:px-6">
@@ -299,8 +301,50 @@ function ScrollProgressWithLogo() {
         <div className="inline-flex shrink-0 items-center rounded-2xl border border-border/70 bg-background/82 px-4 py-1 shadow-lg backdrop-blur-md">
           <BrandLogo className="h-10 w-auto" />
         </div>
-        <div className="mt-3 h-1.5 flex-1 overflow-hidden rounded-full bg-background/55 ring-1 ring-border/45 backdrop-blur-sm">
-          <motion.div className="h-full origin-left rounded-full bg-gradient-to-r from-primary to-accent" style={{ scaleX: progress }} />
+        <div className="flex-1 flex items-center gap-2">
+          <div className="mt-3 h-1.5 flex-1 overflow-hidden rounded-full bg-background/55 ring-1 ring-border/45 backdrop-blur-sm">
+            <motion.div className="h-full origin-left rounded-full bg-gradient-to-r from-primary to-accent" style={{ scaleX: progress }} />
+          </div>
+          {mounted && (
+            <div className="pointer-events-auto mt-3 flex items-center gap-1 rounded-lg border border-border/70 bg-background/82 p-1 backdrop-blur-md">
+              <button
+                type="button"
+                onClick={() => {
+                  setTheme('light');
+                  trackLandingEvent({
+                    event: 'landing_cta_click',
+                    cta: 'theme_toggle_light',
+                    source: 'landing',
+                  });
+                }}
+                className={`rounded-md p-1.5 transition-colors ${
+                  theme === 'light' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground'
+                }`}
+                aria-label="Light mode"
+                title="Jasny motyw"
+              >
+                <Sun className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setTheme('dark');
+                  trackLandingEvent({
+                    event: 'landing_cta_click',
+                    cta: 'theme_toggle_dark',
+                    source: 'landing',
+                  });
+                }}
+                className={`rounded-md p-1.5 transition-colors ${
+                  theme === 'dark' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground'
+                }`}
+                aria-label="Dark mode"
+                title="Ciemny motyw"
+              >
+                <Moon className="h-4 w-4" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -442,6 +486,7 @@ export function LandingExperience() {
   const capabilities = useBillingCapabilities();
   const shouldReduceMotion = useReducedMotion();
   const reduceMotion = shouldReduceMotion ?? false;
+  const [mounted, setMounted] = useState(false);
   const [isLowPowerDevice, setIsLowPowerDevice] = useState(false);
   const [scrollDirection, setScrollDirection] = useState<ScrollDirection>('down');
   const [selectedPlanSlug, setSelectedPlanSlug] = useState<MarketingPlan['slug']>('pro');
@@ -551,6 +596,10 @@ export function LandingExperience() {
     sections.forEach((node) => observer.observe(node));
 
     return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    setMounted(true);
   }, []);
 
   useEffect(() => {
@@ -746,7 +795,7 @@ export function LandingExperience() {
 
   return (
       <main className="relative min-h-full bg-background text-foreground">
-      <ScrollProgressWithLogo />
+      <ScrollProgressWithLogo mounted={mounted} />
       <FloatingBackground reduceMotion={motionBudgetReduced} />
       <ActivityBubble messages={activityMessages} reduceMotion={motionBudgetReduced} />
       <SideLoginTab reduceMotion={motionBudgetReduced} />
