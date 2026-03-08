@@ -90,9 +90,9 @@ const lanes = [
 const heroHighlights = ['4 platformy', 'AI podpowiedzi', 'Start w 2 minuty'];
 
 const heroProofStrip = [
-  { value: '3/10/25', label: 'Konta social wg planu' },
-  { value: '15/100', label: 'Starter/Pro wideo mies.' },
-  { value: '7 dni', label: 'Trial dla nowych kont' },
+  { value: '3 • 10 • 25', label: 'Konta social: Starter / Pro / Business' },
+  { value: '15 • 100', label: 'Wideo mies.: Starter / Pro' },
+  { value: '7 dni', label: 'Trial z subskrypcją Pro' },
 ];
 
 const heroFlowSteps = [
@@ -892,14 +892,11 @@ export function LandingExperience() {
             animate={motionBudgetReduced ? undefined : { y: [0, -6, 0], opacity: [0.8, 1, 0.8] }}
             transition={{ duration: 2.6, repeat: Number.POSITIVE_INFINITY, ease: 'easeInOut' }}
           >
-            Live Preview
+                Podgląd
           </motion.div>
           <div className="relative overflow-hidden rounded-[2rem] border border-border bg-card/80 p-6 shadow-2xl">
             <div className="mb-5 flex items-center justify-between">
               <p className="text-sm font-medium text-foreground">Przykładowe KPI po zalogowaniu</p>
-              <span className="rounded-full border border-accent/30 bg-accent/20 px-2.5 py-1 text-xs text-accent-foreground">
-                Podgląd
-              </span>
             </div>
             <div className="mb-4 rounded-xl border border-border/70 bg-card/55 p-3">
               <div className="mb-2 flex items-center gap-2">
@@ -1053,12 +1050,47 @@ export function LandingExperience() {
             </div>
           </motion.div>
 
-          <motion.div ref={pricingTableScrollRef} variants={item} className="mt-8 overflow-x-auto rounded-2xl border border-border bg-card/50">
+          <motion.div variants={item} className="mt-6 rounded-2xl border border-border bg-card/50 md:hidden">
+            <table className="w-full text-sm" aria-label="Porównanie wybranego planu Postfly">
+              <caption className="sr-only">Porównanie wybranego planu</caption>
+              <thead>
+                <tr className="border-b border-border bg-card/70">
+                  <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-muted-foreground">Porównanie</th>
+                  <th scope="col" className="px-3 py-3 text-left text-xs font-semibold text-foreground">
+                    {selectedPlan?.name ?? 'Plan'}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-b border-border/80">
+                  <th scope="row" className="px-3 py-3 text-left text-xs font-medium text-muted-foreground">Cena / miesiąc</th>
+                  <td className="px-3 py-3 font-semibold text-foreground">{selectedPlan?.priceMonthly ?? '-'}</td>
+                </tr>
+                {comparisonRows.map((row) => (
+                  <tr key={`mobile-${row.label}`} className="border-b border-border/80 last:border-b-0">
+                    <th scope="row" className="px-3 py-3 text-left text-xs font-medium text-muted-foreground">
+                      {row.label === 'AI_AUTOPILOT_LABEL' ? 'AI Autopilot' : row.label}
+                    </th>
+                    <td className="px-3 py-3 text-foreground">
+                      {selectedPlan ? getComparisonCellValue(row, selectedPlan.slug) : '-'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </motion.div>
+
+          <motion.div ref={pricingTableScrollRef} variants={item} className="mt-8 hidden overflow-x-auto rounded-2xl border border-border bg-card/50 md:block">
             <table className="min-w-[760px] w-full text-sm" aria-label="Porównanie planów Postfly">
               <caption className="sr-only">Porównanie planów Starter, Pro i Business</caption>
               <thead>
                 <tr className="border-b border-border bg-card/70">
-                  <th scope="col" className="px-4 py-3 text-left font-medium text-muted-foreground">Porównanie</th>
+                  <th
+                    scope="col"
+                    className="sticky left-0 z-20 w-36 min-w-36 border-r border-border/70 bg-card px-3 py-3 text-left text-xs font-medium leading-tight text-muted-foreground md:static md:w-auto md:min-w-0 md:border-r-0 md:bg-transparent md:px-4 md:text-sm md:leading-normal"
+                  >
+                    Porównanie
+                  </th>
                   {capabilities.plans.map((plan) => (
                     <th
                       key={plan.slug}
@@ -1066,7 +1098,7 @@ export function LandingExperience() {
                         pricingColumnRefs.current[plan.slug] = node;
                       }}
                       scope="col"
-                      className={`px-4 py-3 text-left font-semibold transition-colors duration-300 ${
+                      className={`min-w-[8.75rem] px-4 py-3 text-left font-semibold transition-colors duration-300 ${
                         plan.slug === selectedPlanSlug
                           ? 'bg-primary/15 text-foreground'
                           : 'text-foreground'
@@ -1079,34 +1111,48 @@ export function LandingExperience() {
               </thead>
               <tbody>
                 <tr className="border-b border-border/80">
-                  <th scope="row" className="px-4 py-3 text-left font-medium text-muted-foreground">Cena / miesiąc</th>
+                  <th
+                    scope="row"
+                    className="sticky left-0 z-10 w-36 min-w-36 border-r border-border/70 bg-card px-3 py-3 text-left text-xs font-medium leading-tight text-muted-foreground md:static md:w-auto md:min-w-0 md:border-r-0 md:bg-transparent md:px-4 md:text-sm md:leading-normal"
+                  >
+                    Cena / miesiąc
+                  </th>
                   {capabilities.plans.map((plan) => (
                     <td
                       key={`${plan.slug}-price`}
-                      className={`px-4 py-3 transition-colors duration-300 ${
+                      className={`min-w-[8.75rem] px-4 py-3 transition-colors duration-300 ${
                         plan.slug === selectedPlanSlug
                           ? 'bg-primary/10 font-semibold text-foreground'
                           : 'text-foreground'
                       }`}
                     >
+                      <span className="mb-1 block text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground md:hidden">
+                        Cena / miesiąc
+                      </span>
                       {plan.priceMonthly}
                     </td>
                   ))}
                 </tr>
                 {comparisonRows.map((row) => (
                   <tr key={row.label} className="border-b border-border/80 last:border-b-0">
-                    <th scope="row" className="px-4 py-3 text-left font-medium text-muted-foreground">
+                    <th
+                      scope="row"
+                      className="sticky left-0 z-10 w-36 min-w-36 border-r border-border/70 bg-card px-3 py-3 text-left text-xs font-medium leading-tight text-muted-foreground md:static md:w-auto md:min-w-0 md:border-r-0 md:bg-transparent md:px-4 md:text-sm md:leading-normal"
+                    >
                       {row.label === 'AI_AUTOPILOT_LABEL' ? <AiAutopilotLabel /> : row.label}
                     </th>
                     {capabilities.plans.map((plan) => (
                       <td
                         key={`${row.label}-${plan.slug}`}
-                        className={`px-4 py-3 transition-colors duration-300 ${
+                        className={`min-w-[8.75rem] px-4 py-3 transition-colors duration-300 ${
                           plan.slug === selectedPlanSlug
                             ? 'bg-primary/10 font-semibold text-foreground'
                             : 'text-foreground'
                         }`}
                       >
+                        <span className="mb-1 block text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground md:hidden">
+                          {row.label === 'AI_AUTOPILOT_LABEL' ? 'AI Autopilot' : row.label}
+                        </span>
                         {getComparisonCellValue(row, plan.slug)}
                       </td>
                     ))}
