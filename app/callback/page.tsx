@@ -62,7 +62,7 @@ export default function CallbackPage() {
         </div>
 
         <Link
-          href="/"
+          href="/social-accounts"
           className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
         >
           Powrót do Pulpitu
