@@ -15,6 +15,7 @@ import {
 import { useBillingCapabilities } from '@/hooks/useBillingCapabilities';
 import { CONTACT_CATEGORIES, type ContactCategory } from '@/lib/contact';
 import { LANDING_FAQ_ITEMS } from '@/lib/landing-faq';
+import { useAuth } from '@/contexts/auth-context';
 
 const container = {
   hidden: { opacity: 0, y: 36 },
@@ -391,7 +392,7 @@ function ActivityBubble({ messages, reduceMotion }: { messages: string[]; reduce
   );
 }
 
-function SideLoginTab({ reduceMotion }: { reduceMotion: boolean }) {
+function SideLoginTab({ reduceMotion, loginHref }: { reduceMotion: boolean; loginHref: string }) {
   return (
     <motion.div
       initial={reduceMotion ? { x: 0, opacity: 1 } : { x: 120, opacity: 0 }}
@@ -404,12 +405,12 @@ function SideLoginTab({ reduceMotion }: { reduceMotion: boolean }) {
         transition={{ duration: 2.2, repeat: Number.POSITIVE_INFINITY, ease: 'easeInOut' }}
       >
         <Link
-          href="/login?source=landing"
+          href={loginHref}
           onClick={() =>
             trackLandingEvent({
               event: 'landing_cta_click',
               cta: 'side_login_tab',
-              href: '/login?source=landing',
+              href: loginHref,
               source: 'landing',
             })
           }
@@ -426,7 +427,7 @@ function SideLoginTab({ reduceMotion }: { reduceMotion: boolean }) {
   );
 }
 
-function MobileLoginChip({ visible }: { visible: boolean }) {
+function MobileLoginChip({ visible, loginHref }: { visible: boolean; loginHref: string }) {
   return (
     <motion.div
       initial={false}
@@ -435,12 +436,12 @@ function MobileLoginChip({ visible }: { visible: boolean }) {
       className="fixed right-4 top-20 z-40 md:hidden"
     >
       <Link
-        href="/login?source=landing"
+        href={loginHref}
         onClick={() =>
           trackLandingEvent({
             event: 'landing_cta_click',
             cta: 'mobile_login_chip',
-            href: '/login?source=landing',
+            href: loginHref,
             source: 'landing',
           })
         }
@@ -483,6 +484,7 @@ function MobileStickyCTA({ visible }: { visible: boolean }) {
 
 export function LandingExperience() {
   const { scrollY } = useScroll();
+  const { isAuthenticated, isLoading } = useAuth();
   const capabilities = useBillingCapabilities();
   const shouldReduceMotion = useReducedMotion();
   const reduceMotion = shouldReduceMotion ?? false;
@@ -513,9 +515,16 @@ export function LandingExperience() {
   const proPlan = plansBySlug.get('pro');
   const businessPlan = plansBySlug.get('business');
   const selectedPlan = plansBySlug.get(selectedPlanSlug) ?? proPlan ?? capabilities.plans[0];
+  const freeVideoUploadsLabel =
+    capabilities.free.videoUploads === null ? 'Brak limitu' : `${capabilities.free.videoUploads}`;
+  const freeScheduleAheadLabel =
+    capabilities.free.maxScheduleAheadHours === null
+      ? 'Bez limitu planowania'
+      : `Planowanie do ${capabilities.free.maxScheduleAheadHours}h`;
 
   const starterMonthlyVideoLimit = extractFirstNumber(starterPlan?.monthlyVideoLabel ?? '', 15);
   const proMonthlySoftLimit = extractFirstNumber(proPlan?.monthlyVideoLabel ?? '', 100);
+  const loginHref = !isLoading && isAuthenticated ? '/dashboard' : '/login?source=landing';
 
   const comparisonRows = useMemo<ComparisonRow[]>(
     () => [
@@ -798,8 +807,8 @@ export function LandingExperience() {
       <ScrollProgressWithLogo mounted={mounted} />
       <FloatingBackground reduceMotion={motionBudgetReduced} />
       <ActivityBubble messages={activityMessages} reduceMotion={motionBudgetReduced} />
-      <SideLoginTab reduceMotion={motionBudgetReduced} />
-      <MobileLoginChip visible={!showMobileStickyCta} />
+      <SideLoginTab reduceMotion={motionBudgetReduced} loginHref={loginHref} />
+      <MobileLoginChip visible={!showMobileStickyCta} loginHref={loginHref} />
 
       <section
         data-section="hero"
@@ -1096,6 +1105,35 @@ export function LandingExperience() {
               <p className="text-xs uppercase tracking-[0.18em] text-accent">Cennik</p>
               <h2 className="mt-2 text-3xl font-semibold">Wybierz plan</h2>
               <p className="mt-2 text-xs text-muted-foreground">Oszczędzasz ok. 20% przy rozliczeniu rocznym.</p>
+            </div>
+          </motion.div>
+
+          <motion.div variants={item} className="mt-5 rounded-2xl border border-primary/25 bg-primary/10 p-4 sm:p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary">Plan Free (na start)</p>
+                <p className="mt-1 text-sm text-foreground">{capabilities.free.subtitle}</p>
+                <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                  <span className="rounded-full border border-border/70 bg-card/50 px-2.5 py-1">0 PLN / mies.</span>
+                  <span className="rounded-full border border-border/70 bg-card/50 px-2.5 py-1">{`${capabilities.free.socialAccounts} konto social łącznie`}</span>
+                  <span className="rounded-full border border-border/70 bg-card/50 px-2.5 py-1">{`${freeVideoUploadsLabel} wideo / mies.`}</span>
+                  <span className="rounded-full border border-border/70 bg-card/50 px-2.5 py-1">{freeScheduleAheadLabel}</span>
+                </div>
+              </div>
+              <Link
+                href="/register?source=landing&intent=free"
+                onClick={() =>
+                  trackLandingEvent({
+                    event: 'landing_cta_click',
+                    cta: 'pricing_start_free',
+                    href: '/register?source=landing&intent=free',
+                    source: 'landing',
+                  })
+                }
+                className="inline-flex items-center justify-center rounded-lg border border-primary/45 bg-card/70 px-4 py-2 text-sm font-semibold text-foreground hover:bg-card"
+              >
+                Zacznij od Free
+              </Link>
             </div>
           </motion.div>
 
@@ -1494,12 +1532,12 @@ export function LandingExperience() {
               </motion.div>
               <motion.div whileHover={interactiveLift} whileTap={interactiveTap}>
                 <Link
-                  href="/login?source=landing"
+                  href={loginHref}
                   onClick={() =>
                     trackLandingEvent({
                       event: 'landing_cta_click',
                       cta: 'final_login',
-                      href: '/login?source=landing',
+                      href: loginHref,
                       source: 'landing',
                     })
                   }

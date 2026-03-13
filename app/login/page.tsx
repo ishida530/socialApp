@@ -10,7 +10,7 @@ import { BrandLogo } from '@/components/BrandLogo';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { login, isAuthenticated, isLoading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [hpWebsite, setHpWebsite] = useState('');
@@ -19,6 +19,16 @@ export default function LoginPage() {
   const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
   const [source, setSource] = useState('');
   const fromLanding = source === 'landing';
+
+  useEffect(() => {
+    if (isLoading) {
+      return;
+    }
+
+    if (isAuthenticated) {
+      router.replace('/dashboard');
+    }
+  }, [isAuthenticated, isLoading, router]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
