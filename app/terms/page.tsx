@@ -21,119 +21,93 @@ export default function TermsPage() {
 
         <h1 className="text-3xl font-semibold tracking-tight">Regulamin usługi Postfly</h1>
         <p className="mt-6 text-sm text-muted-foreground">
-          Niniejszy Regulamin określa zasady korzystania z usługi Postfly.
+          Niniejszy Regulamin określa zasady korzystania z aplikacji Postfly.
         </p>
-        <p className="mt-2 text-sm text-muted-foreground">Data wejścia w życie: 2 marca 2026 r.</p>
+        <p className="mt-2 text-sm text-muted-foreground">Data ostatniej aktualizacji: 17 marca 2026 r.</p>
 
         <section className="mt-8 space-y-4 text-sm leading-6 text-muted-foreground">
           <h2 className="text-base font-semibold text-foreground">1. Postanowienia ogólne</h2>
           <p>
             Niniejszy Regulamin określa zasady korzystania z aplikacji SaaS „Postfly”, służącej
-            do planowania i publikacji materiałów wideo w serwisach społecznościowych (w tym
-            TikTok) z wykorzystaniem integracji API i OAuth.
+            do planowania i publikacji materiałów wideo w serwisach społecznościowych (m.in.
+            TikTok, YouTube) z wykorzystaniem oficjalnych integracji API i mechanizmów OAuth.
           </p>
           <p>
-            Usługodawcą jest: <strong className="text-foreground">Code94 Paweł Sawczuk</strong>,
-            adres: 126B, 11-010 Barczewko, NIP: 7394015517, REGON: 541491536.
+            Usługodawcą jest: <strong className="text-foreground">Paweł Sawczuk</strong>,
+            prowadzący działalność nierejestrowaną pod adresem: 126B, 11-010 Barczewko.
           </p>
 
           <h2 className="text-base font-semibold text-foreground">2. Definicje</h2>
           <p>
-            Użytkownik – osoba fizyczna lub podmiot korzystający z Postfly. Konto – profil
-            Użytkownika w aplikacji. Usługa – funkcjonalności Postfly, w tym planowanie,
-            zarządzanie i zautomatyzowana publikacja treści.
+            <strong>Użytkownik</strong> – osoba fizyczna, osoba prawna lub jednostka organizacyjna korzystająca z Postfly. 
+            <strong> Konto</strong> – indywidualny profil Użytkownika w aplikacji. 
+            <strong> Usługa</strong> – dostęp do funkcjonalności Postfly (planowanie i publikacja treści).
           </p>
 
           <h2 className="text-base font-semibold text-foreground">3. Warunki korzystania</h2>
           <p>
-            Z usługi może korzystać wyłącznie osoba, która ukończyła 18 lat oraz ma pełną zdolność
-            do czynności prawnych albo działa w imieniu uprawnionego podmiotu.
-          </p>
-          <p>
-            Użytkownik zobowiązuje się korzystać z usługi zgodnie z prawem, niniejszym Regulaminem
-            oraz zasadami platform społecznościowych, których konto podłączył.
+            Z usługi może korzystać osoba pełnoletnia, posiadająca pełną zdolność do czynności prawnych. 
+            Użytkownik zobowiązuje się do korzystania z serwisu w sposób zgodny z prawem, dobrymi obyczajami 
+            oraz regulaminami platform zewnętrznych (TikTok, Google/YouTube), które integruje z Postfly.
           </p>
 
-          <h2 className="text-base font-semibold text-foreground">4. Konto i integracje OAuth</h2>
+          <h2 className="text-base font-semibold text-foreground">4. Integracje OAuth i API</h2>
           <p>
-            Logowanie i autoryzacja kont społecznościowych odbywają się przez mechanizm OAuth.
-            Postfly nie pozyskuje ani nie przechowuje haseł do kont TikTok/YouTube.
-          </p>
-          <p>
-            Użytkownik odpowiada za utrzymanie ważności udzielonych zgód OAuth i za działania
-            wykonane z wykorzystaniem podłączonych kont.
+            Postfly łączy się z kontami społecznościowymi wyłącznie za zgodą Użytkownika poprzez protokół OAuth. 
+            Aplikacja nie gromadzi haseł do serwisów zewnętrznych. Użytkownik może w każdej chwili cofnąć 
+            uprawnienia dla Postfly bezpośrednio w ustawieniach swojego konta TikTok lub Google.
           </p>
 
-          <h2 className="text-base font-semibold text-foreground">5. Publikowane treści i odpowiedzialność Użytkownika</h2>
+          <h2 className="text-base font-semibold text-foreground">5. Treści i odpowiedzialność</h2>
           <p>
-            Użytkownik ponosi pełną odpowiedzialność za treści przesyłane i publikowane przez
-            Postfly, w tym za ich zgodność z prawem, prawami autorskimi, prawami osób trzecich
-            oraz regulaminami platform społecznościowych.
-          </p>
-          <p>
-            Zabronione jest publikowanie treści bezprawnych, szkodliwych, naruszających dobra
-            osobiste, prawa własności intelektualnej lub zasady platform zewnętrznych.
+            Użytkownik ponosi wyłączną odpowiedzialność za materiały wideo, opisy oraz inne treści publikowane 
+            za pośrednictwem Postfly. Zabrania się przesyłania treści naruszających prawo, prawa autorskie osób 
+            trzecich lub promujących przemoc i nienawiść.
           </p>
 
-          <h2 className="text-base font-semibold text-foreground">6. Subskrypcje, płatności i odnowienia</h2>
+          <h2 className="text-base font-semibold text-foreground">6. Płatności i subskrypcje</h2>
           <p>
-            Postfly oferuje plany subskrypcyjne (w tym Free, Starter, Pro, Business) z limitami użycia,
-            m.in. liczby uploadów wideo i zadań publikacji.
-          </p>
-          <p>
-            Płatności realizowane są wyłącznie przez Stripe. Usługodawca nie przechowuje pełnych
-            danych kart płatniczych.
-          </p>
-          <p>
-            Subskrypcja odnawia się automatycznie na kolejny okres rozliczeniowy, dopóki nie
-            zostanie anulowana przez Użytkownika w Billing Portal lub zgodnie z warunkami Stripe.
+            Korzystanie z wybranych funkcjonalności Postfly wymaga opłacenia subskrypcji. 
+            Płatności są procesowane przez zewnętrznego operatora – <strong className="text-foreground">Stripe</strong>. 
+            Subskrypcja odnawia się automatycznie, chyba że Użytkownik zrezygnuje z niej przed rozpoczęciem 
+            kolejnego okresu rozliczeniowego poprzez panel zarządzania płatnościami w aplikacji.
           </p>
 
-          <h2 className="text-base font-semibold text-foreground">7. Polityka zwrotów</h2>
+          <h2 className="text-base font-semibold text-foreground">7. Odstąpienie od umowy i zwroty</h2>
           <p>
-            Usługa ma charakter cyfrowy i jest świadczona niezwłocznie po aktywacji. W zakresie
-            dozwolonym przez przepisy prawa, po rozpoczęciu świadczenia usługi możliwość zwrotu
-            opłaty może być ograniczona. Każdy wniosek o zwrot analizowany jest indywidualnie.
+            Użytkownik będący konsumentem ma prawo odstąpić od umowy w terminie 14 dni bez podania przyczyny, 
+            chyba że wyraził zgodę na rozpoczęcie świadczenia usługi (dostarczenie treści cyfrowych) przed 
+            upływem tego terminu, co skutkuje utratą prawa do odstąpienia. W Postfly dostęp do płatnych 
+            funkcji jest przyznawany natychmiast po transakcji.
           </p>
 
-          <h2 className="text-base font-semibold text-foreground">8. Dostępność i zmiany usługi</h2>
+          <h2 className="text-base font-semibold text-foreground">8. Ograniczenie odpowiedzialności</h2>
           <p>
-            Usługodawca dokłada należytej staranności, aby zapewnić ciągłość działania usługi,
-            jednak może czasowo ograniczyć jej dostępność z przyczyn technicznych, bezpieczeństwa,
-            konserwacji lub działania dostawców zewnętrznych.
+            Usługodawca nie odpowiada za blokady kont społecznościowych, ograniczenia zasięgów lub usunięcie treści 
+            przez platformy takie jak TikTok czy YouTube. Usługodawca nie gwarantuje, że API podmiotów trzecich 
+            będzie dostępne bez przerw i zmian funkcjonalnych.
           </p>
 
-          <h2 className="text-base font-semibold text-foreground">9. Ograniczenie odpowiedzialności</h2>
+          <h2 className="text-base font-semibold text-foreground">9. Reklamacje i kontakt</h2>
           <p>
-            W maksymalnym zakresie dopuszczonym przez prawo, Usługodawca nie odpowiada za skutki
-            decyzji platform zewnętrznych (np. blokady konta, ograniczenia zasięgów, zmiany API,
-            odmowę publikacji treści), ani za szkody pośrednie i utracone korzyści wynikające z
-            korzystania z usługi.
+            Wszelkie reklamacje dotyczące działania Usługi należy kierować na adres e-mail: 
+            <strong className="text-foreground"> pawel.sawczuk.email@gmail.com</strong>. 
+            Reklamacja powinna zawierać opis problemu oraz adres e-mail powiązany z Kontem. 
+            Odpowiedź zostanie udzielona w terminie 14 dni.
           </p>
 
-          <h2 className="text-base font-semibold text-foreground">10. Rozwiązanie umowy i usunięcie konta</h2>
+          <h2 className="text-base font-semibold text-foreground">10. Zmiany regulaminu</h2>
           <p>
-            Użytkownik może w każdej chwili zaprzestać korzystania z usługi i żądać usunięcia konta.
-            Usługodawca może zawiesić lub zakończyć świadczenie usługi wobec Użytkownika w razie
-            naruszenia Regulaminu lub przepisów prawa.
+            Usługodawca zastrzega sobie prawo do zmiany Regulaminu. O istotnych zmianach (np. zmiana cennika) 
+            Użytkownicy zostaną powiadomieni drogą mailową lub poprzez komunikat w aplikacji z co najmniej 
+            7-dniowym wyprzedzeniem.
           </p>
 
-          <h2 className="text-base font-semibold text-foreground">11. Reklamacje i kontakt</h2>
+          <h2 className="text-base font-semibold text-foreground">11. Postanowienia końcowe</h2>
           <p>
-            W sprawach dotyczących usługi, reklamacji lub danych osobowych należy kontaktować się
-            z Usługodawcą: Code94 Paweł Sawczuk, 126B, 11-010 Barczewko, NIP 7394015517, REGON
-            541491536, e-mail: pawel.sawczuk.email@gmail.com.
-          </p>
-
-          <h2 className="text-base font-semibold text-foreground">12. Postanowienia końcowe</h2>
-          <p>
-            Regulamin może być aktualizowany w związku ze zmianami prawa, zakresem usługi lub
-            wymogami dostawców zewnętrznych. O istotnych zmianach Użytkownik zostanie poinformowany
-            w aplikacji lub przy kolejnym logowaniu.
-          </p>
-          <p>
-            W sprawach nieuregulowanych zastosowanie mają przepisy prawa polskiego oraz odpowiednie
-            przepisy prawa Unii Europejskiej.
+            W sprawach nieuregulowanych mają zastosowanie przepisy Kodeksu Cywilnego oraz ustawy o 
+            świadczeniu usług drogą elektroniczną. Sądem właściwym dla sporów z konsumentami jest sąd 
+            właściwy według miejsca zamieszkania konsumenta.
           </p>
         </section>
       </div>
