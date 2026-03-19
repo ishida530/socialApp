@@ -40,7 +40,8 @@ export async function POST(request: NextRequest) {
       formStartedAt?: number | string;
     };
 
-    if (hasTrippedHoneypot(body)) {
+    // For login, only the hidden field is enforced to avoid false positives on autofill-fast submits.
+    if (hasTrippedHoneypot({ hpWebsite: body.hpWebsite })) {
       return unauthorized('Invalid credentials');
     }
 
@@ -51,7 +52,12 @@ export async function POST(request: NextRequest) {
       ]);
     }
 
-    const user = await prisma.user.findUnique({ where: { email: body.email } });
+    const normalizedEmail = body.email.trim().toLowerCase();
+    if (!normalizedEmail) {
+      return badRequest('Validation failed', ['email: Email jest wymagany']);
+    }
+
+    const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
     if (!user?.passwordHash) {
       return unauthorized('Invalid credentials');
     }
