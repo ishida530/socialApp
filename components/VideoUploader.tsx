@@ -29,8 +29,17 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [uploadStatus, setUploadStatus] = useState('');
+  const [uploadMetrics, setUploadMetrics] = useState({ loadedBytes: 0, totalBytes: 0 });
   const [uploadedFile, setUploadedFile] = useState<{ name: string; size: string; previewUrl?: string; mediaType: 'video' | 'image' } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const formatMegabytes = (bytes: number) => {
+    if (bytes <= 0) {
+      return '0 MB';
+    }
+
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -69,6 +78,7 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
 
     setUploading(true);
     setProgress(0);
+    setUploadMetrics({ loadedBytes: 0, totalBytes: file.size });
 
     const uploadViaApiRoute = async () => {
       setUploadStatus('Przesyłanie pliku...');
@@ -84,18 +94,22 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
         maxContentLength: Infinity,
         onUploadProgress: (event) => {
           const total = event.total ?? file.size;
+          const loaded = Math.min(event.loaded, total);
           const nextProgress = total
-            ? Math.min(95, Math.round((event.loaded / total) * 100))
+            ? Math.min(95, Math.round((loaded / total) * 100))
             : 0;
+
+          setUploadMetrics({ loadedBytes: loaded, totalBytes: total });
           setProgress(nextProgress);
 
-          if (total && event.loaded >= total) {
+          if (total && loaded >= total) {
             setUploadStatus('Finalizowanie zapisu...');
           }
         },
       });
 
       setUploadStatus('Finalizowanie zapisu...');
+      setUploadMetrics({ loadedBytes: file.size, totalBytes: file.size });
       setUploadedFile({
         name: file.name,
         size: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
@@ -113,6 +127,7 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
       })
       .finally(() => {
         setUploadStatus('');
+        setUploadMetrics({ loadedBytes: 0, totalBytes: 0 });
         setUploading(false);
       });
   };
@@ -213,7 +228,11 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
         <div className="mt-4 space-y-2">
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">{uploadStatus || 'Przesyłanie...'}</span>
-            <span className="text-foreground font-medium">{progress}%</span>
+            <span className="text-foreground font-medium">{formatMegabytes(uploadMetrics.loadedBytes)} / {formatMegabytes(uploadMetrics.totalBytes)}</span>
+          </div>
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>{progress}%</span>
+            <span>{formatMegabytes(uploadMetrics.totalBytes)}</span>
           </div>
           <div className="w-full bg-secondary rounded-full h-2 overflow-hidden">
             <div
