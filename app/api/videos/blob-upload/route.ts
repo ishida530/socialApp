@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { VideoStatus } from '@prisma/client';
 import { handleUpload, type HandleUploadBody } from '@vercel/blob/client';
+import { getSiteUrl } from '@/lib/site-url';
 import { getAuthUserFromRequest } from '@/lib/server/auth';
 import { badRequest, serverError, unauthorized } from '@/lib/server/http';
 import { assertUsageAllowed, incrementUsage } from '@/lib/server/subscription';
@@ -35,6 +36,7 @@ export async function POST(request: NextRequest) {
         return {
           allowedContentTypes: ['video/mp4', 'video/quicktime', 'image/jpeg', 'image/png', 'image/webp'],
           addRandomSuffix: true,
+          callbackUrl: new URL('/api/videos/blob-upload', getSiteUrl()).toString(),
           tokenPayload: JSON.stringify({
             userId: user.userId,
             title: sanitizeTitle(titleFromClient),

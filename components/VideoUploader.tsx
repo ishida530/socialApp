@@ -3,18 +3,9 @@
 import { Upload, FileVideo, X } from 'lucide-react';
 import { useState, useRef } from 'react';
 import { toast } from 'sonner';
-import { apiClient } from '@/lib/api-client';
 import { upload } from '@vercel/blob/client';
 
-type UploadedVideo = {
-  id: string;
-  title: string;
-  sourceUrl: string;
-  localPath?: string | null;
-};
-
 const MAX_MEDIA_SIZE_BYTES = 500 * 1024 * 1024;
-const API_UPLOAD_SAFE_LIMIT_BYTES = 4 * 1024 * 1024;
 
 function isSupportedMedia(file: File) {
   const extension = file.name.split('.').pop()?.toLowerCase();
@@ -99,9 +90,8 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
     setProgress(0);
     setUploadMetrics({ loadedBytes: 0, totalBytes: file.size });
 
-    const uploadDirectToBlob = async () => {
-      setUploadStatus('Przesyłanie dużego pliku bezpośrednio do storage...');
-      setProgress(0);
+    const doUpload = async () => {
+      setUploadStatus('Przesyłanie...');
 
       const blob = await upload(file.name, file, {
         access: 'public',
@@ -109,6 +99,14 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
         clientPayload: JSON.stringify({
           title: file.name.replace(/\.[^.]+$/, '').trim() || `video-${Date.now()}`,
         }),
+        multipart: file.size > 5 * 1024 * 1024,
+        onUploadProgress: ({ loaded, total, percentage }) => {
+          setUploadMetrics({ loadedBytes: loaded, totalBytes: total });
+          setProgress(Math.min(95, Math.round(percentage)));
+          if (percentage >= 95) {
+            setUploadStatus('Finalizowanie zapisu...');
+          }
+        },
       });
 
       setUploadStatus('Finalizowanie zapisu...');
@@ -124,54 +122,9 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
       window.dispatchEvent(new Event('videos:refresh'));
     };
 
-    const uploadViaApiRoute = async () => {
-      setUploadStatus('Przesyłanie pliku...');
-      setProgress(5);
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const response = await apiClient.post<UploadedVideo>('/videos/upload', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-        maxBodyLength: Infinity,
-        maxContentLength: Infinity,
-        onUploadProgress: (event) => {
-          const total = event.total ?? file.size;
-          const loaded = Math.min(event.loaded, total);
-          const nextProgress = total
-            ? Math.min(95, Math.round((loaded / total) * 100))
-            : 0;
-
-          setUploadMetrics({ loadedBytes: loaded, totalBytes: total });
-          setProgress(nextProgress);
-
-          if (total && loaded >= total) {
-            setUploadStatus('Finalizowanie zapisu...');
-          }
-        },
-      });
-
-      setUploadStatus('Finalizowanie zapisu...');
-      setUploadMetrics({ loadedBytes: file.size, totalBytes: file.size });
-      setUploadedFile({
-        name: file.name,
-        size: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
-        previewUrl: response.data.sourceUrl,
-        mediaType: isVideoMedia(file) ? 'video' : 'image',
-      });
-      setProgress(100);
-      toast.success('Materiał został przesłany.');
-      window.dispatchEvent(new Event('videos:refresh'));
-    };
-
-    const uploadPromise = file.size <= API_UPLOAD_SAFE_LIMIT_BYTES
-      ? uploadViaApiRoute()
-      : uploadDirectToBlob();
-
-    void uploadPromise
+    void doUpload()
       .catch((error) => {
-        toast.error(getUploadErrorMessage(error, file.size <= API_UPLOAD_SAFE_LIMIT_BYTES));
+        toast.error(getUploadErrorMessage(error, false));
       })
       .finally(() => {
         setUploadStatus('');
