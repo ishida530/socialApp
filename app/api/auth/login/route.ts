@@ -39,12 +39,6 @@ export async function POST(request: NextRequest) {
       hpWebsite?: string;
     };
 
-    // Login keeps honeypot protection, but only hidden-field signal is enforced.
-    // Timing-based checks are skipped to avoid mobile autofill false positives.
-    if (hasTrippedHoneypot({ hpWebsite: body.hpWebsite })) {
-      return unauthorized('Invalid credentials');
-    }
-
     if (!body.email || !body.password) {
       return badRequest('Validation failed', [
         'email: Email jest wymagany',
@@ -55,6 +49,15 @@ export async function POST(request: NextRequest) {
     const normalizedEmail = body.email.trim().toLowerCase();
     if (!normalizedEmail) {
       return badRequest('Validation failed', ['email: Email jest wymagany']);
+    }
+
+    const normalizedHoneypot = body.hpWebsite?.trim().toLowerCase() ?? '';
+    const looksLikeEmailAutofill =
+      normalizedHoneypot.length > 0 && normalizedHoneypot === normalizedEmail;
+
+    // Keep honeypot for bot traffic, but ignore known mobile autofill pattern.
+    if (!looksLikeEmailAutofill && hasTrippedHoneypot({ hpWebsite: body.hpWebsite })) {
+      return unauthorized('Invalid credentials');
     }
 
     const user = await prisma.user.findFirst({
