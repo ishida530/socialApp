@@ -825,15 +825,15 @@ export async function handleOAuthCallback(
                   : 'Instagram'
           } zostało ponownie autoryzowane.`
         : updateReason === 'already-connected'
-        ? `To konto ${
-            provider === 'youtube'
-              ? 'YouTube'
-              : provider === 'tiktok'
-                ? 'TikTok'
+        ? provider === 'tiktok'
+          ? 'To konto TikTok było już połączone. Dane autoryzacji zostały odświeżone. Aby dodać kolejne konto, zaloguj w oknie autoryzacji inne konto TikTok (ew. tryb incognito / wylogowanie z obecnego konta).'
+          : `To konto ${
+              provider === 'youtube'
+                ? 'YouTube'
                 : provider === 'facebook'
                   ? 'Facebook'
                   : 'Instagram'
-          } było już połączone. Dane autoryzacji zostały odświeżone.`
+            } było już połączone. Dane autoryzacji zostały odświeżone.`
         : `Konto ${
             provider === 'youtube'
               ? 'YouTube'
