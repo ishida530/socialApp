@@ -9,6 +9,8 @@ import { badRequest, serverError, unauthorized } from '@/lib/server/http';
 import { ensureUploadsDirectory } from '@/lib/server/uploads';
 import { assertUsageAllowed, incrementUsage } from '@/lib/server/subscription';
 
+export const maxDuration = 60;
+
 const MAX_MEDIA_SIZE_BYTES = 500 * 1024 * 1024;
 
 function sanitizeFileName(value: string) {

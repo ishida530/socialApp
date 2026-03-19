@@ -72,22 +72,37 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
 
     const baseName = file.name.replace(/\.[^.]+$/, '').trim() || `video-${Date.now()}`;
 
+    const BLOB_UPLOAD_TIMEOUT_MS = 90_000;
+
     const uploadDirectToBlob = async () => {
       setProgress(15);
-      const blob = await upload(file.name, file, {
-        access: 'public',
-        handleUploadUrl: '/api/videos/blob-upload',
-        clientPayload: JSON.stringify({
-          title: baseName,
-        }),
-      });
+
+      // Simulate slow-but-steady progress while waiting so the user knows it's working
+      const progressTimer = setInterval(() => {
+        setProgress((prev) => (prev < 85 ? prev + 5 : prev));
+      }, 4000);
+
+      let blobUrl: string;
+      try {
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('UPLOAD_TIMEOUT')), BLOB_UPLOAD_TIMEOUT_MS),
+        );
+        const blobPromise = upload(file.name, file, {
+          access: 'public',
+          handleUploadUrl: '/api/videos/blob-upload',
+          clientPayload: JSON.stringify({ title: baseName }),
+        });
+        const blob = await Promise.race([blobPromise, timeoutPromise]);
+        blobUrl = blob.url;
+      } finally {
+        clearInterval(progressTimer);
+      }
 
       setProgress(95);
-
       setUploadedFile({
         name: file.name,
         size: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
-        previewUrl: blob.url,
+        previewUrl: blobUrl,
         mediaType: isVideoMedia(file) ? 'video' : 'image',
       });
       setProgress(100);
@@ -95,19 +110,8 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
       window.dispatchEvent(new Event('videos:refresh'));
     };
 
-    const isMissingBlobConfigError = (error: unknown) => {
-      const data = (error as {
-        response?: {
-          data?: {
-            message?: string;
-          };
-        };
-      })?.response?.data;
-
-      return Boolean(data?.message?.includes('Brak konfiguracji storage'));
-    };
-
     const uploadViaApiRoute = async () => {
+      setProgress(5);
       const formData = new FormData();
       formData.append('file', file);
 
@@ -118,9 +122,8 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
         onUploadProgress: (event) => {
           const total = event.total ?? file.size;
           const nextProgress = total
-            ? Math.min(100, Math.round((event.loaded / total) * 100))
+            ? Math.min(95, Math.round((event.loaded / total) * 100))
             : 0;
-
           setProgress(nextProgress);
         },
       });
@@ -132,26 +135,17 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
         mediaType: isVideoMedia(file) ? 'video' : 'image',
       });
       setProgress(100);
-      toast.success('Materiał został przesłany lokalnie.');
+      toast.success('Materiał został przesłany.');
       window.dispatchEvent(new Event('videos:refresh'));
     };
 
     void uploadDirectToBlob()
-      .catch(async (error) => {
-        if (isMissingBlobConfigError(error)) {
-          await uploadViaApiRoute();
-          return;
-        }
-
-        if (file.size <= 4 * 1024 * 1024) {
-          await uploadViaApiRoute();
-          return;
-        }
-
-        throw error;
+      .catch(async () => {
+        // Fallback to API route on ANY failure (timeout, network error, missing config, etc.)
+        await uploadViaApiRoute();
       })
       .catch(() => {
-        toast.error('Przesyłanie materiału nie powiodło się. Spróbuj ponownie za chwilę.');
+        toast.error('Przesyłanie materiału nie powiodło się. Sprawdź połączenie i spróbuj ponownie.');
       })
       .finally(() => {
         setUploading(false);
