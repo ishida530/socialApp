@@ -814,7 +814,17 @@ export async function handleOAuthCallback(
     accountId: saved.id,
     handle: saved.handle,
     message:
-      updateReason === 'already-connected'
+      updateReason === 'reconnect'
+        ? `Konto ${
+            provider === 'youtube'
+              ? 'YouTube'
+              : provider === 'tiktok'
+                ? 'TikTok'
+                : provider === 'facebook'
+                  ? 'Facebook'
+                  : 'Instagram'
+          } zostało ponownie autoryzowane.`
+        : updateReason === 'already-connected'
         ? `To konto ${
             provider === 'youtube'
               ? 'YouTube'

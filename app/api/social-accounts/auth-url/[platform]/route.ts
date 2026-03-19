@@ -8,6 +8,8 @@ import { badRequest, serverError, unauthorized } from '@/lib/server/http';
 
 const TIKTOK_PKCE_COOKIE = 'tiktok_pkce';
 const TIKTOK_PKCE_COOKIE_PATH = '/api/auth/callback/tiktok';
+const OAUTH_RECONNECT_ACCOUNT_COOKIE = 'oauth_reconnect_account_id';
+const OAUTH_RECONNECT_ACCOUNT_COOKIE_PATH = '/api/auth/callback';
 
 export async function GET(
   request: NextRequest,
@@ -50,6 +52,15 @@ export async function GET(
         path: TIKTOK_PKCE_COOKIE_PATH,
       });
     }
+
+    // Starting a fresh "connect another account" flow must not reuse reconnect intent.
+    response.cookies.set(OAUTH_RECONNECT_ACCOUNT_COOKIE, '', {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 0,
+      path: OAUTH_RECONNECT_ACCOUNT_COOKIE_PATH,
+    });
 
     return response;
   } catch (error) {
