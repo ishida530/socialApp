@@ -247,6 +247,7 @@ export function buildAuthUrl(
     response_type: 'code',
     redirect_uri: requireConfig('TIKTOK_REDIRECT_URI'),
     scope: resolveTikTokScope(),
+    disable_auto_auth: '1',
     state,
     code_challenge: codeChallenge,
     code_challenge_method: 'S256',
