@@ -117,12 +117,14 @@ export default function LoginPage() {
           </label>
           <input
             id="login-company-website"
-            name="companyWebsite"
             value={hpWebsite}
             onChange={(event) => setHpWebsite(event.target.value)}
             type="text"
-            autoComplete="off"
+            autoComplete="new-password"
             tabIndex={-1}
+            inputMode="none"
+            data-lpignore="true"
+            data-1p-ignore="true"
             className="absolute -left-[9999px] top-auto h-px w-px overflow-hidden"
             aria-hidden="true"
           />

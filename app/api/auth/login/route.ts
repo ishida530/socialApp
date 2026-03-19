@@ -8,6 +8,7 @@ import {
 } from '@/lib/server/http';
 import { prisma } from '@/lib/server/prisma';
 import { verifyPassword } from '@/lib/server/crypto';
+import { hasTrippedHoneypot } from '@/lib/server/honeypot';
 import { consumeRateLimit, getRequestIp } from '@/lib/server/rate-limit';
 
 function resolveCookieMaxAge() {
@@ -35,7 +36,14 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as {
       email?: string;
       password?: string;
+      hpWebsite?: string;
     };
+
+    // Login keeps honeypot protection, but only hidden-field signal is enforced.
+    // Timing-based checks are skipped to avoid mobile autofill false positives.
+    if (hasTrippedHoneypot({ hpWebsite: body.hpWebsite })) {
+      return unauthorized('Invalid credentials');
+    }
 
     if (!body.email || !body.password) {
       return badRequest('Validation failed', [
