@@ -17,8 +17,12 @@ function sanitizeFileName(value: string) {
   return value.replace(/[^a-zA-Z0-9.-]/g, '-').toLowerCase();
 }
 
-function shouldUseBlobStorage() {
-  return process.env.VERCEL === '1' || !!process.env.BLOB_READ_WRITE_TOKEN;
+function canUseBlobStorage() {
+  return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+}
+
+function canUseLocalStorage() {
+  return process.env.VERCEL !== '1';
 }
 
 export async function POST(request: NextRequest) {
@@ -55,14 +59,14 @@ export async function POST(request: NextRequest) {
     let sourceUrl: string;
     let localPath: string | null = null;
 
-    if (shouldUseBlobStorage()) {
+    if (canUseBlobStorage()) {
       const blob = await put(`uploads/videos/${fileName}`, file, {
         access: 'public',
         addRandomSuffix: true,
       });
 
       sourceUrl = blob.url;
-    } else {
+    } else if (canUseLocalStorage()) {
       const uploadDir = ensureUploadsDirectory();
       const filePath = `${uploadDir}/${fileName}`;
 
@@ -71,6 +75,8 @@ export async function POST(request: NextRequest) {
 
       sourceUrl = `/uploads/videos/${fileName}`;
       localPath = filePath;
+    } else {
+      return badRequest('Brak konfiguracji storage. Dodaj BLOB_READ_WRITE_TOKEN w Vercel.');
     }
 
     const title = baseName || `media-${Date.now()}`;

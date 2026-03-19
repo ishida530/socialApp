@@ -4,7 +4,6 @@ import { Upload, FileVideo, X } from 'lucide-react';
 import { useState, useRef } from 'react';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
-import { upload } from '@vercel/blob/client';
 
 type UploadedVideo = {
   id: string;
@@ -29,6 +28,7 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
   const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [uploadStatus, setUploadStatus] = useState('');
   const [uploadedFile, setUploadedFile] = useState<{ name: string; size: string; previewUrl?: string; mediaType: 'video' | 'image' } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -70,47 +70,8 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
     setUploading(true);
     setProgress(0);
 
-    const baseName = file.name.replace(/\.[^.]+$/, '').trim() || `video-${Date.now()}`;
-
-    const BLOB_UPLOAD_TIMEOUT_MS = 90_000;
-
-    const uploadDirectToBlob = async () => {
-      setProgress(15);
-
-      // Simulate slow-but-steady progress while waiting so the user knows it's working
-      const progressTimer = setInterval(() => {
-        setProgress((prev) => (prev < 85 ? prev + 5 : prev));
-      }, 4000);
-
-      let blobUrl: string;
-      try {
-        const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('UPLOAD_TIMEOUT')), BLOB_UPLOAD_TIMEOUT_MS),
-        );
-        const blobPromise = upload(file.name, file, {
-          access: 'public',
-          handleUploadUrl: '/api/videos/blob-upload',
-          clientPayload: JSON.stringify({ title: baseName }),
-        });
-        const blob = await Promise.race([blobPromise, timeoutPromise]);
-        blobUrl = blob.url;
-      } finally {
-        clearInterval(progressTimer);
-      }
-
-      setProgress(95);
-      setUploadedFile({
-        name: file.name,
-        size: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
-        previewUrl: blobUrl,
-        mediaType: isVideoMedia(file) ? 'video' : 'image',
-      });
-      setProgress(100);
-      toast.success('Materiał został przesłany.');
-      window.dispatchEvent(new Event('videos:refresh'));
-    };
-
     const uploadViaApiRoute = async () => {
+      setUploadStatus('Przesyłanie pliku...');
       setProgress(5);
       const formData = new FormData();
       formData.append('file', file);
@@ -119,15 +80,22 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
+        maxBodyLength: Infinity,
+        maxContentLength: Infinity,
         onUploadProgress: (event) => {
           const total = event.total ?? file.size;
           const nextProgress = total
             ? Math.min(95, Math.round((event.loaded / total) * 100))
             : 0;
           setProgress(nextProgress);
+
+          if (total && event.loaded >= total) {
+            setUploadStatus('Finalizowanie zapisu...');
+          }
         },
       });
 
+      setUploadStatus('Finalizowanie zapisu...');
       setUploadedFile({
         name: file.name,
         size: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
@@ -139,15 +107,12 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
       window.dispatchEvent(new Event('videos:refresh'));
     };
 
-    void uploadDirectToBlob()
-      .catch(async () => {
-        // Fallback to API route on ANY failure (timeout, network error, missing config, etc.)
-        await uploadViaApiRoute();
-      })
+    void uploadViaApiRoute()
       .catch(() => {
         toast.error('Przesyłanie materiału nie powiodło się. Sprawdź połączenie i spróbuj ponownie.');
       })
       .finally(() => {
+        setUploadStatus('');
         setUploading(false);
       });
   };
@@ -247,7 +212,7 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
       {uploading && (
         <div className="mt-4 space-y-2">
           <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Przesyłanie...</span>
+            <span className="text-muted-foreground">{uploadStatus || 'Przesyłanie...'}</span>
             <span className="text-foreground font-medium">{progress}%</span>
           </div>
           <div className="w-full bg-secondary rounded-full h-2 overflow-hidden">
