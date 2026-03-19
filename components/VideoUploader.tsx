@@ -171,23 +171,24 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
       {!compact && <h2 className="text-lg font-semibold text-foreground mb-4">Prześlij materiał</h2>}
 
       {!uploadedFile ? (
-        <div
+        <label
+          htmlFor="video-uploader-input"
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
-          onClick={() => fileInputRef.current?.click()}
-          className={`border-2 border-dashed rounded-xl p-8 cursor-pointer transition-all ${
+          className={`block border-2 border-dashed rounded-xl p-8 cursor-pointer transition-all ${
             isDragging
               ? 'border-primary bg-primary/5'
               : 'border-border hover:border-primary/50 hover:bg-secondary/30'
           }`}
         >
           <input
+            id="video-uploader-input"
             ref={fileInputRef}
             type="file"
             accept="video/*,image/*"
             onChange={handleFileSelect}
-            className="hidden"
+            className="sr-only"
           />
           
           <div className="flex flex-col items-center text-center">
@@ -195,16 +196,16 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
               <Upload className="w-8 h-8 text-primary" />
             </div>
             <p className="text-foreground font-medium mb-2">
-              Przeciągnij i upuść materiał (.mp4/.mov/.jpg/.png/.webp)
+              Dotknij, aby wybrać plik lub przeciągnij i upuść
             </p>
-            <p className="text-sm text-muted-foreground mb-4">
-              lub kliknij, aby wybrać plik
+            <p className="text-xs text-muted-foreground mb-1">
+              .mp4 · .mov · .jpg · .png · .webp
             </p>
             <p className="text-xs text-muted-foreground">
               Maksymalny rozmiar: 500MB
             </p>
           </div>
-        </div>
+        </label>
       ) : (
         <div className="space-y-4">
           {/* Video preview */}
