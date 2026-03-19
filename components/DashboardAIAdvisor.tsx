@@ -126,7 +126,7 @@ export function DashboardAIAdvisor() {
     cards.push({
       id: 'trend-1',
       type: 'trend',
-      title: 'Trend Alert',
+      title: 'Alert trendu',
       description: `Trend na TikToku przyspiesza. Wideo „${latestReadyVideoTitle}” dobrze pasuje do formatu short.`,
       actionLabel: 'Generuj na podstawie trendu',
       onAction: () => {
@@ -215,7 +215,7 @@ export function DashboardAIAdvisor() {
                 className="absolute top-9 rounded-md border border-primary/30 bg-primary/10 px-2 py-1 text-[11px] text-primary hover:bg-primary/20"
                 style={{ left: '50%', transform: 'translateX(-50%)' }}
               >
-                AI Gap Filler: zaplanować {latestReadyVideoTitle}?
+                Uzupełnić lukę w harmonogramie: zaplanować {latestReadyVideoTitle}?
               </button>
             )}
           </div>

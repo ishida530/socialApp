@@ -43,7 +43,7 @@ export function Dashboard() {
 
     return [
       {
-        label: 'Opublikowane (30d)',
+        label: 'Opublikowane (30 dni)',
         value: totals?.jobsSucceeded,
         hint: 'Status SUCCESS',
         className:
@@ -51,7 +51,7 @@ export function Dashboard() {
         hintClassName: 'text-xs text-green-500 mt-2',
       },
       {
-        label: 'W kolejce (30d)',
+        label: 'W kolejce (30 dni)',
         value: totals ? Math.max(0, totals.jobsCreated - totals.jobsSucceeded - totals.jobsFailed) : undefined,
         hint: 'Utworzone - zakończone',
         className:
@@ -59,7 +59,7 @@ export function Dashboard() {
         hintClassName: 'text-xs text-blue-500 mt-2',
       },
       {
-        label: 'Przesłane wideo (30d)',
+        label: 'Przesłane wideo (30 dni)',
         value: totals?.videosUploaded,
         hint: 'Nowe materiały',
         className:

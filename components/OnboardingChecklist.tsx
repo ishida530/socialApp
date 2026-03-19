@@ -56,7 +56,7 @@ export function OnboardingChecklist() {
     () => [
       {
         id: 'accounts',
-        label: 'Połącz konto social',
+        label: 'Połącz konto społecznościowe',
         done: hasAccounts,
         href: '/social-accounts',
         cta: 'Połącz konto',
@@ -115,7 +115,7 @@ export function OnboardingChecklist() {
             {nextStep.cta}
           </Link>
         ) : (
-          <p className="text-xs text-primary font-medium">Checklist ukończona ✅</p>
+          <p className="text-xs text-primary font-medium">Lista startowa ukończona ✅</p>
         )}
       </div>
 

@@ -104,14 +104,14 @@ export default function AnalyticsPage() {
             </div>
 
             <div className="bg-card border border-border rounded-xl p-5">
-              <p className="text-sm text-muted-foreground">Joby ({selectedRange})</p>
+              <p className="text-sm text-muted-foreground">Zadania publikacji ({selectedRange})</p>
               <p className="text-3xl font-semibold text-foreground mt-2">
                 {metrics?.totals.jobsCreated ?? '-'}
               </p>
             </div>
 
             <div className="bg-card border border-border rounded-xl p-5">
-              <p className="text-sm text-muted-foreground">SUKCES / BŁĄD</p>
+              <p className="text-sm text-muted-foreground">Opublikowane / Nieudane</p>
               <p className="text-3xl font-semibold text-foreground mt-2">
                 {metrics
                   ? `${metrics.totals.jobsSucceeded} / ${metrics.totals.jobsFailed}`
@@ -154,7 +154,7 @@ export default function AnalyticsPage() {
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
                       <span>{row.date}</span>
                       <span>
-                        Wideo:{row.videos} Joby:{row.jobsCreated} Sukces:{row.success} Błąd:{row.failed}
+                        Wideo: {row.videos} • Zadania: {row.jobsCreated} • Opublikowane: {row.success} • Nieudane: {row.failed}
                       </span>
                     </div>
                     <div className="h-2 w-full bg-secondary/40 rounded-full overflow-hidden">

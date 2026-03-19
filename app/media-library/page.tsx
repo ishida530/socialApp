@@ -177,7 +177,7 @@ export default function MediaLibraryPage() {
                       onClick={() => router.push('/social-accounts')}
                       className="px-3 py-1.5 text-xs rounded-lg bg-secondary border border-border text-foreground"
                     >
-                      Połącz konto social
+                      Połącz konto społecznościowe
                     </button>
                   </div>
                 </div>

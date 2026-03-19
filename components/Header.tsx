@@ -73,12 +73,12 @@ export function Header() {
           {apiConnected ? (
             <>
               <Wifi className="w-4 h-4 text-green-500" />
-              <span className="text-sm text-foreground">API Połączone</span>
+              <span className="text-sm text-foreground">Usługa działa</span>
             </>
           ) : (
             <>
               <WifiOff className="w-4 h-4 text-destructive" />
-              <span className="text-sm text-foreground">API Rozłączone</span>
+              <span className="text-sm text-foreground">Problem z połączeniem</span>
             </>
           )}
         </div>
@@ -88,7 +88,7 @@ export function Header() {
             type="button"
             onClick={() => setTheme('light')}
             className={`rounded-md p-1.5 transition-colors ${mounted && theme === 'light' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-            aria-label="Wlacz jasny motyw"
+            aria-label="Włącz jasny motyw"
             title="Jasny motyw"
           >
             <Sun className="h-4 w-4" />
@@ -97,7 +97,7 @@ export function Header() {
             type="button"
             onClick={() => setTheme('dark')}
             className={`rounded-md p-1.5 transition-colors ${mounted && theme === 'dark' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-            aria-label="Wlacz ciemny motyw"
+            aria-label="Włącz ciemny motyw"
             title="Ciemny motyw"
           >
             <Moon className="h-4 w-4" />
@@ -138,7 +138,7 @@ export function Header() {
                     type="button"
                     onClick={() => setTheme('light')}
                     className={`rounded-md p-1.5 transition-colors ${mounted && theme === 'light' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-                    aria-label="Wlacz jasny motyw"
+                    aria-label="Włącz jasny motyw"
                     title="Jasny motyw"
                   >
                     <Sun className="h-4 w-4" />
@@ -147,7 +147,7 @@ export function Header() {
                     type="button"
                     onClick={() => setTheme('dark')}
                     className={`rounded-md p-1.5 transition-colors ${mounted && theme === 'dark' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-                    aria-label="Wlacz ciemny motyw"
+                    aria-label="Włącz ciemny motyw"
                     title="Ciemny motyw"
                   >
                     <Moon className="h-4 w-4" />

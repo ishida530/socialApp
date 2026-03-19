@@ -184,12 +184,12 @@ export function PostComposer() {
 
   const autoPilotTierLabel =
     effectivePlan === 'BUSINESS'
-      ? 'Business Auto-Pilot (bez limitu)'
+      ? 'Business: Asystent AI bez limitu'
       : effectivePlan === 'PRO'
-        ? 'PRO Auto-Pilot Lite (15 / mies.)'
+        ? 'Pro: Asystent AI (15 uruchomień / mies.)'
         : effectivePlan === 'STARTER'
-          ? 'Starter bez Auto-Pilot'
-        : 'Free AI Mini (1 opis/post)';
+          ? 'Starter: bez Asystenta AI'
+        : 'Free: AI Mini (1 opis na post)';
 
   const hasAutoPilotLiteAccess = effectivePlan === 'PRO' || effectivePlan === 'BUSINESS';
 
@@ -270,7 +270,7 @@ export function PostComposer() {
 
   const runAutoPilot = async () => {
     if (!campaignBrief.trim()) {
-      toast.error('Wpisz temat kampanii, aby uruchomić Auto-Pilot.');
+      toast.error('Wpisz temat kampanii, aby uruchomić Asystenta AI.');
       return;
     }
 
@@ -291,7 +291,7 @@ export function PostComposer() {
         aiScore: 0.58,
       }));
 
-      toast.success('AI Mini wygenerował opis dla wybranej platformy. Odblokuj Pro, aby korzystać z AI Autopilot Lite.');
+      toast.success('AI Mini wygenerował opis dla wybranej platformy. Przejdź na plan Pro, aby odblokować Asystenta AI.');
       return;
     }
 
@@ -334,7 +334,7 @@ export function PostComposer() {
 
       const bundles = response.data.platformBundles || [];
       if (bundles.length === 0) {
-        toast.error('Auto-Pilot nie zwrócił rekomendacji platformowych.');
+        toast.error('Asystent AI nie zwrócił rekomendacji dla platform.');
         return;
       }
 
@@ -408,13 +408,13 @@ export function PostComposer() {
       setDrafts(refreshedDrafts.data);
 
       if (response.data.warnings?.length > 0) {
-        toast.warning(`Auto-Pilot zakończony z ostrzeżeniem: ${response.data.warnings[0]}`);
+        toast.warning(`Asystent AI zakończył działanie z ostrzeżeniem: ${response.data.warnings[0]}`);
       } else {
-        toast.success(`Auto-Pilot gotowy. Zapisano drafty: ${draftsSaved}/${draftCreationResults.length}.`);
+        toast.success(`Asystent AI gotowy. Zapisano szkice: ${draftsSaved}/${draftCreationResults.length}.`);
       }
 
       if (draftsFailed > 0) {
-        toast.error(`Niektóre drafty nie zostały zapisane (${draftsFailed}).`);
+        toast.error(`Niektóre szkice nie zostały zapisane (${draftsFailed}).`);
       }
     } catch (error: unknown) {
       const responseData = (error as {
@@ -428,11 +428,11 @@ export function PostComposer() {
       }).response?.data;
 
       if (responseData?.code === 'FEATURE_NOT_AVAILABLE') {
-        toast.error('Auto-Pilot AI jest dostępny od planu Pro.');
+        toast.error('Asystent AI jest dostępny od planu Pro.');
         return;
       }
 
-      toast.error(responseData?.message || 'Nie udało się uruchomić Auto-Pilota.');
+      toast.error(responseData?.message || 'Nie udało się uruchomić Asystenta AI.');
     } finally {
       setIsAutoPilotRunning(false);
     }
@@ -468,14 +468,14 @@ export function PostComposer() {
     if (targetPlatforms.length === 0) {
       toast.error(
         publishScope === 'all'
-          ? 'Brak podłączonych platform. Połącz konto social.'
+          ? 'Brak podłączonych platform. Połącz konto społecznościowe.'
           : 'Wybierz co najmniej jedną podłączoną platformę do publikacji.',
       );
       return;
     }
 
     if (targetPlatforms.length > maxSelectablePlatforms) {
-      toast.error(`Twój plan pozwala publikować na maksymalnie ${maxSelectablePlatforms} kanałach social.`);
+      toast.error(`Twój plan pozwala publikować maksymalnie na ${maxSelectablePlatforms} kanałach społecznościowych.`);
       return;
     }
 
@@ -488,7 +488,7 @@ export function PostComposer() {
       const plannedAt = new Date(scheduledDateTime);
       const maxAllowed = new Date(Date.now() + 72 * 60 * 60 * 1000);
       if (plannedAt.getTime() > maxAllowed.getTime()) {
-        toast.error('Plan Free pozwala planować publikacje maksymalnie 72h do przodu.');
+        toast.error('Plan Free pozwala planować publikacje maksymalnie 72 godziny do przodu.');
         return;
       }
     }
@@ -687,7 +687,7 @@ export function PostComposer() {
       setScheduledTime('');
     }
 
-    toast.success('Szkic odtworzony w composerze.');
+    toast.success('Szkic został przywrócony.');
   };
 
   const applySuggestedSchedule = () => {
@@ -696,7 +696,7 @@ export function PostComposer() {
       if (suggestedDateTime.getTime() > maxAllowed.getTime()) {
         setScheduledDate(maxAllowed.toISOString().slice(0, 10));
         setScheduledTime(maxAllowed.toISOString().slice(11, 16));
-        toast.warning('Plan Free: sugestia została skrócona do maks. 72h do przodu.');
+        toast.warning('Plan Free: sugestia została skrócona do maks. 72 godzin do przodu.');
         return;
       }
     }
@@ -740,7 +740,7 @@ export function PostComposer() {
       <div className="p-6 border-b border-border">
         <h2 className="text-lg font-semibold text-foreground">Komponuj post</h2>
         <p className="text-xs text-muted-foreground mt-1">
-          Auto-Pilot:{' '}
+          Asystent AI:{' '}
           {isPlanLoading ? 'Sprawdzanie planu...' : autoPilotTierLabel}
         </p>
         <p className="text-xs text-muted-foreground mt-1">
@@ -818,7 +818,7 @@ export function PostComposer() {
                       : 'bg-secondary/40 border-border text-muted-foreground'
                   }`}
                 >
-                  {isAiCropEnabled ? 'AI Crop 9:16: włączony' : 'AI Crop 9:16: wyłączony'}
+                  {isAiCropEnabled ? 'Automatyczne kadrowanie 9:16: włączone' : 'Automatyczne kadrowanie 9:16: wyłączone'}
                 </button>
               </div>
             </div>
@@ -852,13 +852,13 @@ export function PostComposer() {
                           ? 'Generuj AI (1 platforma)'
                           : effectivePlan === 'BUSINESS'
                             ? 'Generuj AI (wszystkie platformy)'
-                            : 'Generuj AI (Auto-Pilot Lite)'}
+                            : 'Generuj AI (plan Pro)'}
                     </span>
                   </button>
 
                   {!hasAutoPilotLiteAccess && (
                     <p className="text-xs text-muted-foreground">
-                      🔒 Ulepsz do Pro, aby odblokować AI Auto-Pilot Lite.
+                      Przejdź na plan Pro, aby odblokować Asystenta AI.
                     </p>
                   )}
                   {hasAutoPilotLiteAccess && (
@@ -873,8 +873,8 @@ export function PostComposer() {
                     <p className="text-xs text-foreground flex items-center gap-2 font-medium">
                       <Gem className="w-3.5 h-3.5 text-primary" />
                       {effectivePlan === 'PRO'
-                        ? 'Business odblokowuje nielimitowany AI Autopilot i priorytetowy support.'
-                        : 'Przejdź na Pro, aby odblokować AI Autopilot Lite (15 uruchomień / miesiąc).'}
+                        ? 'Plan Business odblokowuje nielimitowanego Asystenta AI i priorytetowe wsparcie.'
+                        : 'Przejdź na plan Pro, aby odblokować Asystenta AI (15 uruchomień / miesiąc).'}
                     </p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       {(effectivePlan === 'FREE' || effectivePlan === 'STARTER') && (
@@ -885,7 +885,7 @@ export function PostComposer() {
                           disabled={isCheckoutLoading}
                           className="px-3 py-1.5 rounded-lg border border-border bg-secondary text-foreground text-xs disabled:opacity-60"
                         >
-                          {isCheckoutLoading ? 'Uruchamianie...' : 'Odblokuj PRO (AI Lite)'}
+                          {isCheckoutLoading ? 'Uruchamianie...' : 'Przejdź na Pro (AI)'}
                         </button>
                       )}
                       <button
@@ -1016,7 +1016,7 @@ export function PostComposer() {
                     </div>
                     <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
                       {effectivePlan === 'FREE' && (
-                        <p className="text-xs text-muted-foreground mb-1">Plan Free: planowanie do 72h w przód.</p>
+                        <p className="text-xs text-muted-foreground mb-1">Plan Free: planowanie do 72 godzin do przodu.</p>
                       )}
                       <p className="text-xs text-muted-foreground">
                         AI sugeruje: {suggestedDateTime.toLocaleString('pl-PL', { dateStyle: 'medium', timeStyle: 'short' })}
@@ -1124,10 +1124,10 @@ export function PostComposer() {
             {hasAutoPilotLiteAccess
               ? `AI: ${aiRunUsage.count}/${aiRunUsage.limit ?? '∞'} w tym miesiącu`
               : effectivePlan === 'FREE'
-                ? 'Free: AI dla 1 platformy i planowanie do 72h'
+                ? 'Free: AI dla 1 platformy i planowanie do 72 godzin'
                 : effectivePlan === 'STARTER'
-                    ? 'Starter: sloty YT/TikTok/IG/FB, bez AI Autopilot'
-                    : 'PRO: Auto-Pilot Lite i limit miękki 100 wideo/mies.'}
+                    ? 'Starter: publikacja na YT/TikTok/IG/FB, bez Asystenta AI'
+                    : 'Pro: Asystent AI i miękki limit 100 wideo/mies.'}
           </p>
 
           <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 justify-end">

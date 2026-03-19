@@ -21,8 +21,8 @@ const navItems = [
 export function Sidebar() {
   const pathname = usePathname();
   const capabilities = useBillingCapabilities();
-  const [currentPlanLabel, setCurrentPlanLabel] = useState('Plan bezplatny');
-  const [usageLabel, setUsageLabel] = useState('0/0 filmów w tym miesiącu');
+  const [currentPlanLabel, setCurrentPlanLabel] = useState('Plan bezpłatny');
+  const [usageLabel, setUsageLabel] = useState('0/0 wideo w tym miesiącu');
   const [trialLabel, setTrialLabel] = useState<string | null>(null);
   const [usageProgress, setUsageProgress] = useState(0);
 
@@ -51,7 +51,7 @@ export function Sidebar() {
 
         const count = response.data.usage.video_uploads.count;
         const limit = response.data.usage.video_uploads.limit;
-        setUsageLabel(`${count}/${limit ?? '∞'} filmów w tym miesiącu`);
+        setUsageLabel(`${count}/${limit ?? '∞'} wideo w tym miesiącu`);
 
         if (limit && limit > 0) {
           setUsageProgress(Math.max(0, Math.min(100, Math.round((count / limit) * 100))));
@@ -64,13 +64,13 @@ export function Sidebar() {
           const remainingMs = Math.max(0, endsAt - Date.now());
           const days = Math.floor(remainingMs / (1000 * 60 * 60 * 24));
           const hours = Math.floor((remainingMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-          setTrialLabel(`Trial PRO (${capabilities.trial.days} dni): ${days}d ${hours}h`);
+          setTrialLabel(`Okres próbny Pro (${capabilities.trial.days} dni): ${days} dni ${hours} godz.`);
         } else {
           setTrialLabel(null);
         }
       } catch {
-        setCurrentPlanLabel('Plan bezplatny');
-        setUsageLabel('0/0 filmów w tym miesiącu');
+        setCurrentPlanLabel('Plan bezpłatny');
+        setUsageLabel('0/0 wideo w tym miesiącu');
         setUsageProgress(0);
         setTrialLabel(null);
       }
@@ -134,7 +134,7 @@ export function Sidebar() {
               href="/billing"
               className="text-xs text-primary hover:text-accent transition-colors"
             >
-              Ulepsz plan →
+              Zmień plan →
             </Link>
           </div>
         </div>

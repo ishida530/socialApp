@@ -162,7 +162,7 @@ function BillingPageContent() {
     try {
       setIsSubmitting(true);
       await apiClient.patch('/billing/subscription', { plan: 'FREE' });
-      toast.success('Plan został przełączony na Free.');
+      toast.success('Plan został przełączony na plan Free.');
       await loadSnapshot();
     } catch {
       toast.error('Zmiana planu nie powiodła się.');
@@ -319,7 +319,7 @@ function BillingPageContent() {
                           disabled={isSubmitting || isCurrentPlan}
                           className="w-full rounded-lg border border-border bg-secondary px-3 py-2 font-medium text-foreground disabled:opacity-60"
                         >
-                          {isCurrentPlan ? 'Aktualny plan' : 'Przełącz na FREE'}
+                          {isCurrentPlan ? 'Aktualny plan' : 'Przełącz na plan Free'}
                         </button>
                       ) : (
                         <button

@@ -319,7 +319,7 @@ export default function SchedulePage() {
 
   const runAiSchedule = async (mode: 'preview' | 'apply' | 'automanage' = 'preview') => {
     if (!hasAutoPilotAccess && !isPlanLoading) {
-      toast.error('AI harmonogram jest dostępny od planu Pro.');
+      toast.error('Inteligentny harmonogram jest dostępny od planu Pro.');
       return;
     }
 
@@ -344,7 +344,7 @@ export default function SchedulePage() {
 
       if (response.data.noPendingJobs) {
         setAiSuggestions([]);
-        toast.warning(response.data.message || 'Brak zadań do optymalizacji AI.');
+        toast.warning(response.data.message || 'Brak zadań do optymalizacji.');
         return;
       }
 
@@ -352,13 +352,13 @@ export default function SchedulePage() {
 
       if (shouldApply) {
         if (mode === 'automanage') {
-          toast.success(`AI zaktualizował ${response.data.updatedCount} zadań.`);
+          toast.success(`Asystent AI zaktualizował ${response.data.updatedCount} zadań.`);
         } else {
-          toast.success(`Zastosowano AI harmonogram (${response.data.updatedCount} zadań).`);
+          toast.success(`Zastosowano sugestie AI (${response.data.updatedCount} zadań).`);
         }
         await loadJobs(page);
       } else {
-        toast.success(`AI przygotował ${response.data.suggestions.length} sugestii.`);
+        toast.success(`Asystent AI przygotował ${response.data.suggestions.length} sugestii.`);
       }
     } catch (error: unknown) {
       const responseData = (error as {
@@ -430,7 +430,7 @@ export default function SchedulePage() {
         await loadJobs(1);
         setPage(1);
       } else {
-        toast.success(`AI proponuje ${response.data.plan.recommendedPostsPerWeek} postów na ten tydzień.`);
+        toast.success(`AI proponuje ${response.data.plan.recommendedPostsPerWeek} postów tygodniowo.`);
         setCampaignTab('to-approve');
       }
     } catch (error: unknown) {
@@ -821,7 +821,7 @@ export default function SchedulePage() {
             <div className="rounded-lg border border-border bg-secondary/20 p-3 space-y-3">
               <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
                 <div className="space-y-1">
-                  <p className="text-sm font-medium text-foreground">Kreator kampanii AI</p>
+                  <p className="text-sm font-medium text-foreground">Planer kampanii AI</p>
                   <p className="text-xs text-muted-foreground">
                     Wybierz materiały, a AI zaproponuje posty i terminy na tydzień.
                   </p>
@@ -966,7 +966,7 @@ export default function SchedulePage() {
                 </div>
                 {aiStatusBreakdown && (
                   <p className="text-[11px] text-muted-foreground mt-2">
-                    Oczekujące: {aiStatusBreakdown.pending} • W trakcie: {aiStatusBreakdown.running} • Sukces: {aiStatusBreakdown.success} • Błąd: {aiStatusBreakdown.failed} • Anulowane: {aiStatusBreakdown.canceled}
+                    Oczekujące: {aiStatusBreakdown.pending} • W trakcie: {aiStatusBreakdown.running} • Opublikowane: {aiStatusBreakdown.success} • Błąd: {aiStatusBreakdown.failed} • Anulowane: {aiStatusBreakdown.canceled}
                     {aiInfoMessage ? ` • ${aiInfoMessage}` : ''}
                   </p>
                 )}
@@ -1123,7 +1123,7 @@ export default function SchedulePage() {
           <SheetHeader className="border-b border-border">
             <SheetTitle>{selectedCampaign?.name ?? 'Szczegóły kampanii'}</SheetTitle>
             <SheetDescription>
-              Oś kampanii i akcje operacyjne dla platform.
+              Szczegóły kampanii i dostępne działania dla platform.
             </SheetDescription>
           </SheetHeader>
 
@@ -1200,7 +1200,7 @@ export default function SchedulePage() {
                   </div>
 
                   <div className="space-y-2">
-                    <p className="text-sm font-medium text-foreground">Timeline publikacji</p>
+                    <p className="text-sm font-medium text-foreground">Oś publikacji</p>
                     {selectedCampaignTimeline.length === 0 && (
                       <p className="text-xs text-muted-foreground">Brak zaplanowanych pozycji.</p>
                     )}
@@ -1234,7 +1234,7 @@ export default function SchedulePage() {
                                     className="px-2 py-1 bg-secondary/40 border border-border rounded-md text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                                   />
                                   {effectivePlan === 'FREE' && (
-                                    <p className="text-[11px] text-muted-foreground mt-1">Plan Free: maks. 72h do przodu.</p>
+                                    <p className="text-[11px] text-muted-foreground mt-1">Plan Free: maks. 72 godziny do przodu.</p>
                                   )}
                                 </div>
                               )}
@@ -1301,7 +1301,7 @@ export default function SchedulePage() {
                         <p className="text-sm text-foreground">
                           {post.platform.toUpperCase()} • {new Date(post.scheduledTime).toLocaleString('pl-PL')}
                         </p>
-                        <p className="text-xs text-primary mt-1">Status: sugestia (AI)</p>
+                        <p className="text-xs text-primary mt-1">Status: sugestia AI</p>
                       </div>
                     ))}
                   </div>

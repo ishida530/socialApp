@@ -176,7 +176,7 @@ export function ConnectedPlatforms() {
       <h2 className="text-lg font-semibold text-foreground mb-1">Połączone platformy</h2>
       <p className="text-xs text-muted-foreground mb-4">Liczba kont: {accounts.length}</p>
       <p className="text-xs text-muted-foreground mb-4">
-        Przy publikacji używane jest ostatnio autoryzowane konto dla danej platformy.
+        Publikacja trafi na ostatnio połączone konto dla danej platformy.
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -234,7 +234,7 @@ export function ConnectedPlatforms() {
                 {loadingPlatform === platform.apiPlatform
                   ? 'Przekierowanie...'
                   : connected
-                    ? 'Dodaj kolejne konto'
+                    ? 'Połącz kolejne konto'
                     : 'Połącz'}
               </span>
             </button>
