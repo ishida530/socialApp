@@ -765,6 +765,11 @@ export async function handleOAuthCallback(
       : null;
 
   const accountToUpdate = reconnectTarget ?? existingOwnedByExternal;
+  const updateReason = reconnectTarget
+    ? 'reconnect'
+    : existingOwnedByExternal
+      ? 'already-connected'
+      : 'new-account';
 
   const accessTokenToStore = metaContext?.accessToken ?? tokenResult.accessToken;
   const refreshTokenToStore = metaContext?.refreshToken ?? tokenResult.refreshToken;
@@ -808,15 +813,26 @@ export async function handleOAuthCallback(
     platform: provider,
     accountId: saved.id,
     handle: saved.handle,
-    message: `Konto ${
-      provider === 'youtube'
-        ? 'YouTube'
-        : provider === 'tiktok'
-          ? 'TikTok'
-          : provider === 'facebook'
-            ? 'Facebook'
-            : 'Instagram'
-    } połączone!`,
+    message:
+      updateReason === 'already-connected'
+        ? `To konto ${
+            provider === 'youtube'
+              ? 'YouTube'
+              : provider === 'tiktok'
+                ? 'TikTok'
+                : provider === 'facebook'
+                  ? 'Facebook'
+                  : 'Instagram'
+          } było już połączone. Dane autoryzacji zostały odświeżone.`
+        : `Konto ${
+            provider === 'youtube'
+              ? 'YouTube'
+              : provider === 'tiktok'
+                ? 'TikTok'
+                : provider === 'facebook'
+                  ? 'Facebook'
+                  : 'Instagram'
+          } połączone!`,
   };
 }
 
