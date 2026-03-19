@@ -57,7 +57,14 @@ export async function POST(request: NextRequest) {
       return badRequest('Validation failed', ['email: Email jest wymagany']);
     }
 
-    const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+    const user = await prisma.user.findFirst({
+      where: {
+        email: {
+          equals: normalizedEmail,
+          mode: 'insensitive',
+        },
+      },
+    });
     if (!user?.passwordHash) {
       return unauthorized('Invalid credentials');
     }
