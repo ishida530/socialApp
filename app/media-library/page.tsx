@@ -13,9 +13,22 @@ type VideoItem = {
   id: string;
   title: string;
   description?: string | null;
+  tags?: string[];
   status: VideoStatus;
   createdAt: string;
 };
+
+const MAX_TAGS_PER_VIDEO = 8;
+
+function normalizeTag(value: string) {
+  const trimmed = value.trim().toLowerCase();
+  if (!trimmed) {
+    return '';
+  }
+
+  const withHash = trimmed.startsWith('#') ? trimmed : `#${trimmed}`;
+  return withHash.replace(/[^#a-z0-9_ąćęłńóśźż]/gi, '');
+}
 
 function buildAiTags(video: VideoItem) {
   const source = `${video.title} ${video.description || ''}`.toLowerCase();
@@ -67,6 +80,8 @@ export default function MediaLibraryPage() {
   const [loadingVideos, setLoadingVideos] = useState(true);
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState<'' | VideoStatus>('');
+  const [tagInputByVideoId, setTagInputByVideoId] = useState<Record<string, string>>({});
+  const [savingTagsVideoId, setSavingTagsVideoId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -112,6 +127,53 @@ export default function MediaLibraryPage() {
     } catch {
       toast.error('Usunięcie wideo nie powiodło się.');
     }
+  };
+
+  const saveTags = async (videoId: string, nextTags: string[]) => {
+    try {
+      setSavingTagsVideoId(videoId);
+      await apiClient.patch(`/videos/${videoId}`, { tags: nextTags });
+      setVideos((current) =>
+        current.map((video) =>
+          video.id === videoId
+            ? {
+                ...video,
+                tags: nextTags,
+              }
+            : video,
+        ),
+      );
+    } catch {
+      toast.error('Nie udało się zapisać tagów.');
+    } finally {
+      setSavingTagsVideoId(null);
+    }
+  };
+
+  const addTag = async (video: VideoItem) => {
+    const draft = tagInputByVideoId[video.id] ?? '';
+    const normalized = normalizeTag(draft);
+
+    if (!normalized) {
+      return;
+    }
+
+    const currentTags = Array.isArray(video.tags) ? video.tags : buildAiTags(video);
+    const next = Array.from(new Set([...currentTags, normalized])).slice(0, MAX_TAGS_PER_VIDEO);
+
+    if (next.length === currentTags.length) {
+      setTagInputByVideoId((current) => ({ ...current, [video.id]: '' }));
+      return;
+    }
+
+    await saveTags(video.id, next);
+    setTagInputByVideoId((current) => ({ ...current, [video.id]: '' }));
+  };
+
+  const removeTag = async (video: VideoItem, tagToRemove: string) => {
+    const currentTags = Array.isArray(video.tags) ? video.tags : buildAiTags(video);
+    const next = currentTags.filter((tag) => tag !== tagToRemove);
+    await saveTags(video.id, next);
   };
 
   const itemsCountLabel = useMemo(() => {
@@ -201,14 +263,48 @@ export default function MediaLibraryPage() {
                       {videoStatusLabel(video.status)} • {new Date(video.createdAt).toLocaleString('pl-PL')}
                     </p>
                     <div className="mt-2 flex flex-wrap gap-1.5">
-                      {buildAiTags(video).map((tag) => (
-                        <span
+                      {(Array.isArray(video.tags) ? video.tags : buildAiTags(video)).map((tag) => (
+                        <button
+                          type="button"
                           key={`${video.id}-${tag}`}
+                          onClick={() => {
+                            void removeTag(video, tag);
+                          }}
+                          disabled={savingTagsVideoId === video.id}
                           className="inline-flex rounded-md border border-border bg-background/40 px-2 py-0.5 text-[11px] text-muted-foreground"
+                          title="Kliknij, aby usunąć tag"
                         >
-                          {tag}
-                        </span>
+                          {tag} ×
+                        </button>
                       ))}
+                    </div>
+                    <div className="mt-2 flex items-center gap-2">
+                      <input
+                        value={tagInputByVideoId[video.id] ?? ''}
+                        onChange={(event) =>
+                          setTagInputByVideoId((current) => ({
+                            ...current,
+                            [video.id]: event.target.value,
+                          }))
+                        }
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            event.preventDefault();
+                            void addTag(video);
+                          }
+                        }}
+                        placeholder="#nowytag"
+                        className="w-full sm:w-44 px-2 py-1 rounded-md bg-background border border-border text-[11px] text-foreground"
+                      />
+                      <button
+                        onClick={() => {
+                          void addTag(video);
+                        }}
+                        disabled={savingTagsVideoId === video.id}
+                        className="px-2 py-1 text-[11px] rounded-md bg-secondary border border-border text-foreground disabled:opacity-60"
+                      >
+                        Dodaj tag
+                      </button>
                     </div>
                   </div>
 

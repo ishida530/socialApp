@@ -91,6 +91,7 @@ model Video {
   id           String       @id @default(cuid())
   title        String
   description  String?
+  tags         String[]     @default([])
   sourceUrl    String
   localPath    String?
   thumbnailUrl String?
