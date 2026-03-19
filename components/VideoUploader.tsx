@@ -4,6 +4,7 @@ import { Upload, FileVideo, X } from 'lucide-react';
 import { useState, useRef } from 'react';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
+import { upload } from '@vercel/blob/client';
 
 type UploadedVideo = {
   id: string;
@@ -13,6 +14,7 @@ type UploadedVideo = {
 };
 
 const MAX_MEDIA_SIZE_BYTES = 500 * 1024 * 1024;
+const API_UPLOAD_SAFE_LIMIT_BYTES = 4 * 1024 * 1024;
 
 function isSupportedMedia(file: File) {
   const extension = file.name.split('.').pop()?.toLowerCase();
@@ -39,6 +41,23 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
     }
 
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const getUploadErrorMessage = (error: unknown, isSmallFile: boolean) => {
+    const status = (error as { response?: { status?: number } })?.response?.status;
+    const message = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
+
+    if (status === 413) {
+      return 'Ten plik przekracza limit uploadu przez funkcję Vercel. Dla większych plików wymagany jest upload bezpośrednio do Blob.';
+    }
+
+    if (message?.includes('Brak konfiguracji storage')) {
+      return 'Brakuje konfiguracji storage w Vercel. Dodaj BLOB_READ_WRITE_TOKEN lub podepnij Vercel Blob do projektu.';
+    }
+
+    return isSmallFile
+      ? 'Przesyłanie materiału nie powiodło się. Sprawdź połączenie i spróbuj ponownie.'
+      : 'Nie udało się przesłać dużego pliku do storage. Sprawdź konfigurację Blob i połączenie.';
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -79,6 +98,31 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
     setUploading(true);
     setProgress(0);
     setUploadMetrics({ loadedBytes: 0, totalBytes: file.size });
+
+    const uploadDirectToBlob = async () => {
+      setUploadStatus('Przesyłanie dużego pliku bezpośrednio do storage...');
+      setProgress(0);
+
+      const blob = await upload(file.name, file, {
+        access: 'public',
+        handleUploadUrl: '/api/videos/blob-upload',
+        clientPayload: JSON.stringify({
+          title: file.name.replace(/\.[^.]+$/, '').trim() || `video-${Date.now()}`,
+        }),
+      });
+
+      setUploadStatus('Finalizowanie zapisu...');
+      setUploadMetrics({ loadedBytes: file.size, totalBytes: file.size });
+      setUploadedFile({
+        name: file.name,
+        size: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
+        previewUrl: blob.url,
+        mediaType: isVideoMedia(file) ? 'video' : 'image',
+      });
+      setProgress(100);
+      toast.success('Materiał został przesłany.');
+      window.dispatchEvent(new Event('videos:refresh'));
+    };
 
     const uploadViaApiRoute = async () => {
       setUploadStatus('Przesyłanie pliku...');
@@ -121,9 +165,13 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
       window.dispatchEvent(new Event('videos:refresh'));
     };
 
-    void uploadViaApiRoute()
-      .catch(() => {
-        toast.error('Przesyłanie materiału nie powiodło się. Sprawdź połączenie i spróbuj ponownie.');
+    const uploadPromise = file.size <= API_UPLOAD_SAFE_LIMIT_BYTES
+      ? uploadViaApiRoute()
+      : uploadDirectToBlob();
+
+    void uploadPromise
+      .catch((error) => {
+        toast.error(getUploadErrorMessage(error, file.size <= API_UPLOAD_SAFE_LIMIT_BYTES));
       })
       .finally(() => {
         setUploadStatus('');
