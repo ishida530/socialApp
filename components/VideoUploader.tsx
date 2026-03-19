@@ -34,21 +34,22 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  const getUploadErrorMessage = (error: unknown, isSmallFile: boolean) => {
-    const status = (error as { response?: { status?: number } })?.response?.status;
-    const message = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
+  const getUploadErrorMessage = (error: unknown) => {
+    const sdkMessage = error instanceof Error ? error.message : String(error);
 
-    if (status === 413) {
-      return 'Ten plik przekracza limit uploadu przez funkcję Vercel. Dla większych plików wymagany jest upload bezpośrednio do Blob.';
+    if (sdkMessage.includes('Przekroczono limit')) {
+      return sdkMessage;
     }
 
-    if (message?.includes('Brak konfiguracji storage')) {
-      return 'Brakuje konfiguracji storage w Vercel. Dodaj BLOB_READ_WRITE_TOKEN lub podepnij Vercel Blob do projektu.';
+    if (sdkMessage.toLowerCase().includes('content type') || sdkMessage.toLowerCase().includes('content-type')) {
+      return 'Ten format pliku nie jest obsługiwany. Dozwolone: MP4, MOV, JPG, PNG, WEBP.';
     }
 
-    return isSmallFile
-      ? 'Przesyłanie materiału nie powiodło się. Sprawdź połączenie i spróbuj ponownie.'
-      : 'Nie udało się przesłać dużego pliku do storage. Sprawdź konfigurację Blob i połączenie.';
+    if (sdkMessage.toLowerCase().includes('unauthorized') || sdkMessage.includes('Brak konfiguracji')) {
+      return 'Błąd autoryzacji. Odśwież stronę i spróbuj ponownie.';
+    }
+
+    return `Przesyłanie nie powiodło się: ${sdkMessage}`;
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -124,7 +125,8 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
 
     void doUpload()
       .catch((error) => {
-        toast.error(getUploadErrorMessage(error, false));
+        console.error('[VideoUploader] upload error:', error);
+        toast.error(getUploadErrorMessage(error));
       })
       .finally(() => {
         setUploadStatus('');

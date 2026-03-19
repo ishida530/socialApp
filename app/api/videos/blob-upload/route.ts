@@ -34,7 +34,17 @@ export async function POST(request: NextRequest) {
         }
 
         return {
-          allowedContentTypes: ['video/mp4', 'video/quicktime', 'image/jpeg', 'image/png', 'image/webp'],
+          allowedContentTypes: [
+            'video/mp4',
+            'video/quicktime',
+            'video/3gpp',
+            'video/3gpp2',
+            'video/mpeg',
+            'video/x-matroska',
+            'image/jpeg',
+            'image/png',
+            'image/webp',
+          ],
           addRandomSuffix: true,
           callbackUrl: new URL('/api/videos/blob-upload', getSiteUrl()).toString(),
           tokenPayload: JSON.stringify({
