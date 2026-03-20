@@ -4,6 +4,7 @@ import { Upload, FileVideo, X } from 'lucide-react';
 import { useState, useRef } from 'react';
 import { toast } from 'sonner';
 import { upload } from '@vercel/blob/client';
+import { getStoredToken } from '@/lib/auth-token';
 
 const MAX_MEDIA_SIZE_BYTES = 500 * 1024 * 1024;
 
@@ -15,6 +16,10 @@ function isSupportedMedia(file: File) {
 
 function isVideoMedia(file: File) {
   return file.type.includes('video') || ['mp4', 'mov'].includes(file.name.split('.').pop()?.toLowerCase() || '');
+}
+
+function wait(milliseconds: number) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 export function VideoUploader({ compact = false }: { compact?: boolean }) {
@@ -103,22 +108,59 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
       setUploadStatus('Przesyłanie...');
 
       const uploadUrl = `${window.location.origin}/api/videos/blob-upload`;
+      const token = getStoredToken();
 
-      const blob = await upload(file.name, file, {
-        access: 'public',
+      const options = {
+        access: 'public' as const,
         handleUploadUrl: uploadUrl,
+        headers: token
+          ? {
+              Authorization: `Bearer ${token}`,
+            }
+          : undefined,
         clientPayload: JSON.stringify({
           title: file.name.replace(/\.[^.]+$/, '').trim() || `video-${Date.now()}`,
         }),
-        multipart: file.size > 5 * 1024 * 1024,
-        onUploadProgress: ({ loaded, total, percentage }) => {
+        multipart: file.size > 1 * 1024 * 1024,
+        onUploadProgress: ({ loaded, total, percentage }: { loaded: number; total: number; percentage: number }) => {
           setUploadMetrics({ loadedBytes: loaded, totalBytes: total });
           setProgress(Math.min(95, Math.round(percentage)));
           if (percentage >= 95) {
             setUploadStatus('Finalizowanie zapisu...');
           }
         },
-      });
+      };
+
+      let blob: Awaited<ReturnType<typeof upload>> | null = null;
+      let lastError: unknown = null;
+
+      for (let attempt = 1; attempt <= 3; attempt += 1) {
+        try {
+          if (attempt > 1) {
+            setUploadStatus(`Ponawianie przesyłania (${attempt}/3)...`);
+          }
+          blob = await upload(file.name, file, options);
+          break;
+        } catch (error) {
+          lastError = error;
+          const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+          const isTransientNetworkError =
+            message.includes('network') ||
+            message.includes('fetch') ||
+            message.includes('timeout') ||
+            message.includes('failed to fetch');
+
+          if (!isTransientNetworkError || attempt === 3) {
+            throw error;
+          }
+
+          await wait(attempt * 700);
+        }
+      }
+
+      if (!blob) {
+        throw lastError ?? new Error('Upload failed');
+      }
 
       setUploadStatus('Finalizowanie zapisu...');
       setUploadMetrics({ loadedBytes: file.size, totalBytes: file.size });
