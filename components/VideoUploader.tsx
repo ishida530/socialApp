@@ -148,6 +148,19 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
     }
   };
 
+  const logUploadEvent = async (type: string, details: any) => {
+    try {
+      await fetch('/api/videos/logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, ...details }),
+        credentials: 'include',
+      });
+    } catch {
+      // Silently fail if logging fails
+    }
+  };
+
   const handleFileUpload = (file: File) => {
     if (!isSupportedMedia(file)) {
       toast.error('Dozwolone formaty plików: .mp4, .mov, .jpg, .jpeg, .png, .webp');
@@ -165,12 +178,24 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
 
     const doUpload = async () => {
       setUploadStatus('Przesyłanie...');
+      const uploadStartTime = Date.now();
 
       const uploadUrl = `${window.location.origin}/api/videos/blob-upload`;
       const token = getStoredToken();
       const stableMobileMode = shouldUseStableMobileUploadMode();
       const isLargeMobileFile = stableMobileMode && file.size >= LARGE_MOBILE_FILE_BYTES;
       const maxAttempts = isLargeMobileFile ? 5 : 3;
+
+      const fileSizeMB = Math.round(file.size / (1024 * 1024));
+
+      await logUploadEvent('upload_started', {
+        fileName: file.name,
+        fileSize: file.size,
+        fileSizeMB,
+        stableMobileMode,
+        isLargeMobileFile,
+        maxAttempts,
+      });
 
       if (stableMobileMode) {
         setUploadStatus('Przesyłanie (tryb stabilny mobile)...');
@@ -205,6 +230,7 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
       let lastError: unknown = null;
 
       for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        const attemptStartTime = Date.now();
         try {
           if (attempt > 1) {
             setUploadStatus(`Ponawianie przesyłania (${attempt}/${maxAttempts})...`);
@@ -216,10 +242,31 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
 
           const blob = await upload(file.name, file, options);
           uploadedUrl = blob.url;
+
+          const attemptDuration = Date.now() - attemptStartTime;
+          await logUploadEvent('upload_attempt_success', {
+            attempt,
+            totalAttempts: maxAttempts,
+            durationMs: attemptDuration,
+            fileSizeMB,
+            totalUploadDurationMs: Date.now() - uploadStartTime,
+          });
+
           break;
         } catch (error) {
           lastError = error;
           const isTransientNetworkError = isTransientUploadError(error);
+          const attemptDuration = Date.now() - attemptStartTime;
+
+          await logUploadEvent('upload_attempt_failed', {
+            attempt,
+            totalAttempts: maxAttempts,
+            durationMs: attemptDuration,
+            fileSizeMB,
+            error: error instanceof Error ? error.message : String(error),
+            errorType: error instanceof Error ? error.constructor.name : 'Unknown',
+            isTransientNetworkError,
+          });
 
           if (!isTransientNetworkError) {
             throw error;
@@ -240,11 +287,34 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
 
         if (canUseServerFallback) {
           setUploadStatus('Błąd sieci. Próbuję trybu awaryjnego...');
-          uploadedUrl = await uploadViaServerFallback(file, token);
+          const fallbackStartTime = Date.now();
+          try {
+            uploadedUrl = await uploadViaServerFallback(file, token);
+            const fallbackDuration = Date.now() - fallbackStartTime;
+            await logUploadEvent('fallback_upload_success', {
+              fileSizeMB,
+              durationMs: fallbackDuration,
+              totalUploadDurationMs: Date.now() - uploadStartTime,
+            });
+          } catch (fallbackError) {
+            const fallbackDuration = Date.now() - fallbackStartTime;
+            await logUploadEvent('fallback_upload_failed', {
+              fileSizeMB,
+              durationMs: fallbackDuration,
+              error: fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
+            });
+            throw fallbackError;
+          }
         }
       }
 
       if (!uploadedUrl) {
+        await logUploadEvent('upload_failed', {
+          fileSizeMB,
+          totalAttempts: maxAttempts,
+          error: lastError instanceof Error ? lastError.message : String(lastError),
+          totalUploadDurationMs: Date.now() - uploadStartTime,
+        });
         throw lastError ?? new Error('Upload failed');
       }
 
@@ -257,6 +327,14 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
         mediaType: isVideoMedia(file) ? 'video' : 'image',
       });
       setProgress(100);
+
+      const totalDuration = Date.now() - uploadStartTime;
+      await logUploadEvent('upload_completed', {
+        fileSizeMB,
+        totalDurationMs: totalDuration,
+        speedMBps: (fileSizeMB / (totalDuration / 1000)).toFixed(2),
+      });
+
       toast.success('Materiał został przesłany.');
       window.dispatchEvent(new Event('videos:refresh'));
     };
