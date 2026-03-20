@@ -22,6 +22,21 @@ function wait(milliseconds: number) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
+function shouldUseStableMobileUploadMode() {
+  if (typeof navigator === 'undefined') {
+    return false;
+  }
+
+  const ua = navigator.userAgent;
+  const isIOS = /iPhone|iPad|iPod/i.test(ua);
+  const isWebKit = /WebKit/i.test(ua);
+  const isCriOS = /CriOS/i.test(ua);
+  const isFxiOS = /FxiOS/i.test(ua);
+
+  // On iOS Safari/WebKit, progress callback can force XHR and produce random "Network request failed".
+  return isIOS && isWebKit && !isCriOS && !isFxiOS;
+}
+
 export function VideoUploader({ compact = false }: { compact?: boolean }) {
   const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -55,7 +70,7 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
     }
 
     if (sdkMessage.toLowerCase().includes('network') || sdkMessage.toLowerCase().includes('fetch')) {
-      return 'Błąd sieciowy. Sprawdź połączenie internetowe i spróbuj ponownie.';
+      return 'Błąd sieciowy. Na telefonie wyłącz VPN/iCloud Private Relay i spróbuj ponownie.';
     }
 
     if (sdkMessage.toLowerCase().includes('timeout')) {
@@ -109,6 +124,11 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
 
       const uploadUrl = `${window.location.origin}/api/videos/blob-upload`;
       const token = getStoredToken();
+      const stableMobileMode = shouldUseStableMobileUploadMode();
+
+      if (stableMobileMode) {
+        setUploadStatus('Przesyłanie (tryb stabilny mobile)...');
+      }
 
       const options = {
         access: 'public' as const,
@@ -122,13 +142,17 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
           title: file.name.replace(/\.[^.]+$/, '').trim() || `video-${Date.now()}`,
         }),
         multipart: file.size > 1 * 1024 * 1024,
-        onUploadProgress: ({ loaded, total, percentage }: { loaded: number; total: number; percentage: number }) => {
-          setUploadMetrics({ loadedBytes: loaded, totalBytes: total });
-          setProgress(Math.min(95, Math.round(percentage)));
-          if (percentage >= 95) {
-            setUploadStatus('Finalizowanie zapisu...');
-          }
-        },
+        ...(stableMobileMode
+          ? {}
+          : {
+              onUploadProgress: ({ loaded, total, percentage }: { loaded: number; total: number; percentage: number }) => {
+                setUploadMetrics({ loadedBytes: loaded, totalBytes: total });
+                setProgress(Math.min(95, Math.round(percentage)));
+                if (percentage >= 95) {
+                  setUploadStatus('Finalizowanie zapisu...');
+                }
+              },
+            }),
       };
 
       let blob: Awaited<ReturnType<typeof upload>> | null = null;
@@ -139,6 +163,11 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
           if (attempt > 1) {
             setUploadStatus(`Ponawianie przesyłania (${attempt}/3)...`);
           }
+
+          if (stableMobileMode) {
+            setProgress(Math.max(10, (attempt - 1) * 20));
+          }
+
           blob = await upload(file.name, file, options);
           break;
         } catch (error) {
