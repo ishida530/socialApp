@@ -15,17 +15,23 @@ export async function POST(request: NextRequest) {
     });
 
     // For critical errors, also log to stderr for visibility
-    if (body.type === 'upload_failed' || body.type === 'error') {
+    if (body.type === 'upload_failed' || body.type === 'upload_final_error' || body.type === 'error') {
       console.error('=== VIDEO_UPLOAD_ERROR ===', {
         timestamp: new Date().toISOString(),
         userId: user.userId,
         eventType: body.type,
         fileSize: body.fileSize,
+        fileSizeMB: body.fileSizeMB,
         error: body.error,
+        errorType: body.errorType,
+        errorStack: body.errorStack,
         attempt: body.attempt,
         totalAttempts: body.totalAttempts,
-        duration: body.durationMs,
+        durationMs: body.durationMs,
+        totalUploadDurationMs: body.totalUploadDurationMs,
         retryDelayMs: body.retryDelayMs,
+        stableMobileMode: body.stableMobileMode,
+        userAgent: body.userAgent,
       });
     }
 

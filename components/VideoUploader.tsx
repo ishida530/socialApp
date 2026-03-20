@@ -150,14 +150,28 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
 
   const logUploadEvent = async (type: string, details: any) => {
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3s timeout
+
       await fetch('/api/videos/logs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type, ...details }),
+        body: JSON.stringify({ 
+          type, 
+          ...details,
+          userAgent: navigator.userAgent,
+          timestamp: new Date().toISOString(),
+        }),
         credentials: 'include',
+        signal: controller.signal,
       });
-    } catch {
-      // Silently fail if logging fails
+
+      clearTimeout(timeoutId);
+    } catch (error) {
+      // Silently fail if logging fails, but log to console for debugging
+      if (error instanceof Error && error.name !== 'AbortError') {
+        console.debug('[VideoUploader] logging failed:', error.message);
+      }
     }
   };
 
@@ -178,15 +192,17 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
 
     const doUpload = async () => {
       setUploadStatus('Przesyłanie...');
-      const uploadStartTime = Date.now();
+    const uploadStartTime = Date.now();
+    const fileSizeMB = Math.round(file.size / (1024 * 1024));
+
+    const doUpload = async () => {
+      setUploadStatus('Przesyłanie...');
 
       const uploadUrl = `${window.location.origin}/api/videos/blob-upload`;
       const token = getStoredToken();
       const stableMobileMode = shouldUseStableMobileUploadMode();
       const isLargeMobileFile = stableMobileMode && file.size >= LARGE_MOBILE_FILE_BYTES;
       const maxAttempts = isLargeMobileFile ? 5 : 3;
-
-      const fileSizeMB = Math.round(file.size / (1024 * 1024));
 
       await logUploadEvent('upload_started', {
         fileName: file.name,
@@ -340,7 +356,10 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
     };
 
     void doUpload()
-      .catch((error) => {
+      .catch(async (error) => {
+        const finalUploadDuration = Date.now() - uploadStartTime;
+        const fileSizeMB = Math.round(file.size / (1024 * 1024));
+
         console.error('[VideoUploader] upload error:', error);
         console.error('[VideoUploader] error details:', {
           message: error?.message,
@@ -348,6 +367,16 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
           code: error?.code,
           stack: error?.stack,
         });
+
+        // Log final error state
+        await logUploadEvent('upload_final_error', {
+          fileSizeMB,
+          totalUploadDurationMs: finalUploadDuration,
+          error: error instanceof Error ? error.message : String(error),
+          errorType: error instanceof Error ? error.constructor.name : 'Unknown',
+          errorStack: error instanceof Error ? error.stack : '',
+        });
+
         toast.error(getUploadErrorMessage(error));
       })
       .finally(() => {
