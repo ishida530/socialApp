@@ -7,6 +7,8 @@ import { upload } from '@vercel/blob/client';
 import { getStoredToken } from '@/lib/auth-token';
 
 const MAX_MEDIA_SIZE_BYTES = 500 * 1024 * 1024;
+const MAX_SERVER_FALLBACK_UPLOAD_BYTES = 4 * 1024 * 1024;
+const LARGE_MOBILE_FILE_BYTES = 50 * 1024 * 1024;
 
 function isSupportedMedia(file: File) {
   const extension = file.name.split('.').pop()?.toLowerCase();
@@ -22,19 +24,28 @@ function wait(milliseconds: number) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
+function isTransientUploadError(error: unknown) {
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  return (
+    message.includes('network') ||
+    message.includes('fetch') ||
+    message.includes('timeout') ||
+    message.includes('failed to fetch') ||
+    message.includes('load failed') ||
+    message.includes('network request failed')
+  );
+}
+
 function shouldUseStableMobileUploadMode() {
   if (typeof navigator === 'undefined') {
     return false;
   }
 
   const ua = navigator.userAgent;
-  const isIOS = /iPhone|iPad|iPod/i.test(ua);
-  const isWebKit = /WebKit/i.test(ua);
-  const isCriOS = /CriOS/i.test(ua);
-  const isFxiOS = /FxiOS/i.test(ua);
+  const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(ua);
 
-  // On iOS Safari/WebKit, progress callback can force XHR and produce random "Network request failed".
-  return isIOS && isWebKit && !isCriOS && !isFxiOS;
+  // On mobile browsers upload progress can force XHR and produce random transport failures.
+  return isMobile;
 }
 
 export function VideoUploader({ compact = false }: { compact?: boolean }) {
@@ -70,7 +81,7 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
     }
 
     if (sdkMessage.toLowerCase().includes('network') || sdkMessage.toLowerCase().includes('fetch')) {
-      return 'Błąd sieciowy. Na telefonie wyłącz VPN/iCloud Private Relay i spróbuj ponownie.';
+      return 'Błąd sieciowy. Spróbuj ponownie. Jeśli to telefon, wyłącz VPN/iCloud Private Relay.';
     }
 
     if (sdkMessage.toLowerCase().includes('timeout')) {
@@ -78,6 +89,39 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
     }
 
     return `Przesyłanie nie powiodło się: ${sdkMessage}`;
+  };
+
+  const uploadViaServerFallback = async (file: File, token: string | null) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch('/api/videos/upload', {
+      method: 'POST',
+      body: formData,
+      credentials: 'include',
+      headers: token
+        ? {
+            Authorization: `Bearer ${token}`,
+          }
+        : undefined,
+    });
+
+    let payload: { message?: string; sourceUrl?: string } | null = null;
+    try {
+      payload = (await response.json()) as { message?: string; sourceUrl?: string };
+    } catch {
+      payload = null;
+    }
+
+    if (!response.ok) {
+      throw new Error(payload?.message ?? `Fallback upload failed (${response.status})`);
+    }
+
+    if (!payload?.sourceUrl) {
+      throw new Error('Fallback upload failed: missing sourceUrl');
+    }
+
+    return payload.sourceUrl;
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -125,6 +169,8 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
       const uploadUrl = `${window.location.origin}/api/videos/blob-upload`;
       const token = getStoredToken();
       const stableMobileMode = shouldUseStableMobileUploadMode();
+      const isLargeMobileFile = stableMobileMode && file.size >= LARGE_MOBILE_FILE_BYTES;
+      const maxAttempts = isLargeMobileFile ? 5 : 3;
 
       if (stableMobileMode) {
         setUploadStatus('Przesyłanie (tryb stabilny mobile)...');
@@ -155,39 +201,50 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
             }),
       };
 
-      let blob: Awaited<ReturnType<typeof upload>> | null = null;
+      let uploadedUrl: string | null = null;
       let lastError: unknown = null;
 
-      for (let attempt = 1; attempt <= 3; attempt += 1) {
+      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
         try {
           if (attempt > 1) {
-            setUploadStatus(`Ponawianie przesyłania (${attempt}/3)...`);
+            setUploadStatus(`Ponawianie przesyłania (${attempt}/${maxAttempts})...`);
           }
 
           if (stableMobileMode) {
             setProgress(Math.max(10, (attempt - 1) * 20));
           }
 
-          blob = await upload(file.name, file, options);
+          const blob = await upload(file.name, file, options);
+          uploadedUrl = blob.url;
           break;
         } catch (error) {
           lastError = error;
-          const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
-          const isTransientNetworkError =
-            message.includes('network') ||
-            message.includes('fetch') ||
-            message.includes('timeout') ||
-            message.includes('failed to fetch');
+          const isTransientNetworkError = isTransientUploadError(error);
 
-          if (!isTransientNetworkError || attempt === 3) {
+          if (!isTransientNetworkError) {
             throw error;
           }
 
-          await wait(attempt * 700);
+          if (attempt === maxAttempts) {
+            break;
+          }
+
+          const retryDelay = isLargeMobileFile ? attempt * 1500 : attempt * 700;
+          await wait(retryDelay);
         }
       }
 
-      if (!blob) {
+      if (!uploadedUrl) {
+        const canUseServerFallback =
+          file.size <= MAX_SERVER_FALLBACK_UPLOAD_BYTES && isTransientUploadError(lastError);
+
+        if (canUseServerFallback) {
+          setUploadStatus('Błąd sieci. Próbuję trybu awaryjnego...');
+          uploadedUrl = await uploadViaServerFallback(file, token);
+        }
+      }
+
+      if (!uploadedUrl) {
         throw lastError ?? new Error('Upload failed');
       }
 
@@ -196,7 +253,7 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
       setUploadedFile({
         name: file.name,
         size: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
-        previewUrl: blob.url,
+        previewUrl: uploadedUrl,
         mediaType: isVideoMedia(file) ? 'video' : 'image',
       });
       setProgress(100);
