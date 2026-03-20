@@ -38,6 +38,8 @@ const MAX_RETRY_ATTEMPTS = 3;
 const BASE_BACKOFF_SECONDS = 60;
 const TIKTOK_STATUS_POLL_SECONDS = 60;
 const MAX_TIKTOK_POLL_ATTEMPTS = 20;
+const INSTAGRAM_CONTAINER_POLL_SECONDS = 5;
+const MAX_INSTAGRAM_CONTAINER_POLL_ATTEMPTS = 12;
 
 export type PublishProcessorSummary = {
   claimed: number;
@@ -311,6 +313,66 @@ async function resolveVideoBytes(job: {
   return buffer;
 }
 
+async function waitForInstagramContainerReady(
+  creationId: string,
+  accessToken: string,
+  version: string,
+) {
+  let lastStatusCode = 'UNKNOWN';
+
+  for (let attempt = 1; attempt <= MAX_INSTAGRAM_CONTAINER_POLL_ATTEMPTS; attempt += 1) {
+    const statusResponse = await fetch(
+      `https://graph.facebook.com/${version}/${creationId}?fields=status_code,status&access_token=${encodeURIComponent(accessToken)}`,
+      {
+        method: 'GET',
+        cache: 'no-store',
+      },
+    );
+
+    if (!statusResponse.ok) {
+      const errorBody = await statusResponse.text();
+
+      if (statusResponse.status === 401 || statusResponse.status === 403) {
+        throw new PublishAuthError(
+          `Instagram container status token invalid/expired: ${errorBody || statusResponse.statusText}`,
+          statusResponse.status,
+        );
+      }
+
+      throw new Error(
+        `Instagram container status check failed: ${errorBody || statusResponse.statusText}`,
+      );
+    }
+
+    const statusPayload = (await statusResponse.json()) as {
+      status_code?: string;
+      status?: string;
+    };
+
+    const statusCode = (statusPayload.status_code ?? '').toUpperCase();
+    lastStatusCode = statusCode || 'UNKNOWN';
+
+    if (statusCode === 'FINISHED') {
+      return;
+    }
+
+    if (statusCode === 'ERROR' || statusCode === 'EXPIRED') {
+      const readableStatus = statusPayload.status?.trim();
+      throw new Error(
+        `Instagram container not publishable (status_code=${statusCode}${readableStatus ? `, status=${readableStatus}` : ''})`,
+      );
+    }
+
+    if (attempt < MAX_INSTAGRAM_CONTAINER_POLL_ATTEMPTS) {
+      await new Promise((resolve) => setTimeout(resolve, INSTAGRAM_CONTAINER_POLL_SECONDS * 1000));
+    }
+  }
+
+  throw new Error(
+    `Instagram container readiness timeout after ${MAX_INSTAGRAM_CONTAINER_POLL_ATTEMPTS} checks (last_status_code=${lastStatusCode})`,
+  );
+}
+
 async function publishToYouTube(job: {
   video: {
     title: string;
@@ -544,6 +606,8 @@ async function publishToInstagram(job: {
   if (!createPayload.id) {
     throw new Error('Instagram container create failed: missing creation_id');
   }
+
+  await waitForInstagramContainerReady(createPayload.id, accessToken, version);
 
   const publishParams = new URLSearchParams({
     access_token: accessToken,
