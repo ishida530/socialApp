@@ -9,6 +9,7 @@ import { getStoredToken } from '@/lib/auth-token';
 const MAX_MEDIA_SIZE_BYTES = 500 * 1024 * 1024;
 const MAX_SERVER_FALLBACK_UPLOAD_BYTES = 4 * 1024 * 1024;
 const LARGE_MOBILE_FILE_BYTES = 50 * 1024 * 1024;
+const MULTIPART_RECOMMENDED_BYTES = 100 * 1024 * 1024;
 
 function isSupportedMedia(file: File) {
   const extension = file.name.split('.').pop()?.toLowerCase();
@@ -196,11 +197,18 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
     const doUpload = async () => {
       setUploadStatus('Przesyłanie...');
 
-      const uploadUrl = `${window.location.origin}/api/videos/blob-upload`;
       const token = getStoredToken();
       const stableMobileMode = shouldUseStableMobileUploadMode();
       const isLargeMobileFile = stableMobileMode && file.size >= LARGE_MOBILE_FILE_BYTES;
       const maxAttempts = isLargeMobileFile ? 5 : 3;
+      let lastAttempt = 0;
+      let lastRetryDelayMs = 0;
+
+      // On mobile, avoid aggressive parallel multipart for medium files.
+      // Keep multipart for truly large files where part retries are worth it.
+      const shouldUseMultipart = stableMobileMode
+        ? file.size >= MULTIPART_RECOMMENDED_BYTES
+        : file.size > 1 * 1024 * 1024;
 
       await logUploadEvent('upload_started', {
         fileName: file.name,
@@ -209,6 +217,7 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
         stableMobileMode,
         isLargeMobileFile,
         maxAttempts,
+        shouldUseMultipart,
       });
 
       if (stableMobileMode) {
@@ -217,7 +226,7 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
 
       const options = {
         access: 'public' as const,
-        handleUploadUrl: uploadUrl,
+        handleUploadUrl: '/api/videos/blob-upload',
         headers: token
           ? {
               Authorization: `Bearer ${token}`,
@@ -226,7 +235,7 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
         clientPayload: JSON.stringify({
           title: file.name.replace(/\.[^.]+$/, '').trim() || `video-${Date.now()}`,
         }),
-        multipart: file.size > 1 * 1024 * 1024,
+        multipart: shouldUseMultipart,
         ...(stableMobileMode
           ? {}
           : {
@@ -244,6 +253,7 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
       let lastError: unknown = null;
 
       for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        lastAttempt = attempt;
         const attemptStartTime = Date.now();
         try {
           if (attempt > 1) {
@@ -291,6 +301,7 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
           }
 
           const retryDelay = isLargeMobileFile ? attempt * 1500 : attempt * 700;
+          lastRetryDelayMs = retryDelay;
           await wait(retryDelay);
         }
       }
@@ -324,10 +335,15 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
 
       if (!uploadedUrl) {
         await logUploadEvent('upload_failed', {
+          fileSize: file.size,
           fileSizeMB,
+          stableMobileMode,
+          attempt: lastAttempt,
           totalAttempts: maxAttempts,
+          retryDelayMs: lastRetryDelayMs,
           error: lastError instanceof Error ? lastError.message : String(lastError),
           totalUploadDurationMs: Date.now() - uploadStartTime,
+          shouldUseMultipart,
         });
         throw lastError ?? new Error('Upload failed');
       }
@@ -368,11 +384,16 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
 
         // Log final error state
         await logUploadEvent('upload_final_error', {
+          fileSize: file.size,
           fileSizeMB,
+          stableMobileMode: shouldUseStableMobileUploadMode(),
+          totalAttempts: shouldUseStableMobileUploadMode() && file.size >= LARGE_MOBILE_FILE_BYTES ? 5 : 3,
           totalUploadDurationMs: finalUploadDuration,
           error: error instanceof Error ? error.message : String(error),
           errorType: error instanceof Error ? error.constructor.name : 'Unknown',
           errorStack: error instanceof Error ? error.stack : '',
+          shouldUseMultipart:
+            shouldUseStableMobileUploadMode() ? file.size >= MULTIPART_RECOMMENDED_BYTES : file.size > 1 * 1024 * 1024,
         });
 
         toast.error(getUploadErrorMessage(error));
