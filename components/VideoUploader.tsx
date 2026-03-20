@@ -190,8 +190,6 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
     setProgress(0);
     setUploadMetrics({ loadedBytes: 0, totalBytes: file.size });
 
-    const doUpload = async () => {
-      setUploadStatus('Przesyłanie...');
     const uploadStartTime = Date.now();
     const fileSizeMB = Math.round(file.size / (1024 * 1024));
 
