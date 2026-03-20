@@ -8,8 +8,8 @@ import { getStoredToken } from '@/lib/auth-token';
 
 const MAX_MEDIA_SIZE_BYTES = 500 * 1024 * 1024;
 const MAX_SERVER_FALLBACK_UPLOAD_BYTES = 4 * 1024 * 1024;
-const LARGE_MOBILE_FILE_BYTES = 50 * 1024 * 1024;
-const MULTIPART_RECOMMENDED_BYTES = 100 * 1024 * 1024;
+// Vercel docs: use multipart for large files — splits into parts, uploads in parallel, retries failed parts
+const MULTIPART_THRESHOLD_BYTES = 5 * 1024 * 1024;
 
 function isSupportedMedia(file: File) {
   const extension = file.name.split('.').pop()?.toLowerCase();
@@ -35,18 +35,6 @@ function isTransientUploadError(error: unknown) {
     message.includes('load failed') ||
     message.includes('network request failed')
   );
-}
-
-function shouldUseStableMobileUploadMode() {
-  if (typeof navigator === 'undefined') {
-    return false;
-  }
-
-  const ua = navigator.userAgent;
-  const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(ua);
-
-  // On mobile browsers upload progress can force XHR and produce random transport failures.
-  return isMobile;
 }
 
 export function VideoUploader({ compact = false }: { compact?: boolean }) {
@@ -198,31 +186,17 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
       setUploadStatus('Przesyłanie...');
 
       const token = getStoredToken();
-      const stableMobileMode = shouldUseStableMobileUploadMode();
-      const isLargeMobileFile = stableMobileMode && file.size >= LARGE_MOBILE_FILE_BYTES;
-      const maxAttempts = isLargeMobileFile ? 5 : 3;
-      let lastAttempt = 0;
-      let lastRetryDelayMs = 0;
-
-      // On mobile, avoid aggressive parallel multipart for medium files.
-      // Keep multipart for truly large files where part retries are worth it.
-      const shouldUseMultipart = stableMobileMode
-        ? file.size >= MULTIPART_RECOMMENDED_BYTES
-        : file.size > 1 * 1024 * 1024;
+      const MAX_ATTEMPTS = 3;
+      // Per Vercel docs: use multipart for large files (videos or files > 5 MB).
+      // multipart splits into parts, uploads in parallel and retries failed parts automatically.
+      const shouldUseMultipart = isVideoMedia(file) || file.size > MULTIPART_THRESHOLD_BYTES;
 
       await logUploadEvent('upload_started', {
         fileName: file.name,
         fileSize: file.size,
         fileSizeMB,
-        stableMobileMode,
-        isLargeMobileFile,
-        maxAttempts,
         shouldUseMultipart,
       });
-
-      if (stableMobileMode) {
-        setUploadStatus('Przesyłanie (tryb stabilny mobile)...');
-      }
 
       const options = {
         access: 'public' as const,
@@ -236,42 +210,35 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
           title: file.name.replace(/\.[^.]+$/, '').trim() || `video-${Date.now()}`,
         }),
         multipart: shouldUseMultipart,
-        ...(stableMobileMode
-          ? {}
-          : {
-              onUploadProgress: ({ loaded, total, percentage }: { loaded: number; total: number; percentage: number }) => {
-                setUploadMetrics({ loadedBytes: loaded, totalBytes: total });
-                setProgress(Math.min(95, Math.round(percentage)));
-                if (percentage >= 95) {
-                  setUploadStatus('Finalizowanie zapisu...');
-                }
-              },
-            }),
+        // onUploadProgress is supported on both desktop and mobile per Vercel docs
+        onUploadProgress: ({ loaded, total, percentage }: { loaded: number; total: number; percentage: number }) => {
+          setUploadMetrics({ loadedBytes: loaded, totalBytes: total });
+          setProgress(Math.min(95, Math.round(percentage)));
+          if (percentage >= 95) {
+            setUploadStatus('Finalizowanie zapisu...');
+          }
+        },
       };
 
       let uploadedUrl: string | null = null;
       let lastError: unknown = null;
+      let lastAttempt = 0;
 
-      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
         lastAttempt = attempt;
         const attemptStartTime = Date.now();
         try {
           if (attempt > 1) {
-            setUploadStatus(`Ponawianie przesyłania (${attempt}/${maxAttempts})...`);
-          }
-
-          if (stableMobileMode) {
-            setProgress(Math.max(10, (attempt - 1) * 20));
+            setUploadStatus(`Ponawianie przesyłania (${attempt}/${MAX_ATTEMPTS})...`);
           }
 
           const blob = await upload(file.name, file, options);
           uploadedUrl = blob.url;
 
-          const attemptDuration = Date.now() - attemptStartTime;
           await logUploadEvent('upload_attempt_success', {
             attempt,
-            totalAttempts: maxAttempts,
-            durationMs: attemptDuration,
+            totalAttempts: MAX_ATTEMPTS,
+            durationMs: Date.now() - attemptStartTime,
             fileSizeMB,
             totalUploadDurationMs: Date.now() - uploadStartTime,
           });
@@ -280,29 +247,23 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
         } catch (error) {
           lastError = error;
           const isTransientNetworkError = isTransientUploadError(error);
-          const attemptDuration = Date.now() - attemptStartTime;
 
           await logUploadEvent('upload_attempt_failed', {
             attempt,
-            totalAttempts: maxAttempts,
-            durationMs: attemptDuration,
+            totalAttempts: MAX_ATTEMPTS,
+            durationMs: Date.now() - attemptStartTime,
             fileSizeMB,
             error: error instanceof Error ? error.message : String(error),
             errorType: error instanceof Error ? error.constructor.name : 'Unknown',
             isTransientNetworkError,
           });
 
-          if (!isTransientNetworkError) {
-            throw error;
-          }
-
-          if (attempt === maxAttempts) {
+          if (!isTransientNetworkError || attempt === MAX_ATTEMPTS) {
             break;
           }
 
-          const retryDelay = isLargeMobileFile ? attempt * 1500 : attempt * 700;
-          lastRetryDelayMs = retryDelay;
-          await wait(retryDelay);
+          // Linear backoff: 1 s, 2 s
+          await wait(attempt * 1000);
         }
       }
 
@@ -315,17 +276,15 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
           const fallbackStartTime = Date.now();
           try {
             uploadedUrl = await uploadViaServerFallback(file, token);
-            const fallbackDuration = Date.now() - fallbackStartTime;
             await logUploadEvent('fallback_upload_success', {
               fileSizeMB,
-              durationMs: fallbackDuration,
+              durationMs: Date.now() - fallbackStartTime,
               totalUploadDurationMs: Date.now() - uploadStartTime,
             });
           } catch (fallbackError) {
-            const fallbackDuration = Date.now() - fallbackStartTime;
             await logUploadEvent('fallback_upload_failed', {
               fileSizeMB,
-              durationMs: fallbackDuration,
+              durationMs: Date.now() - fallbackStartTime,
               error: fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
             });
             throw fallbackError;
@@ -337,10 +296,8 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
         await logUploadEvent('upload_failed', {
           fileSize: file.size,
           fileSizeMB,
-          stableMobileMode,
           attempt: lastAttempt,
-          totalAttempts: maxAttempts,
-          retryDelayMs: lastRetryDelayMs,
+          totalAttempts: MAX_ATTEMPTS,
           error: lastError instanceof Error ? lastError.message : String(lastError),
           totalUploadDurationMs: Date.now() - uploadStartTime,
           shouldUseMultipart,
@@ -382,18 +339,15 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
           stack: error?.stack,
         });
 
-        // Log final error state
         await logUploadEvent('upload_final_error', {
           fileSize: file.size,
           fileSizeMB,
-          stableMobileMode: shouldUseStableMobileUploadMode(),
-          totalAttempts: shouldUseStableMobileUploadMode() && file.size >= LARGE_MOBILE_FILE_BYTES ? 5 : 3,
+          totalAttempts: 3,
           totalUploadDurationMs: finalUploadDuration,
           error: error instanceof Error ? error.message : String(error),
           errorType: error instanceof Error ? error.constructor.name : 'Unknown',
           errorStack: error instanceof Error ? error.stack : '',
-          shouldUseMultipart:
-            shouldUseStableMobileUploadMode() ? file.size >= MULTIPART_RECOMMENDED_BYTES : file.size > 1 * 1024 * 1024,
+          shouldUseMultipart: isVideoMedia(file) || file.size > MULTIPART_THRESHOLD_BYTES,
         });
 
         toast.error(getUploadErrorMessage(error));
@@ -502,10 +456,6 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">{uploadStatus || 'Przesyłanie...'}</span>
             <span className="text-foreground font-medium">{formatMegabytes(uploadMetrics.loadedBytes)} / {formatMegabytes(uploadMetrics.totalBytes)}</span>
-          </div>
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span>{progress}%</span>
-            <span>{formatMegabytes(uploadMetrics.totalBytes)}</span>
           </div>
           <div className="w-full bg-secondary rounded-full h-2 overflow-hidden">
             <div
