@@ -49,6 +49,14 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
       return 'Błąd autoryzacji. Odśwież stronę i spróbuj ponownie.';
     }
 
+    if (sdkMessage.toLowerCase().includes('network') || sdkMessage.toLowerCase().includes('fetch')) {
+      return 'Błąd sieciowy. Sprawdź połączenie internetowe i spróbuj ponownie.';
+    }
+
+    if (sdkMessage.toLowerCase().includes('timeout')) {
+      return 'Przesyłanie zajęło zbyt długo. Spróbuj z mniejszym plikiem lub lepszym połączeniem.';
+    }
+
     return `Przesyłanie nie powiodło się: ${sdkMessage}`;
   };
 
@@ -94,9 +102,11 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
     const doUpload = async () => {
       setUploadStatus('Przesyłanie...');
 
+      const uploadUrl = `${window.location.origin}/api/videos/blob-upload`;
+
       const blob = await upload(file.name, file, {
         access: 'public',
-        handleUploadUrl: '/api/videos/blob-upload',
+        handleUploadUrl: uploadUrl,
         clientPayload: JSON.stringify({
           title: file.name.replace(/\.[^.]+$/, '').trim() || `video-${Date.now()}`,
         }),
@@ -126,6 +136,12 @@ export function VideoUploader({ compact = false }: { compact?: boolean }) {
     void doUpload()
       .catch((error) => {
         console.error('[VideoUploader] upload error:', error);
+        console.error('[VideoUploader] error details:', {
+          message: error?.message,
+          status: error?.status,
+          code: error?.code,
+          stack: error?.stack,
+        });
         toast.error(getUploadErrorMessage(error));
       })
       .finally(() => {
