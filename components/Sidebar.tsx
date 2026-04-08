@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Link2, Image as ImageIcon, BarChart3, Layers } from 'lucide-react';
+import { LayoutDashboard, Link2, Image as ImageIcon, BarChart3, Layers, TriangleAlert } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { BrandLogo } from '@/components/BrandLogo';
@@ -22,9 +22,14 @@ export function Sidebar() {
   const pathname = usePathname();
   const capabilities = useBillingCapabilities();
   const [currentPlanLabel, setCurrentPlanLabel] = useState('Plan bezpłatny');
-  const [usageLabel, setUsageLabel] = useState('0/0 wideo w tym miesiącu');
+  const [videoUsageLabel, setVideoUsageLabel] = useState('Wideo: 0/0');
+  const [publishUsageLabel, setPublishUsageLabel] = useState('Posty: 0/0');
   const [trialLabel, setTrialLabel] = useState<string | null>(null);
-  const [usageProgress, setUsageProgress] = useState(0);
+  const [videoUsageProgress, setVideoUsageProgress] = useState(0);
+  const [publishUsageProgress, setPublishUsageProgress] = useState(0);
+
+  const isVideoNearLimit = videoUsageProgress >= 90;
+  const isPublishNearLimit = publishUsageProgress >= 90;
 
   useEffect(() => {
     const loadSubscriptionCard = async () => {
@@ -43,6 +48,10 @@ export function Sidebar() {
               count: number;
               limit: number | null;
             };
+            publish_jobs: {
+              count: number;
+              limit: number | null;
+            };
           };
         }>('/billing/subscription');
 
@@ -51,12 +60,22 @@ export function Sidebar() {
 
         const count = response.data.usage.video_uploads.count;
         const limit = response.data.usage.video_uploads.limit;
-        setUsageLabel(`${count}/${limit ?? '∞'} wideo w tym miesiącu`);
+        setVideoUsageLabel(`Wideo: ${count}/${limit ?? '∞'}`);
 
         if (limit && limit > 0) {
-          setUsageProgress(Math.max(0, Math.min(100, Math.round((count / limit) * 100))));
+          setVideoUsageProgress(Math.max(0, Math.min(100, Math.round((count / limit) * 100))));
         } else {
-          setUsageProgress(100);
+          setVideoUsageProgress(100);
+        }
+
+        const publishCount = response.data.usage.publish_jobs.count;
+        const publishLimit = response.data.usage.publish_jobs.limit;
+        setPublishUsageLabel(`Posty: ${publishCount}/${publishLimit ?? '∞'}`);
+
+        if (publishLimit && publishLimit > 0) {
+          setPublishUsageProgress(Math.max(0, Math.min(100, Math.round((publishCount / publishLimit) * 100))));
+        } else {
+          setPublishUsageProgress(100);
         }
 
         if (response.data.subscription.trial?.isActive && response.data.subscription.basePlan === 'FREE') {
@@ -70,8 +89,10 @@ export function Sidebar() {
         }
       } catch {
         setCurrentPlanLabel('Plan bezpłatny');
-        setUsageLabel('0/0 wideo w tym miesiącu');
-        setUsageProgress(0);
+        setVideoUsageLabel('Wideo: 0/0');
+        setPublishUsageLabel('Posty: 0/0');
+        setVideoUsageProgress(0);
+        setPublishUsageProgress(0);
         setTrialLabel(null);
       }
     };
@@ -120,14 +141,25 @@ export function Sidebar() {
         <div className="p-4 border-t border-border">
           <div className="bg-gradient-to-br from-primary/10 to-accent/10 backdrop-blur-sm border border-primary/20 rounded-xl p-4">
             <p className="text-sm text-foreground font-medium mb-2">{currentPlanLabel}</p>
-            <p className="text-xs text-muted-foreground mb-3">
-              {usageLabel}
+            <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1.5">
+              {isVideoNearLimit && <TriangleAlert className="h-3 w-3 text-destructive" />}
+              {videoUsageLabel}
+            </p>
+            <div className="w-full bg-secondary rounded-full h-2 mb-3">
+              <div
+                className={`${isVideoNearLimit ? 'bg-destructive' : 'bg-gradient-to-r from-primary to-accent'} h-2 rounded-full`}
+                style={{ width: `${videoUsageProgress}%` }}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1.5">
+              {isPublishNearLimit && <TriangleAlert className="h-3 w-3 text-destructive" />}
+              {publishUsageLabel}
             </p>
             {trialLabel && <p className="text-xs text-primary mb-2">{trialLabel}</p>}
             <div className="w-full bg-secondary rounded-full h-2 mb-3">
               <div
-                className="bg-gradient-to-r from-primary to-accent h-2 rounded-full"
-                style={{ width: `${usageProgress}%` }}
+                className={`${isPublishNearLimit ? 'bg-destructive' : 'bg-gradient-to-r from-primary to-accent'} h-2 rounded-full`}
+                style={{ width: `${publishUsageProgress}%` }}
               />
             </div>
             <Link
