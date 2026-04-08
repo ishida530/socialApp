@@ -1,6 +1,6 @@
 # Status Workflowu: Refaktor Backend + Frontend
 
-Ostatnia aktualizacja: 2026-03-05 (iteracja 5)
+Ostatnia aktualizacja: 2026-04-08 (iteracja 6)
 Właściciel: Copilot (lead implementacyjny)
 
 ## Cel
@@ -61,6 +61,23 @@ Utrzymać pełną zgodność warstwy konwersyjnej frontendu z backendowym source
 - `Billing`, `PostComposer`, `Sidebar`, `Landing` korzystaja z jednego sposobu pobierania capabilities.
 - Usunieto hardcoded trial `7 dni` w sidebarze; trial jest teraz oparty o capabilities.
 
+11. Workflow UX/UI (2026-04-08): wybór konta w PostComposer - ZROBIONE
+- `PostComposer` przechowuje `selectedSocialAccountId` per platforma w `campaignContent`.
+- Dla platform z wieloma kontami widoczny jest selektor konta (po `handle`) w kroku treści.
+- Enqueue wysyła jawny wybór kont przez `socialAccountIdByPlatform`.
+- Backend `POST /api/publish-jobs/enqueue` waliduje i respektuje wskazane konto zamiast domyślnego "ostatnio podłączone".
+
+12. Workflow UX/UI (2026-04-08): wizualizacja limitów w sidebarze - ZROBIONE
+- Sidebar prezentuje dwa niezależne limity: `Wideo: X/Y` i `Posty: A/B`.
+- Dodano drugi pasek postępu dla `publish_jobs`.
+- Dla wykorzystania >= 90% pasek przechodzi w kolor `destructive` i wyświetla ikonę ostrzeżenia.
+
+13. Workflow Backend (2026-04-08): automatyczne odświeżanie tokenów OAuth - ZROBIONE
+- Dodano `refreshAllExpiringTokens` w `lib/server/social-oauth.ts` (okno domyślne: 24h).
+- Dodano endpoint `GET /api/cron/refresh-tokens` chroniony `CRON_SECRET`.
+- Dodano logowanie operacyjne sukcesów/porażek odświeżania.
+- Dodano fallback cron w `vercel.json` dla `/api/cron/refresh-tokens`.
+
 ## Ryzyka i uwagi
 - Pozostaje ostrzeżenie techniczne Next.js: migracja `middleware` -> `proxy`.
 - Obecny enqueue publikacji wybiera jedno konto na platformę. Kolejny etap: jawny wybór konta docelowego w composerze.
@@ -72,5 +89,5 @@ Utrzymać pełną zgodność warstwy konwersyjnej frontendu z backendowym source
 
 ## Ostatnia walidacja
 - Diagnostyka: brak błędów w modyfikowanych plikach.
-- Build: `npm run build` przeszedl po iteracji 5.
+- Typecheck: `npx tsc --noEmit` przechodzi po iteracji 6.
 - Pozostało jedynie nieblokujące ostrzeżenie o deprecacji `middleware`.

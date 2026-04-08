@@ -85,10 +85,12 @@ Uwagi:
 
 ## 4a) Harmonogram publikacji na Vercel (Cron)
 
-Aplikacja zawiera minimalny processor jobów publikacji uruchamiany przez Vercel Cron:
+Aplikacja zawiera endpointy cron uruchamiane przez scheduler zewnętrzny i fallback Vercel Cron:
 
 - endpoint: `/api/cron/publish`
-- harmonogram: co 1 minutę (`*/1 * * * *` w `vercel.json`)
+- endpoint: `/api/cron/refresh-tokens`
+- harmonogram główny: scheduler zewnętrzny (np. cron-job.org / GitHub Actions)
+- fallback Vercel Hobby: 1x dziennie na endpoint (zdefiniowane w `vercel.json`)
 - autoryzacja: nagłówek `Authorization: Bearer <CRON_SECRET>`
 
 Wymagane zmienne środowiskowe na Vercel:
