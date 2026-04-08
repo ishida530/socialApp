@@ -93,11 +93,11 @@ function resolveMetaApiVersion() {
 }
 
 function resolveFacebookScope() {
-  return process.env.FACEBOOK_OAUTH_SCOPES || 'public_profile,email,pages_show_list';
+  return process.env.FACEBOOK_OAUTH_SCOPES || 'public_profile,email,pages_show_list,pages_read_engagement,pages_manage_posts,business_management';
 }
 
 function resolveInstagramScope() {
-  return process.env.INSTAGRAM_OAUTH_SCOPES || 'instagram_basic,pages_show_list,business_management';
+  return process.env.INSTAGRAM_OAUTH_SCOPES || 'instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement,pages_manage_posts,business_management';
 }
 
 function resolveMetaClientId(provider: 'facebook' | 'instagram') {
@@ -928,5 +928,111 @@ export async function refreshSocialAccessToken(accountId: string) {
   return {
     accessToken: tokenResult.accessToken,
     expiresAt: tokenResult.expiresAt,
+  };
+}
+
+export async function refreshAllExpiringTokens(hoursAhead = 24) {
+  const now = new Date();
+  const threshold = new Date(now.getTime() + hoursAhead * 60 * 60 * 1000);
+
+  const expiringAccounts = await prisma.socialAccount.findMany({
+    where: {
+      expiresAt: {
+        not: null,
+        lte: threshold,
+      },
+    },
+    select: {
+      id: true,
+      userId: true,
+      platform: true,
+      handle: true,
+      expiresAt: true,
+    },
+    orderBy: {
+      expiresAt: 'asc',
+    },
+  });
+
+  if (expiringAccounts.length === 0) {
+    console.info('[oauth-refresh] no-expiring-accounts', {
+      hoursAhead,
+      threshold: threshold.toISOString(),
+    });
+
+    return {
+      scanned: 0,
+      refreshed: 0,
+      failed: 0,
+      threshold: threshold.toISOString(),
+      results: [] as Array<{
+        accountId: string;
+        platform: PrismaPlatform;
+        status: 'success' | 'failed';
+        expiresAt: string | null;
+        newExpiresAt?: string | null;
+        error?: string;
+      }>,
+    };
+  }
+
+  const results = await Promise.all(
+    expiringAccounts.map(async (account) => {
+      try {
+        const refreshed = await refreshSocialAccessToken(account.id);
+
+        console.info('[oauth-refresh] token-refreshed', {
+          accountId: account.id,
+          userId: account.userId,
+          platform: account.platform,
+          expiresAt: account.expiresAt?.toISOString() ?? null,
+          newExpiresAt: refreshed.expiresAt?.toISOString() ?? null,
+        });
+
+        return {
+          accountId: account.id,
+          platform: account.platform,
+          status: 'success' as const,
+          expiresAt: account.expiresAt?.toISOString() ?? null,
+          newExpiresAt: refreshed.expiresAt?.toISOString() ?? null,
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown token refresh error';
+
+        console.error('[oauth-refresh] token-refresh-failed', {
+          accountId: account.id,
+          userId: account.userId,
+          platform: account.platform,
+          expiresAt: account.expiresAt?.toISOString() ?? null,
+          error: message,
+        });
+
+        return {
+          accountId: account.id,
+          platform: account.platform,
+          status: 'failed' as const,
+          expiresAt: account.expiresAt?.toISOString() ?? null,
+          error: message,
+        };
+      }
+    }),
+  );
+
+  const refreshed = results.filter((result) => result.status === 'success').length;
+  const failed = results.length - refreshed;
+
+  console.info('[oauth-refresh] batch-finished', {
+    scanned: results.length,
+    refreshed,
+    failed,
+    threshold: threshold.toISOString(),
+  });
+
+  return {
+    scanned: results.length,
+    refreshed,
+    failed,
+    threshold: threshold.toISOString(),
+    results,
   };
 }
