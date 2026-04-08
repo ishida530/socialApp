@@ -192,6 +192,16 @@ export async function orchestrateContent(userId: string, input: OrchestrateConte
     }
 
     let bundles = transformByPersona(analysis, input);
+
+    if (input.targetPlatforms && input.targetPlatforms.length > 0) {
+      const allowedPlatforms = new Set(input.targetPlatforms);
+      const filteredBundles = bundles.filter((bundle) => allowedPlatforms.has(bundle.platform));
+
+      if (filteredBundles.length > 0) {
+        bundles = filteredBundles;
+      }
+    }
+
     let schedule = optimizeSchedule(analysis, bundles, input);
 
     if (tier === 'pro' && input.mode === 'ai-autopilot') {

@@ -14,6 +14,23 @@ type CampaignPlatformContent = {
   caption: string;
   hashtags: string[];
   aiScore?: number;
+  selectedSocialAccountId?: string;
+};
+
+type SocialAccount = {
+  id: string;
+  platform: 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'FACEBOOK';
+  handle: string;
+  createdAt?: string;
+};
+
+type TikTokCreatorInfo = {
+  creator_nickname?: string;
+  privacy_level_options?: string[];
+  comment_disabled?: boolean;
+  duet_disabled?: boolean;
+  stitch_disabled?: boolean;
+  max_video_post_duration_sec?: number;
 };
 
 const platformLimits = {
@@ -62,11 +79,19 @@ export function PostComposer() {
   const [selectedPublishPlatforms, setSelectedPublishPlatforms] = useState<Set<PlatformKey>>(new Set());
   const [scheduledDate, setScheduledDate] = useState('');
   const [scheduledTime, setScheduledTime] = useState('');
+  const [tiktokPostingConsent, setTiktokPostingConsent] = useState(false);
+  const [tiktokCreatorInfo, setTiktokCreatorInfo] = useState<TikTokCreatorInfo | null>(null);
+  const [isTikTokCreatorInfoLoading, setIsTikTokCreatorInfoLoading] = useState(false);
+  const [tiktokPrivacyLevel, setTiktokPrivacyLevel] = useState('');
+  const [tiktokAllowComment, setTiktokAllowComment] = useState(true);
+  const [tiktokAllowDuet, setTiktokAllowDuet] = useState(true);
+  const [tiktokAllowStitch, setTiktokAllowStitch] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAutoPilotRunning, setIsAutoPilotRunning] = useState(false);
   const [isCheckoutLoading, setIsCheckoutLoading] = useState(false);
-  const [videos, setVideos] = useState<Array<{ id: string; title: string; createdAt?: string }>>([]);
+  const [videos, setVideos] = useState<Array<{ id: string; title: string; createdAt?: string; durationSec?: number | null }>>([]);
   const [selectedVideoId, setSelectedVideoId] = useState<string>('');
+  const [socialAccounts, setSocialAccounts] = useState<SocialAccount[]>([]);
   const [connectedPlatforms, setConnectedPlatforms] = useState<Set<string>>(new Set());
   const [drafts, setDrafts] = useState<
     Array<{
@@ -89,8 +114,8 @@ export function PostComposer() {
   const bootstrapComposerData = useCallback(async () => {
       try {
         const [videosResponse, accountsResponse, draftsResponse, billingResponse] = await Promise.all([
-          apiClient.get<Array<{ id: string; title: string; createdAt?: string }>>('/videos'),
-          apiClient.get<Array<{ platform: 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'FACEBOOK' }>>('/social-accounts'),
+          apiClient.get<Array<{ id: string; title: string; createdAt?: string; durationSec?: number | null }>>('/videos'),
+          apiClient.get<SocialAccount[]>('/social-accounts'),
           apiClient.get<
             Array<{
               id: string;
@@ -129,8 +154,40 @@ export function PostComposer() {
         const nextSelectedVideo = nextVideos[0]?.id ?? '';
         setSelectedVideoId(nextSelectedVideo);
 
+        const nextSocialAccounts = accountsResponse.data;
+        setSocialAccounts(nextSocialAccounts);
+
+        const preferredAccountByPlatform = new Map<PlatformKey, string>();
+        nextSocialAccounts.forEach((account) => {
+          const key = apiPlatformToKey(account.platform);
+          if (!preferredAccountByPlatform.has(key)) {
+            preferredAccountByPlatform.set(key, account.id);
+          }
+        });
+
+        setCampaignContent((current) => {
+          const next = { ...current };
+          platformOrder.forEach((platform) => {
+            const currentSelection = current[platform].selectedSocialAccountId;
+            const accountForPlatform = nextSocialAccounts
+              .filter((account) => apiPlatformToKey(account.platform) === platform)
+              .map((account) => account.id);
+
+            const selectedSocialAccountId =
+              currentSelection && accountForPlatform.includes(currentSelection)
+                ? currentSelection
+                : preferredAccountByPlatform.get(platform);
+
+            next[platform] = {
+              ...current[platform],
+              selectedSocialAccountId,
+            };
+          });
+          return next;
+        });
+
         const nextConnectedPlatforms = new Set(
-          accountsResponse.data.map((account) => account.platform.toLowerCase()),
+          nextSocialAccounts.map((account) => account.platform.toLowerCase()),
         );
         setConnectedPlatforms(nextConnectedPlatforms);
         setSelectedPublishPlatforms(new Set(nextConnectedPlatforms as Set<PlatformKey>));
@@ -156,6 +213,7 @@ export function PostComposer() {
       } catch {
         setVideos([]);
         setSelectedVideoId('');
+        setSocialAccounts([]);
         setConnectedPlatforms(new Set());
         setSelectedPublishPlatforms(new Set());
         setDrafts([]);
@@ -236,14 +294,95 @@ export function PostComposer() {
   }, []);
 
   const selectedPlatformConnected = connectedPlatforms.has(selectedPlatform);
+  const selectedPlatformAccounts = useMemo(
+    () => socialAccounts.filter((account) => apiPlatformToKey(account.platform) === selectedPlatform),
+    [selectedPlatform, socialAccounts],
+  );
   const connectedPlatformList = useMemo(
     () => Object.keys(platformLimits).filter((platform) => connectedPlatforms.has(platform)) as PlatformKey[],
     [connectedPlatforms],
+  );
+  const visiblePlatformTabs = useMemo(
+    () => connectedPlatformList,
+    [connectedPlatformList],
   );
   const publishablePlatformList = useMemo(
     () => connectedPlatformList.slice(0, maxSelectablePlatforms),
     [connectedPlatformList, maxSelectablePlatforms],
   );
+  const plannedTargetPlatforms = useMemo(
+    () =>
+      publishScope === 'all'
+        ? publishablePlatformList
+        : Array.from(selectedPublishPlatforms).filter((platform) => connectedPlatforms.has(platform)),
+    [connectedPlatforms, publishScope, publishablePlatformList, selectedPublishPlatforms],
+  );
+  const isTikTokPlanned = plannedTargetPlatforms.includes('tiktok');
+
+  useEffect(() => {
+    if (!connectedPlatforms.has('tiktok')) {
+      setTiktokCreatorInfo(null);
+      setTiktokPrivacyLevel('');
+      setTiktokAllowComment(true);
+      setTiktokAllowDuet(true);
+      setTiktokAllowStitch(true);
+      setTiktokPostingConsent(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadTikTokCreatorInfo = async () => {
+      try {
+        setIsTikTokCreatorInfoLoading(true);
+        const response = await apiClient.get<{ creatorInfo: TikTokCreatorInfo | null }>('/social-accounts/tiktok/creator-info');
+        if (cancelled) {
+          return;
+        }
+
+        const info = response.data.creatorInfo;
+        setTiktokCreatorInfo(info);
+
+        const privacyOptions = Array.isArray(info?.privacy_level_options) ? info.privacy_level_options : [];
+        setTiktokPrivacyLevel((current) => {
+          if (current && privacyOptions.includes(current)) {
+            return current;
+          }
+          return privacyOptions[0] || '';
+        });
+
+        setTiktokAllowComment(!(info?.comment_disabled ?? false));
+        setTiktokAllowDuet(!(info?.duet_disabled ?? false));
+        setTiktokAllowStitch(!(info?.stitch_disabled ?? false));
+      } catch {
+        if (!cancelled) {
+          toast.error('Nie udało się pobrać ustawień publikacji TikTok.');
+          setTiktokCreatorInfo(null);
+          setTiktokPrivacyLevel('');
+        }
+      } finally {
+        if (!cancelled) {
+          setIsTikTokCreatorInfoLoading(false);
+        }
+      }
+    };
+
+    void loadTikTokCreatorInfo();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [connectedPlatforms]);
+
+  useEffect(() => {
+    if (visiblePlatformTabs.length === 0) {
+      return;
+    }
+
+    if (!visiblePlatformTabs.includes(selectedPlatform)) {
+      setSelectedPlatform(visiblePlatformTabs[0]);
+    }
+  }, [selectedPlatform, visiblePlatformTabs]);
 
   const updatePlatformContent = (
     platform: PlatformKey,
@@ -326,6 +465,7 @@ export function PostComposer() {
         usedAI: boolean;
       }>('/orchestrate-content', {
         rawInput: campaignBrief.trim(),
+        targetPlatforms: connectedPlatformList.map((platform) => platform.toUpperCase()),
         timezone: timeZone,
         mode: 'ai-autopilot',
         publishMode: 'draft',
@@ -461,9 +601,7 @@ export function PostComposer() {
       return;
     }
 
-    const targetPlatforms = publishScope === 'all'
-      ? publishablePlatformList
-      : Array.from(selectedPublishPlatforms).filter((platform) => connectedPlatforms.has(platform));
+    const targetPlatforms = plannedTargetPlatforms;
 
     if (targetPlatforms.length === 0) {
       toast.error(
@@ -476,6 +614,16 @@ export function PostComposer() {
 
     if (targetPlatforms.length > maxSelectablePlatforms) {
       toast.error(`Twój plan pozwala publikować maksymalnie na ${maxSelectablePlatforms} kanałach społecznościowych.`);
+      return;
+    }
+
+    if (targetPlatforms.includes('tiktok') && !tiktokPostingConsent) {
+      toast.error('Aby publikować na TikTok, potwierdź zgodę na warunki publikacji TikTok.');
+      return;
+    }
+
+    if (targetPlatforms.includes('tiktok') && !tiktokPrivacyLevel) {
+      toast.error('Dla TikTok wybierz poziom prywatności publikacji.');
       return;
     }
 
@@ -510,16 +658,29 @@ export function PostComposer() {
           errorMessage?: string | null;
         };
       }>('/publish-jobs/enqueue', {
+        socialAccountIdByPlatform: Object.fromEntries(
+          targetPlatforms
+            .map((platform) => {
+              const selectedAccountId = campaignContent[platform].selectedSocialAccountId;
+              return selectedAccountId ? [platform.toUpperCase(), selectedAccountId] : null;
+            })
+            .filter((entry): entry is [string, string] => entry !== null),
+        ),
         videoId: selectedVideoId,
         scheduledDate: scheduledDateTime
           ? new Date(scheduledDateTime).toISOString()
           : undefined,
         publishNow,
+        tiktokPostingConsent: targetPlatforms.includes('tiktok') ? tiktokPostingConsent : undefined,
         targetPlatforms: targetPlatforms.map((platform) => platform.toUpperCase()),
         platformSettings: {
           platform: selectedPlatform,
           description: campaignContent[selectedPlatform].caption,
           tags: campaignContent[selectedPlatform].hashtags,
+          privacyStatus: targetPlatforms.includes('tiktok') ? tiktokPrivacyLevel : undefined,
+          allowComment: targetPlatforms.includes('tiktok') ? tiktokAllowComment : undefined,
+          allowDuet: targetPlatforms.includes('tiktok') ? tiktokAllowDuet : undefined,
+          allowStitch: targetPlatforms.includes('tiktok') ? tiktokAllowStitch : undefined,
         },
       });
 
@@ -533,7 +694,7 @@ export function PostComposer() {
         if (immediateOutcome === 'succeeded') {
           toast.success(`Publikacja uruchomiona dla ${totalTargets} platform.`);
         } else if (immediateOutcome === 'retryScheduled') {
-          toast.success('Publikacja uruchomiona. Trwa przetwarzanie.');
+          toast.success('Zadanie dodane do kolejki. Status zaktualizuje sie po kolejnym przebiegu harmonogramu.');
         } else if (immediateOutcome === 'failed') {
           const oauthScopeMissing =
             response.data.publishJob?.errorMessage?.includes('[oauth-scope-missing]') ?? false;
@@ -904,7 +1065,7 @@ export function PostComposer() {
 
               <div className="rounded-2xl border border-border bg-secondary/20 p-3 space-y-3">
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-2">
-                  {platformOrder.map((platform) => {
+                  {visiblePlatformTabs.map((platform) => {
                     const content = campaignContent[platform];
                     const hasText = content.caption.trim().length > 0;
 
@@ -948,6 +1109,30 @@ export function PostComposer() {
                       {remainingChars} / {currentLimit}
                     </span>
                   </div>
+
+                  {selectedPlatformAccounts.length > 1 && (
+                    <div className="mb-3">
+                      <label className="text-xs text-muted-foreground mb-2 block">Konto do publikacji ({selectedPlatform})</label>
+                      <select
+                        value={campaignContent[selectedPlatform].selectedSocialAccountId ?? ''}
+                        onChange={(event) =>
+                          updatePlatformContent(selectedPlatform, (current) => ({
+                            ...current,
+                            selectedSocialAccountId: event.target.value || undefined,
+                          }))
+                        }
+                        className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      >
+                        <option value="">Wybierz konto</option>
+                        {selectedPlatformAccounts.map((account) => (
+                          <option key={account.id} value={account.id}>
+                            {account.handle}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
                   <textarea
                     value={campaignContent[selectedPlatform].caption}
                     onChange={(event) =>
@@ -1079,6 +1264,80 @@ export function PostComposer() {
                       })}
                     </div>
                   )}
+
+                  {isTikTokPlanned && (
+                    <div className="space-y-3 rounded-lg border border-border bg-background/40 p-3">
+                      <p className="text-sm font-medium text-foreground">Ustawienia publikacji TikTok</p>
+                      {isTikTokCreatorInfoLoading ? (
+                        <p className="text-xs text-muted-foreground">Pobieranie ustawień konta TikTok...</p>
+                      ) : (
+                        <>
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-2 block">Prywatność postu</label>
+                            <select
+                              value={tiktokPrivacyLevel}
+                              onChange={(event) => setTiktokPrivacyLevel(event.target.value)}
+                              className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                            >
+                              {(tiktokCreatorInfo?.privacy_level_options || []).map((option) => (
+                                <option key={option} value={option}>
+                                  {option}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <label className="flex items-center gap-2 rounded-lg border border-border px-2 py-2 text-xs text-foreground">
+                              <input
+                                type="checkbox"
+                                checked={tiktokAllowComment}
+                                onChange={(event) => setTiktokAllowComment(event.target.checked)}
+                                disabled={tiktokCreatorInfo?.comment_disabled === true}
+                              />
+                              Komentarze
+                            </label>
+                            <label className="flex items-center gap-2 rounded-lg border border-border px-2 py-2 text-xs text-foreground">
+                              <input
+                                type="checkbox"
+                                checked={tiktokAllowDuet}
+                                onChange={(event) => setTiktokAllowDuet(event.target.checked)}
+                                disabled={tiktokCreatorInfo?.duet_disabled === true}
+                              />
+                              Duet
+                            </label>
+                            <label className="flex items-center gap-2 rounded-lg border border-border px-2 py-2 text-xs text-foreground">
+                              <input
+                                type="checkbox"
+                                checked={tiktokAllowStitch}
+                                onChange={(event) => setTiktokAllowStitch(event.target.checked)}
+                                disabled={tiktokCreatorInfo?.stitch_disabled === true}
+                              />
+                              Stitch
+                            </label>
+                          </div>
+
+                          {typeof tiktokCreatorInfo?.max_video_post_duration_sec === 'number' && selectedVideo?.durationSec && (
+                            <p className="text-xs text-muted-foreground">
+                              Limit długości TikTok dla tego konta: {tiktokCreatorInfo.max_video_post_duration_sec}s. Wybrany film: {selectedVideo.durationSec}s.
+                            </p>
+                          )}
+                        </>
+                      )}
+
+                      <label className="flex items-start gap-2 rounded-lg border border-border bg-background/40 p-3">
+                        <input
+                          type="checkbox"
+                          checked={tiktokPostingConsent}
+                          onChange={(event) => setTiktokPostingConsent(event.target.checked)}
+                          className="mt-0.5"
+                        />
+                        <span className="text-xs text-muted-foreground">
+                          Potwierdzam, ze publikacja na TikTok jest inicjowana recznie przeze mnie i zgadza sie z warunkami TikTok Music Usage Confirmation.
+                        </span>
+                      </label>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1158,7 +1417,7 @@ export function PostComposer() {
                 </button>
                 <button
                   onClick={() => enqueuePublishJob(false)}
-                  disabled={isSubmitting || !selectedVideoId || publishablePlatformList.length === 0}
+                  disabled={isSubmitting || !selectedVideoId || publishablePlatformList.length === 0 || (isTikTokPlanned && (!tiktokPostingConsent || !tiktokPrivacyLevel))}
                   className="col-span-2 sm:col-span-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm hover:bg-primary/90 disabled:opacity-60"
                 >
                   <Send className="w-4 h-4" />
@@ -1166,7 +1425,7 @@ export function PostComposer() {
                 </button>
                 <button
                   onClick={() => enqueuePublishJob(true)}
-                  disabled={isSubmitting || !selectedVideoId || publishablePlatformList.length === 0}
+                  disabled={isSubmitting || !selectedVideoId || publishablePlatformList.length === 0 || (isTikTokPlanned && (!tiktokPostingConsent || !tiktokPrivacyLevel))}
                   className="col-span-2 sm:col-span-1 px-4 py-2.5 rounded-lg bg-secondary/50 text-foreground text-sm disabled:opacity-60"
                 >
                   Opublikuj teraz

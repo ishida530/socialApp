@@ -15,6 +15,13 @@ type PublishTransportResult = {
   postUrl?: string;
 };
 
+type TikTokPublishSettings = {
+  privacyLevel: string;
+  allowComment: boolean;
+  allowDuet: boolean;
+  allowStitch: boolean;
+};
+
 class PublishAuthError extends Error {
   status?: number;
 
@@ -31,6 +38,28 @@ function isPermanentOAuthScopeError(message: string) {
     normalized.includes('scope_not_authorized') ||
     normalized.includes('did not authorize the scope') ||
     normalized.includes('insufficient scope')
+  );
+}
+
+function isPermanentTikTokConfigurationError(message: string) {
+  const normalized = message.toLowerCase();
+  return normalized.includes('unaudited_client_can_only_post_to_private_accounts');
+}
+
+function isInstagramMediaNotReadyError(message: string) {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes('media id is not available') ||
+    normalized.includes('"code":9007') ||
+    normalized.includes('"error_subcode":2207027')
+  );
+}
+
+function isPermanentFacebookPermissionError(message: string) {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes('no permission to publish the video') ||
+    (normalized.includes('facebook publish failed') && normalized.includes('"code":100'))
   );
 }
 
@@ -69,6 +98,38 @@ function extractRetryAttempt(errorMessage?: string | null) {
 
 function buildRetryMessage(attempt: number, reason: string) {
   return `[retry-attempt:${attempt}] ${reason}`;
+}
+
+function extractTikTokSettingsFromMessage(errorMessage?: string | null) {
+  if (!errorMessage) {
+    return null;
+  }
+
+  const match = errorMessage.match(/^\[tiktok-settings:([A-Za-z0-9_-]+)\]\s*/);
+  if (!match?.[1]) {
+    return null;
+  }
+
+  try {
+    const decoded = Buffer.from(match[1], 'base64url').toString('utf8');
+    const parsed = JSON.parse(decoded) as Partial<TikTokPublishSettings>;
+
+    if (
+      typeof parsed.privacyLevel !== 'string' ||
+      typeof parsed.allowComment !== 'boolean' ||
+      typeof parsed.allowDuet !== 'boolean' ||
+      typeof parsed.allowStitch !== 'boolean'
+    ) {
+      return null;
+    }
+
+    return {
+      settings: parsed as TikTokPublishSettings,
+      prefix: match[0],
+    };
+  } catch {
+    return null;
+  }
 }
 
 function buildTikTokTrackingMessage(publishId: string, pollAttempt: number) {
@@ -217,13 +278,16 @@ async function failOrScheduleRetry(
   jobId: string,
   currentAttempt: number,
   reason: string,
+  contextPrefix = '',
 ) {
+  const retryMessage = `${contextPrefix}${buildRetryMessage(currentAttempt, reason)}`;
+
   if (currentAttempt >= MAX_RETRY_ATTEMPTS) {
     await prisma.publishJob.update({
       where: { id: jobId },
       data: {
         status: 'FAILED',
-        errorMessage: buildRetryMessage(currentAttempt, reason),
+        errorMessage: retryMessage,
       },
     });
 
@@ -244,7 +308,7 @@ async function failOrScheduleRetry(
     data: {
       status: 'PENDING',
       scheduledFor: nextRun,
-      errorMessage: buildRetryMessage(currentAttempt, reason),
+      errorMessage: retryMessage,
     },
   });
 
@@ -391,7 +455,7 @@ async function publishToYouTube(job: {
       categoryId: '22',
     },
     status: {
-      privacyStatus: 'private',
+      privacyStatus: 'public',
     },
   };
 
@@ -439,6 +503,7 @@ async function publishToYouTube(job: {
 
 async function publishToTikTok(job: {
   video: { id: string; title: string; sourceUrl: string };
+  tiktokSettings?: TikTokPublishSettings;
 }, accessToken: string): Promise<PublishTransportResult> {
   const sourceUrl = buildTikTokPullSourceUrl(job.video.id, job.video.sourceUrl);
 
@@ -451,10 +516,10 @@ async function publishToTikTok(job: {
     body: JSON.stringify({
       post_info: {
         title: job.video.title.slice(0, 2200),
-        privacy_level: 'SELF_ONLY',
-        disable_comment: false,
-        disable_duet: false,
-        disable_stitch: false,
+        privacy_level: job.tiktokSettings?.privacyLevel ?? 'SELF_ONLY',
+        disable_comment: !(job.tiktokSettings?.allowComment ?? true),
+        disable_duet: !(job.tiktokSettings?.allowDuet ?? true),
+        disable_stitch: !(job.tiktokSettings?.allowStitch ?? true),
       },
       source_info: {
         source: 'PULL_FROM_URL',
@@ -467,6 +532,13 @@ async function publishToTikTok(job: {
     const errorBody = await response.text();
 
     if (response.status === 401 || response.status === 403) {
+      if (isPermanentTikTokConfigurationError(errorBody)) {
+        throw new PublishAuthError(
+          `TikTok client configuration not approved: ${errorBody || response.statusText}`,
+          response.status,
+        );
+      }
+
       throw new PublishAuthError(
         `TikTok access token invalid/expired: ${errorBody || response.statusText}`,
         response.status,
@@ -614,33 +686,47 @@ async function publishToInstagram(job: {
     creation_id: createPayload.id,
   });
 
-  const publishResponse = await fetch(
-    `https://graph.facebook.com/${version}/${igUserId}/media_publish`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: publishParams.toString(),
-    },
-  );
+  let publishPayload: { id?: string } | null = null;
+  let lastInstagramPublishError = '';
 
-  if (!publishResponse.ok) {
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    const publishResponse = await fetch(
+      `https://graph.facebook.com/${version}/${igUserId}/media_publish`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: publishParams.toString(),
+      },
+    );
+
+    if (publishResponse.ok) {
+      publishPayload = (await publishResponse.json()) as { id?: string };
+      break;
+    }
+
     const errorBody = await publishResponse.text();
+    lastInstagramPublishError = errorBody || publishResponse.statusText;
 
     if (publishResponse.status === 401 || publishResponse.status === 403) {
       throw new PublishAuthError(
-        `Instagram access token invalid/expired: ${errorBody || publishResponse.statusText}`,
+        `Instagram access token invalid/expired: ${lastInstagramPublishError}`,
         publishResponse.status,
       );
     }
 
-    throw new Error(`Instagram publish failed: ${errorBody || publishResponse.statusText}`);
+    if (isInstagramMediaNotReadyError(lastInstagramPublishError) && attempt < 3) {
+      await new Promise((resolve) => setTimeout(resolve, INSTAGRAM_CONTAINER_POLL_SECONDS * 1000));
+      continue;
+    }
+
+    throw new Error(`Instagram publish failed: ${lastInstagramPublishError}`);
   }
 
-  const publishPayload = (await publishResponse.json()) as {
-    id?: string;
-  };
+  if (!publishPayload) {
+    throw new Error(`Instagram publish failed: ${lastInstagramPublishError || 'unknown error'}`);
+  }
 
   return {
     provider: 'INSTAGRAM' as const,
@@ -741,6 +827,10 @@ async function processClaimedJob(jobId: string) {
   }
 
   const nextAttempt = extractRetryAttempt(job.errorMessage) + 1;
+  const extractedTikTokSettings =
+    job.socialAccount.platform === 'TIKTOK'
+      ? extractTikTokSettingsFromMessage(job.errorMessage)
+      : null;
   const tiktokTrackingState =
     job.socialAccount.platform === 'TIKTOK'
       ? extractTikTokTrackingState(job.errorMessage)
@@ -758,6 +848,7 @@ async function processClaimedJob(jobId: string) {
       sourceUrl: job.video.sourceUrl,
       localPath: job.video.localPath,
     },
+    tiktokSettings: extractedTikTokSettings?.settings,
   };
 
   try {
@@ -883,6 +974,27 @@ async function processClaimedJob(jobId: string) {
     return 'succeeded' as const;
   } catch (error) {
     if (error instanceof PublishAuthError) {
+      if (isPermanentTikTokConfigurationError(error.message)) {
+        const reason =
+          '[tiktok-unaudited-client] Integracja TikTok działa w trybie ograniczonym i pozwala publikować tylko na wybrane konta testowe/prywatne. Sprawdź konfigurację aplikacji w TikTok Developers (audyt/review i dozwolone konta).';
+
+        await prisma.publishJob.update({
+          where: { id: job.id },
+          data: {
+            status: 'FAILED',
+            errorMessage: reason,
+          },
+        });
+
+        logEvent('publish-processor', 'job-failed-final', {
+          jobId: job.id,
+          attempt: nextAttempt,
+          reason: 'tiktok-unaudited-client',
+        });
+
+        return 'failed' as const;
+      }
+
       if (isPermanentOAuthScopeError(error.message)) {
         const reason =
           '[oauth-scope-missing] Brak uprawnień OAuth do publikacji. Włącz wymagane scope w aplikacji TikTok Developers, potem połącz konto ponownie.';
@@ -1007,6 +1119,48 @@ async function processClaimedJob(jobId: string) {
 
         return 'succeeded' as const;
       } catch (fallbackError) {
+        if (fallbackError instanceof Error && isPermanentTikTokConfigurationError(fallbackError.message)) {
+          const reason =
+            '[tiktok-unaudited-client] Integracja TikTok działa w trybie ograniczonym i pozwala publikować tylko na wybrane konta testowe/prywatne. Sprawdź konfigurację aplikacji w TikTok Developers (audyt/review i dozwolone konta).';
+
+          await prisma.publishJob.update({
+            where: { id: job.id },
+            data: {
+              status: 'FAILED',
+              errorMessage: reason,
+            },
+          });
+
+          logEvent('publish-processor', 'job-failed-final', {
+            jobId: job.id,
+            attempt: nextAttempt,
+            reason: 'tiktok-unaudited-client',
+          });
+
+          return 'failed' as const;
+        }
+
+        if (fallbackError instanceof Error && isPermanentOAuthScopeError(fallbackError.message)) {
+          const reason =
+            '[oauth-scope-missing] Brak uprawnień OAuth do publikacji. Włącz wymagane scope w aplikacji TikTok Developers, potem połącz konto ponownie.';
+
+          await prisma.publishJob.update({
+            where: { id: job.id },
+            data: {
+              status: 'FAILED',
+              errorMessage: reason,
+            },
+          });
+
+          logEvent('publish-processor', 'job-failed-final', {
+            jobId: job.id,
+            attempt: nextAttempt,
+            reason: 'oauth-scope-not-authorized',
+          });
+
+          return 'failed' as const;
+        }
+
         const reason =
           fallbackError instanceof Error
             ? fallbackError.message
@@ -1017,16 +1171,55 @@ async function processClaimedJob(jobId: string) {
           attempt: nextAttempt,
         });
 
-        return failOrScheduleRetry(job.id, nextAttempt, reason);
+        return failOrScheduleRetry(job.id, nextAttempt, reason, extractedTikTokSettings?.prefix || '');
       }
     }
 
     const reason = error instanceof Error ? error.message : 'Unknown publish error';
+
+    if (isPermanentTikTokConfigurationError(reason)) {
+      await prisma.publishJob.update({
+        where: { id: job.id },
+        data: {
+          status: 'FAILED',
+          errorMessage:
+            '[tiktok-unaudited-client] Integracja TikTok działa w trybie ograniczonym i pozwala publikować tylko na wybrane konta testowe/prywatne. Sprawdź konfigurację aplikacji w TikTok Developers (audyt/review i dozwolone konta).',
+        },
+      });
+
+      logEvent('publish-processor', 'job-failed-final', {
+        jobId: job.id,
+        attempt: nextAttempt,
+        reason: 'tiktok-unaudited-client',
+      });
+
+      return 'failed' as const;
+    }
+
+    if (isPermanentFacebookPermissionError(reason)) {
+      await prisma.publishJob.update({
+        where: { id: job.id },
+        data: {
+          status: 'FAILED',
+          errorMessage:
+            '[facebook-permission-missing] Brak uprawnień do publikacji wideo na stronie Facebook. Dodaj wymagane scope aplikacji Meta i połącz konto Facebook ponownie.',
+        },
+      });
+
+      logEvent('publish-processor', 'job-failed-final', {
+        jobId: job.id,
+        attempt: nextAttempt,
+        reason: 'facebook-permission-missing',
+      });
+
+      return 'failed' as const;
+    }
+
     logError('publish-processor', 'job-processing-error', error, {
       jobId: job.id,
       attempt: nextAttempt,
     });
-    return failOrScheduleRetry(job.id, nextAttempt, reason);
+    return failOrScheduleRetry(job.id, nextAttempt, reason, extractedTikTokSettings?.prefix || '');
   }
 }
 

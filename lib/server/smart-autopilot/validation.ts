@@ -91,6 +91,28 @@ function validatePerformanceData(performanceData: unknown, errors: string[]) {
   });
 }
 
+function validateTargetPlatforms(targetPlatforms: unknown, errors: string[]) {
+  if (targetPlatforms === undefined) {
+    return;
+  }
+
+  if (!Array.isArray(targetPlatforms)) {
+    errors.push('targetPlatforms musi być tablicą');
+    return;
+  }
+
+  targetPlatforms.forEach((platform, index) => {
+    if (
+      platform !== 'TIKTOK' &&
+      platform !== 'INSTAGRAM' &&
+      platform !== 'YOUTUBE' &&
+      platform !== 'FACEBOOK'
+    ) {
+      errors.push(`targetPlatforms[${index}] jest niepoprawne`);
+    }
+  });
+}
+
 export function validateOrchestrateContentInput(payload: unknown) {
   const errors: string[] = [];
   if (!isObject(payload)) {
@@ -141,6 +163,7 @@ export function validateOrchestrateContentInput(payload: unknown) {
 
   validateMediaFiles(body.mediaFiles, errors);
   validatePerformanceData(body.performanceData, errors);
+  validateTargetPlatforms(body.targetPlatforms, errors);
 
   if (errors.length > 0) {
     return {
@@ -153,6 +176,9 @@ export function validateOrchestrateContentInput(payload: unknown) {
     personaHint: body.personaHint as Persona | undefined,
     rawInput: (body.rawInput as string | undefined)?.trim() || undefined,
     mediaFiles: body.mediaFiles as MediaFileInput[] | undefined,
+    targetPlatforms: Array.isArray(body.targetPlatforms)
+      ? Array.from(new Set(body.targetPlatforms)) as OrchestrateContentInput['targetPlatforms']
+      : undefined,
     timezone: body.timezone as string,
     performanceData: body.performanceData as PerformanceDataInput[] | undefined,
     mode: body.mode as OrchestrateContentInput['mode'],

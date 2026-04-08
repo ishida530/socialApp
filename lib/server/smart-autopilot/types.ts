@@ -56,6 +56,7 @@ export type OrchestrateContentInput = {
   personaHint?: Persona;
   rawInput?: string;
   mediaFiles?: MediaFileInput[];
+  targetPlatforms?: Array<'TIKTOK' | 'INSTAGRAM' | 'YOUTUBE' | 'FACEBOOK'>;
   timezone: string;
   performanceData?: PerformanceDataInput[];
   mode: OrchestrationMode;

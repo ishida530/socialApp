@@ -50,6 +50,19 @@ function ecommerceBundles(rawInput?: string): PlatformBundle[] {
       hashtags: ['#ecommerce', '#newdrop', '#linkinbio'],
       cta: 'Kliknij Link in Bio.',
     },
+    {
+      platform: 'YOUTUBE',
+      title: asTitle(rawInput),
+      caption: `Szybki test produktu: ${base}`,
+      hashtags: ['#shorts', '#unboxing', '#gadgets'],
+      cta: 'Sprawdź link i zamów online.',
+    },
+    {
+      platform: 'TIKTOK',
+      caption: `3 powody, dla których warto: ${base}`,
+      hashtags: ['#tiktokmademebuyit', '#ecommerce', '#musthave'],
+      cta: 'Kliknij i sprawdź ofertę.',
+    },
   ];
 }
 
@@ -96,6 +109,19 @@ function neutralBundles(rawInput?: string): PlatformBundle[] {
       platform: 'INSTAGRAM',
       caption: base,
       hashtags: ['#post'],
+    },
+    {
+      platform: 'YOUTUBE',
+      title: asTitle(rawInput),
+      caption: `Shorts update: ${base}`,
+      hashtags: ['#shorts', '#update'],
+      cta: 'Subskrybuj po kolejne materiały.',
+    },
+    {
+      platform: 'TIKTOK',
+      caption: `Krótka aktualizacja: ${base}`,
+      hashtags: ['#tiktok', '#update'],
+      cta: 'Zostaw komentarz i obserwuj profil.',
     },
   ];
 }
