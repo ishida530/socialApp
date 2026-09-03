@@ -35,6 +35,26 @@ Zatrzymanie lokalnych usług:
 npm run docker:down
 ```
 
+## 2a) Flow tworzenia posta (drafts → enqueue)
+
+Tworzenie posta jest dwuetapowe: najpierw powstają DRAFT-owe `PublishJob`-y (po jednym na platformę), potem wybrane z nich przechodzą w PENDING.
+
+```bash
+# Krok 1: draft dla wideo/zdjęcia (tworzy PublishJob w statusie DRAFT per platforma)
+curl -X POST http://localhost:3000/api/publish-jobs/drafts \
+  -H "Content-Type: application/json" -H "Cookie: flowstate_token=<token>" \
+  -d '{"videoId":"<id>","contentType":"Klip","songTitle":"Tytuł"}'
+
+# Krok 2: finalizacja - wybrane platformy -> PENDING, reszta draftów usunięta
+curl -X POST http://localhost:3000/api/publish-jobs/enqueue \
+  -H "Content-Type: application/json" -H "Cookie: flowstate_token=<token>" \
+  -d '{"postGroupId":"<id>","publishNow":true,"targetPlatforms":["INSTAGRAM"]}'
+```
+
+## 2b) Obsługa zdjęć (IMAGE)
+
+`Video.mediaType` może być `VIDEO` lub `IMAGE`. Dla postów typu IMAGE platformy, które nie obsługują publikacji zdjęć (obecnie YouTube), są automatycznie pomijane już na etapie tworzenia draftów — UI pokazuje wtedy notkę „YouTube pominięty” zamiast zakładki tej platformy.
+
 ## 3) Konfiguracja env (lokalnie)
 
 Główny plik środowiskowy:
@@ -71,6 +91,18 @@ Uwagi:
 - `NEXT_PUBLIC_API_URL` dla fullstack Next powinno pozostać ustawione na `/api`.
 - Dla lokalnego callbacku TikTok redirect ustaw: `http://localhost:3000/api/auth/callback/tiktok`.
 - W panelu TikTok Login Kit redirect URI musi być identyczne 1:1.
+
+## 3a) Tryb aplikacji (APP_MODE)
+
+`APP_MODE` steruje tym, czy appka działa jako self-hosted instancja jednego użytkownika, czy jako wielo-najemcza usługa z limitami planów. Domyślnie (brak zmiennej) to `personal`.
+
+- `APP_MODE="personal"` (domyślny): rejestracja zamyka się po pierwszym koncie, a limity planu/subskrypcji (`assertUsageAllowed`, limit platform na FREE, okno harmonogramu) są pomijane.
+- `APP_MODE="commercial"`: rejestracja bez limitu kont, limity planów (np. FREE = max 1 platforma naraz, 3 publikacje/miesiąc) są egzekwowane.
+
+```bash
+# .env
+APP_MODE="commercial"
+```
 
 ## 4) Deploy na Vercel + Supabase
 
@@ -114,6 +146,14 @@ Aktualne endpointy i pliki weryfikacyjne:
 Uwaga: nazwy plików muszą być identyczne z tymi wymaganymi w panelu TikTok.
 
 ## 6) Diagnostyka
+
+### Testy automatyczne
+
+Testy (Vitest) obejmują reducer kreatora posta i kluczowe endpointy API (enqueue, tryb APP_MODE przy rejestracji, limity subskrypcji, zgoda TikTok). Wymagają działającej lokalnej bazy (`npm run docker:up`) i skonfigurowanego `.env`.
+
+```bash
+npm test
+```
 
 Szybki test API:
 
@@ -162,4 +202,3 @@ npm run dev
 6. Zweryfikuj cron `/api/cron/publish` i statusy jobów.
 7. Zweryfikuj TikTok webhook i pliki domenowe `.txt`.
 8. Po wdrożeniu sprawdź panel admin jobów: `/admin/jobs`.
-# socialApp
