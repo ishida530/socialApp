@@ -43,10 +43,28 @@ function measureVideoDuration(file: File): Promise<number | null> {
   });
 }
 
-async function pollForVideoBySourceUrl(sourceUrl: string): Promise<VideoDto | null> {
-  for (let attempt = 0; attempt < 10; attempt += 1) {
+const POLL_INTERVAL_MS = 700;
+
+// The client-side upload() promise resolves once bytes finish transferring, but the Video
+// row is only created afterwards by the onUploadCompleted webhook Vercel Blob's infra calls
+// back to our server — for large multipart video uploads that gap was measured at ~13s in
+// production for a 43MB file, well past a flat short timeout. Scale the poll budget with
+// file size so large uploads get a realistic window instead of one sized for tiny files.
+function pollBudgetMsForFileSize(fileSizeBytes: number) {
+  const fileSizeMB = fileSizeBytes / (1024 * 1024);
+  const scaledMs = 8000 + fileSizeMB * 900;
+  return Math.min(scaledMs, 90000);
+}
+
+async function pollForVideoBySourceUrl(sourceUrl: string, fileSizeBytes: number): Promise<VideoDto | null> {
+  const maxAttempts = Math.ceil(pollBudgetMsForFileSize(fileSizeBytes) / POLL_INTERVAL_MS);
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     try {
-      const response = await apiClient.get<VideoDto[]>('/videos');
+      // apiClient caches GET /videos for 20s client-side — without a cache-busting param
+      // every poll after the first would just re-read the same stale (pre-upload) list
+      // instead of actually re-querying the server.
+      const response = await apiClient.get<VideoDto[]>('/videos', { params: { _pollTs: Date.now() } });
       const match = response.data.find((video) => video.sourceUrl === sourceUrl);
       if (match) {
         return match;
@@ -55,7 +73,7 @@ async function pollForVideoBySourceUrl(sourceUrl: string): Promise<VideoDto | nu
       // keep polling
     }
 
-    await wait(700);
+    await wait(POLL_INTERVAL_MS);
   }
 
   return null;
@@ -119,7 +137,7 @@ export function MediaStep({
 
     try {
       const [resolvedVideo, durationSec] = await Promise.all([
-        pollForVideoBySourceUrl(info.sourceUrl),
+        pollForVideoBySourceUrl(info.sourceUrl, info.file.size),
         measureVideoDuration(info.file),
       ]);
 
