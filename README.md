@@ -149,10 +149,14 @@ Uwaga: nazwy plików muszą być identyczne z tymi wymaganymi w panelu TikTok.
 
 ### Testy automatyczne
 
-Testy (Vitest) obejmują reducer kreatora posta i kluczowe endpointy API (enqueue, tryb APP_MODE przy rejestracji, limity subskrypcji, zgoda TikTok). Wymagają działającej lokalnej bazy (`npm run docker:up`) i skonfigurowanego `.env`.
+Testy (Vitest) obejmują reducer kreatora posta i kluczowe endpointy API (persystencja treści przy tworzeniu draftu, enqueue, tryb APP_MODE przy rejestracji, limity subskrypcji, zgoda TikTok). Wymagają działającej lokalnej bazy (`npm run docker:up`) i skonfigurowanego `.env`.
+
+`npm test` uruchamia cały zestaw dwukrotnie — raz z `APP_MODE=personal`, raz z `APP_MODE=commercial` — bo część zachowań (limity planu, blokada rejestracji) różni się między trybami. Testy same odczytują `APP_MODE` z otoczenia, nie ustawiają go w kodzie.
 
 ```bash
-npm test
+npm test               # oba tryby po kolei
+npm run test:personal  # tylko personal
+npm run test:commercial  # tylko commercial
 ```
 
 Szybki test API:
