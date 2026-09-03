@@ -1,0 +1,186 @@
+generator client {
+  provider = "prisma-client-js"
+  engineType = "binary"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Platform {
+  YOUTUBE
+  INSTAGRAM
+  TIKTOK
+  FACEBOOK
+}
+
+enum VideoStatus {
+  UPLOADED
+  PROCESSING
+  READY
+  FAILED
+}
+
+enum MediaType {
+  VIDEO
+  IMAGE
+}
+
+enum PublishStatus {
+  DRAFT
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+  CANCELED
+}
+
+enum PlanTier {
+  FREE
+  STARTER
+  PRO
+  BUSINESS
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELED
+  PAST_DUE
+}
+
+model User {
+  id             String          @id @default(cuid())
+  email          String          @unique
+  name           String
+  passwordHash   String?
+  defaultExplicitContent Boolean?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  socialAccounts SocialAccount[]
+  videos         Video[]
+  subscription   Subscription?
+  usageCounters  UsageCounter[]
+  passwordResetTokens PasswordResetToken[]
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model SocialAccount {
+  id           String       @id @default(cuid())
+  platform     Platform
+  handle       String
+  externalId   String?
+  accessToken  String?
+  refreshToken String?
+  expiresAt    DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  userId       String
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  publishJobs  PublishJob[]
+
+  @@index([userId])
+  @@unique([platform, externalId])
+}
+
+model Video {
+  id           String       @id @default(cuid())
+  title        String
+  description  String?
+  tags         String[]     @default([])
+  sourceUrl    String
+  localPath    String?
+  thumbnailUrl String?
+  durationSec  Int?
+  mediaType    MediaType    @default(VIDEO)
+  status       VideoStatus  @default(UPLOADED)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  userId       String
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  publishJobs  PublishJob[]
+
+  @@index([userId])
+}
+
+model PublishJob {
+  id              String        @id @default(cuid())
+  status          PublishStatus @default(PENDING)
+  postGroupId     String
+  caption         String        @default("")
+  hashtags        String[]      @default([])
+  title           String?
+  mentions        String[]      @default([])
+  isExplicit      Boolean?
+  contentWarnings String[]      @default([])
+  tiktokPrivacyLevel String?
+  tiktokAllowComment Boolean?
+  tiktokAllowDuet    Boolean?
+  tiktokAllowStitch  Boolean?
+  tiktokConsentAt    DateTime?
+  scheduledFor    DateTime
+  publishedAt     DateTime?
+  remotePostId    String?
+  remotePostUrl   String?
+  errorMessage    String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  videoId         String
+  socialAccountId String
+  video           Video         @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  socialAccount   SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+
+  @@index([videoId])
+  @@index([socialAccountId])
+  @@index([status, scheduledFor])
+  @@index([postGroupId])
+}
+
+model Subscription {
+  id                     String             @id @default(cuid())
+  userId                 String             @unique
+  user                   User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan                   PlanTier           @default(FREE)
+  status                 SubscriptionStatus @default(ACTIVE)
+  provider               String             @default("mock")
+  providerCustomerId     String?
+  providerSubscriptionId String?
+  currentPeriodStart     DateTime?
+  currentPeriodEnd       DateTime?
+  cancelAtPeriodEnd      Boolean            @default(false)
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+
+  @@index([plan, status])
+}
+
+model UsageCounter {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  metric      String
+  periodStart DateTime
+  count       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, metric, periodStart])
+  @@index([userId, metric])
+}
+
+model StripeEvent {
+  id        String   @id
+  type      String
+  processed Boolean  @default(false)
+  createdAt DateTime @default(now())
+}

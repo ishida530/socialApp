@@ -1,0 +1,3 @@
+ALTER TABLE "PublishJob"
+  ADD COLUMN IF NOT EXISTS "remotePostId" TEXT,
+  ADD COLUMN IF NOT EXISTS "remotePostUrl" TEXT;
