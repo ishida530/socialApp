@@ -67,6 +67,7 @@ export function MediaStep({
   video,
   isStarting,
   resumeAvailable,
+  tiktokConnected,
   onContentTypeChange,
   onSongTitleChange,
   onVideoResolved,
@@ -79,6 +80,7 @@ export function MediaStep({
   video: UploadedVideo | null;
   isStarting: boolean;
   resumeAvailable: boolean;
+  tiktokConnected: boolean;
   onContentTypeChange: (value: string) => void;
   onSongTitleChange: (value: string) => void;
   onVideoResolved: (video: UploadedVideo | null) => void;
@@ -87,9 +89,32 @@ export function MediaStep({
   onContinue: () => void;
 }) {
   const [isResolvingUpload, setIsResolvingUpload] = useState(false);
+  const [tiktokDurationWarning, setTiktokDurationWarning] = useState<string | null>(null);
+
+  const checkTiktokDurationLimit = async (durationSec: number) => {
+    if (!tiktokConnected) {
+      return;
+    }
+
+    try {
+      const response = await apiClient.get<{ creatorInfo: { max_video_post_duration_sec?: number } | null }>(
+        '/social-accounts/tiktok/creator-info',
+      );
+      const maxDuration = response.data.creatorInfo?.max_video_post_duration_sec;
+
+      if (typeof maxDuration === 'number' && durationSec > maxDuration) {
+        setTiktokDurationWarning(
+          `Ten materiał (${Math.round(durationSec)}s) przekracza maksymalny limit TikTok (${maxDuration}s) dla Twojego konta — publikacja na TikTok się nie powiedzie, dopóki nie skrócisz materiału albo nie odznaczysz TikToka w kroku "Kiedy i gdzie".`,
+        );
+      }
+    } catch {
+      // soft check — connectivity/API issues here shouldn't block the upload flow
+    }
+  };
 
   const handleUploaded = async (info: { sourceUrl: string; mediaType: 'video' | 'image'; file: File }) => {
     setIsResolvingUpload(true);
+    setTiktokDurationWarning(null);
     onVideoResolved(null);
 
     try {
@@ -107,8 +132,10 @@ export function MediaStep({
         try {
           await apiClient.patch(`/videos/${resolvedVideo.id}`, { durationSec });
         } catch {
-          // non-critical — only used for a soft TikTok duration warning later
+          // non-critical — only used for the soft TikTok duration warning below
         }
+
+        void checkTiktokDurationLimit(durationSec);
       }
 
       onVideoResolved({
@@ -158,6 +185,9 @@ export function MediaStep({
           <p className="text-xs text-primary mt-2">
             Gotowe: {video.title} ({video.mediaType === 'IMAGE' ? 'zdjęcie' : 'wideo'})
           </p>
+        )}
+        {tiktokDurationWarning && (
+          <p className="text-xs text-destructive mt-2">{tiktokDurationWarning}</p>
         )}
       </div>
 

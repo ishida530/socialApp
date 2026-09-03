@@ -9,7 +9,6 @@ import {
   incrementUsage,
 } from '@/lib/server/subscription';
 import { processPublishJobImmediately } from '@/lib/server/publish-processor';
-import { fetchTikTokCreatorInfo } from '@/lib/server/tiktok-creator-info';
 
 type SocialPlatform = 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'FACEBOOK';
 
@@ -122,19 +121,6 @@ export async function POST(request: NextRequest) {
 
       if (!tiktokJob.tiktokPrivacyLevel) {
         return badRequest('Dla TikTok wybierz poziom prywatności publikacji w kroku przeglądu.');
-      }
-
-      const creatorInfo = await fetchTikTokCreatorInfo(tiktokJob.socialAccountId);
-
-      if (
-        tiktokJob.video.mediaType === 'VIDEO' &&
-        typeof creatorInfo?.max_video_post_duration_sec === 'number' &&
-        tiktokJob.video.durationSec &&
-        tiktokJob.video.durationSec > creatorInfo.max_video_post_duration_sec
-      ) {
-        return badRequest(
-          `Film przekracza maksymalny limit TikTok (${creatorInfo.max_video_post_duration_sec}s) dla tego konta.`,
-        );
       }
     }
 

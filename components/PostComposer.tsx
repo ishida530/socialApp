@@ -88,6 +88,7 @@ export function PostComposer() {
               video={state.video}
               isStarting={state.isStarting}
               resumeAvailable={Boolean(state.resumeCandidate)}
+              tiktokConnected={state.connectedAccounts.some((account) => account.platform === 'TIKTOK')}
               onContentTypeChange={actions.setContentType}
               onSongTitleChange={actions.setSongTitle}
               onVideoResolved={actions.setVideo}
