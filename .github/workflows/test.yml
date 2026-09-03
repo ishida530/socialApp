@@ -1,0 +1,64 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: flowstate
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d flowstate"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # tests/setup-env.ts loads a real .env file (process.loadEnvFile) and throws if it's
+      # missing, so this has to be an actual file, not just workflow `env:`. Values below are
+      # not secrets: nothing in the test suite ever calls out to a real external API (TikTok
+      # creator-info is mocked, publish jobs are created with publishNow:false), so JWT_SECRET
+      # only needs to be internally consistent for this run, not kept private.
+      - name: Create test .env
+        run: |
+          cat <<'EOF' > .env
+          DATABASE_URL="postgresql://postgres:postgres@localhost:5432/flowstate?schema=public"
+          DIRECT_URL="postgresql://postgres:postgres@localhost:5432/flowstate?schema=public"
+          JWT_SECRET="test-only-not-a-real-secret"
+          JWT_EXPIRES_IN="3600"
+          APP_MODE="personal"
+          NODE_ENV="test"
+          EOF
+
+      - name: Generate Prisma client
+        run: npx prisma generate --schema prisma/schema.prisma
+
+      - name: Apply migrations
+        run: npx prisma migrate deploy --schema prisma/schema.prisma
+
+      - name: Run tests
+        run: npm test
