@@ -3,8 +3,6 @@ ALTER TYPE "PlanTier" RENAME TO "PlanTier_old";
 
 CREATE TYPE "PlanTier" AS ENUM ('FREE', 'STARTER', 'PRO', 'BUSINESS');
 
-ALTER TABLE "Subscription" ALTER COLUMN "plan" DROP DEFAULT;
-
 ALTER TABLE "Subscription"
 ALTER COLUMN "plan" TYPE "PlanTier"
 USING (
@@ -13,7 +11,5 @@ USING (
     ELSE "plan"::text::"PlanTier"
   END
 );
-
-ALTER TABLE "Subscription" ALTER COLUMN "plan" SET DEFAULT 'FREE'::"PlanTier";
 
 DROP TYPE "PlanTier_old";
