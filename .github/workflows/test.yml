@@ -33,14 +33,19 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          # No `cache: 'npm'` here on purpose: a run right after adding @playwright/test
-          # hit npm's well-known optional-dependencies bug (npm/cli#4828) — lightningcss's
-          # Linux native binding failed to install with "Cannot find native binding",
-          # breaking every page (Next.js build-error overlay instead of real content).
-          # That bug is triggered by a stale/corrupted npm cache; the lockfile itself was
-          # verified byte-identical to a from-scratch reinstall, so the cache was the only
-          # remaining variable. `npm ci` still gets its own npm-cache clean below as a
-          # second guard, since actions/setup-node's cache is only one possible source.
+          # No `cache: 'npm'`: ruled out as the cause below, but leaving it off avoids
+          # ever restoring a cache from before the npm upgrade this job now does.
+
+      # A run right after adding @playwright/test hit npm's well-known optional-dependencies
+      # bug (npm/cli#4828): lightningcss's Linux native binding failed to install with
+      # "Cannot find native binding", breaking every page (Next.js build-error overlay
+      # instead of real content). Ruled out: the lockfile content (verified byte-identical
+      # to a from-scratch reinstall) and actions/setup-node's npm cache (removed above,
+      # `npm cache clean --force` added — still failed identically). What's left is the npm
+      # version itself: several npm 10.x releases have had exactly this optional-deps bug,
+      # fixed in later releases. Force a current npm before installing anything.
+      - name: Update npm
+        run: npm install -g npm@latest
 
       - name: Install dependencies
         run: |
