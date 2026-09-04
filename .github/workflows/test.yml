@@ -66,6 +66,8 @@ jobs:
           JWT_EXPIRES_IN="3600"
           APP_MODE="personal"
           NODE_ENV="test"
+          NEXT_PUBLIC_SITE_URL="http://localhost:3000"
+          BILLING_MODE="mock"
           EOF
 
       - name: Generate Prisma client
