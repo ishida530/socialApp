@@ -62,3 +62,56 @@ jobs:
 
       - name: Run tests
         run: npm test
+
+      - name: Get installed Playwright version
+        id: playwright-version
+        run: echo "version=$(node -p "require('./package-lock.json').packages['node_modules/@playwright/test'].version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+
+      - name: Install Playwright Chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      # --with-deps only ran on a cache miss (it installs OS-level shared libraries, not
+      # just the browser binary) — a cache hit still needs those present on this runner.
+      - name: Install Playwright OS dependencies
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      # E2E tests drive a real browser against a real running server (tests/e2e/*.spec.ts
+      # exercise the 5 UX_AUDIT.md bugs fixed alongside this workflow change — session
+      # timeout/retry, TikTok consent placement, register-status gate, password-flow
+      # copy, TikTok creator-info error handling) — Vitest above only covers API/unit
+      # level, not what a browser actually renders.
+      - name: Start app server
+        run: |
+          nohup npm run dev > dev-server.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:3000/api/health > /dev/null; then
+              echo "Server is up after ${i}s"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Server did not become ready in time"
+          cat dev-server.log
+          exit 1
+
+      - name: Run E2E tests
+        run: npm run test:e2e
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7
