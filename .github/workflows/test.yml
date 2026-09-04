@@ -33,10 +33,19 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
+          # No `cache: 'npm'` here on purpose: a run right after adding @playwright/test
+          # hit npm's well-known optional-dependencies bug (npm/cli#4828) — lightningcss's
+          # Linux native binding failed to install with "Cannot find native binding",
+          # breaking every page (Next.js build-error overlay instead of real content).
+          # That bug is triggered by a stale/corrupted npm cache; the lockfile itself was
+          # verified byte-identical to a from-scratch reinstall, so the cache was the only
+          # remaining variable. `npm ci` still gets its own npm-cache clean below as a
+          # second guard, since actions/setup-node's cache is only one possible source.
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          npm cache clean --force
+          npm ci
 
       # tests/setup-env.ts loads a real .env file (process.loadEnvFile) and throws if it's
       # missing, so this has to be an actual file, not just workflow `env:`. Values below are
