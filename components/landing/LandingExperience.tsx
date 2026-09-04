@@ -1465,10 +1465,10 @@ export function LandingExperience() {
                 disabled={isContactSubmitting}
                 className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-95 disabled:opacity-60"
               >
-                {isContactSubmitting ? 'Wysylanie...' : 'Wyslij wiadomosc'}
+                {isContactSubmitting ? 'Wysyłanie...' : 'Wyślij wiadomość'}
                 <ArrowUpRight className="h-4 w-4" />
               </button>
-              <p className="text-xs text-muted-foreground">Odpowiadamy zwykle w ciagu 1 dnia roboczego.</p>
+              <p className="text-xs text-muted-foreground">Odpowiadamy zwykle w ciągu 1 dnia roboczego.</p>
             </motion.div>
 
             {contactStatus ? (

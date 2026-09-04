@@ -50,17 +50,17 @@ export async function sendPasswordResetEmail(userEmail: string, resetLink: strin
   const result = await getResendClient().emails.send({
     from,
     to: userEmail,
-    subject: 'PostFly - reset hasla',
+    subject: 'PostFly - reset hasła',
     text:
-      `Otrzymalismy prosbe o reset hasla do Twojego konta.\n\n` +
-      `Kliknij w link, aby ustawic nowe haslo:\n${resetLink}\n\n` +
-      'Link wygasa po 30 minutach. Jesli to nie Ty wysylales prosbe, zignoruj te wiadomosc.',
+      `Otrzymaliśmy prośbę o reset hasła do Twojego konta.\n\n` +
+      `Kliknij w link, aby ustawić nowe hasło:\n${resetLink}\n\n` +
+      'Link wygasa po 30 minutach. Jeśli to nie Ty wysyłałeś prośbę, zignoruj tę wiadomość.',
     html:
       '<div style="font-family:Inter,Arial,sans-serif;line-height:1.6;color:#111827">' +
-      '<p>Otrzymalismy prosbe o reset hasla do Twojego konta.</p>' +
-      `<p><a href="${safeResetLink}" target="_blank" rel="noopener noreferrer">Kliknij tutaj, aby ustawic nowe haslo</a></p>` +
+      '<p>Otrzymaliśmy prośbę o reset hasła do Twojego konta.</p>' +
+      `<p><a href="${safeResetLink}" target="_blank" rel="noopener noreferrer">Kliknij tutaj, aby ustawić nowe hasło</a></p>` +
       '<p>Link wygasa po <strong>30 minutach</strong>.</p>' +
-      '<p>Jesli to nie Ty wysylales prosbe, zignoruj te wiadomosc.</p>' +
+      '<p>Jeśli to nie Ty wysyłałeś prośbę, zignoruj tę wiadomość.</p>' +
       '</div>',
   });
 

@@ -29,19 +29,19 @@ export async function POST(request: NextRequest) {
     };
 
     if (hasTrippedHoneypot(body)) {
-      return badRequest('Token resetu hasla jest nieprawidlowy lub wygasl.');
+      return badRequest('Token resetu hasła jest nieprawidłowy lub wygasł.');
     }
 
     if (!body.token || !body.password) {
       return badRequest('Validation failed', [
-        'token: Token resetu hasla jest wymagany',
-        'password: Haslo jest wymagane',
+        'token: Token resetu hasła jest wymagany',
+        'password: Hasło jest wymagane',
       ]);
     }
 
     if (body.password.length < MIN_PASSWORD_LENGTH) {
       return badRequest('Validation failed', [
-        `password: Haslo musi miec co najmniej ${MIN_PASSWORD_LENGTH} znakow`,
+        `password: Hasło musi mieć co najmniej ${MIN_PASSWORD_LENGTH} znaków`,
       ]);
     }
 
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
 
     const now = new Date();
     if (!resetToken || resetToken.usedAt || resetToken.expiresAt <= now) {
-      return badRequest('Token resetu hasla jest nieprawidlowy lub wygasl.');
+      return badRequest('Token resetu hasła jest nieprawidłowy lub wygasł.');
     }
 
     await prisma.$transaction([
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
       }),
     ]);
 
-    return NextResponse.json({ message: 'Haslo zostalo zresetowane.' });
+    return NextResponse.json({ message: 'Hasło zostało zresetowane.' });
   } catch (error) {
     return serverError(error);
   }

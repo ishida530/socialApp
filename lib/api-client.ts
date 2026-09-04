@@ -11,9 +11,12 @@ type ApiValidationError = {
 const baseURL =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') ?? '/api';
 
+const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
+
 export const apiClient = axios.create({
   baseURL,
   withCredentials: true,
+  timeout: DEFAULT_REQUEST_TIMEOUT_MS,
 });
 
 const DEFAULT_GET_TTL_MS = 20_000;

@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/contexts/auth-context';
 import { trackLandingEvent } from '@/lib/landing-events';
 import { BrandLogo } from '@/components/BrandLogo';
+import { apiClient } from '@/lib/api-client';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -21,20 +22,48 @@ export default function RegisterPage() {
   const [intent, setIntent] = useState('');
   const fromLanding = source === 'landing';
 
+  // Checked up front so a closed registration (APP_MODE=personal, 1 account already
+  // exists) is communicated before the user fills in the whole form, not only after
+  // submitting it and getting the same message back from the API.
+  const [registrationOpen, setRegistrationOpen] = useState<boolean | null>(null);
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     setSource(params.get('source') ?? '');
     setIntent(params.get('intent') ?? '');
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    apiClient
+      .get<{ open: boolean }>('/auth/register-status')
+      .then((response) => {
+        if (!cancelled) {
+          setRegistrationOpen(response.data.open);
+        }
+      })
+      .catch(() => {
+        // Can't confirm either way — don't block a real user over a flaky status
+        // check; the POST endpoint still enforces this as the actual source of truth.
+        if (!cancelled) {
+          setRegistrationOpen(true);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const intentLabel =
     intent === 'pro'
-      ? 'Chcesz zaczac od planu Pro.'
+      ? 'Chcesz zacząć od planu Pro.'
       : intent === 'starter'
-        ? 'Chcesz zaczac od planu Starter.'
+        ? 'Chcesz zacząć od planu Starter.'
         : intent === 'business'
-          ? 'Chcesz zaczac od planu Business.'
-          : 'Zaczynasz darmowy okres probny.';
+          ? 'Chcesz zacząć od planu Business.'
+          : 'Zaczynasz darmowy okres próbny.';
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -72,6 +101,28 @@ export default function RegisterPage() {
       setIsSubmitting(false);
     }
   };
+
+  if (registrationOpen === false) {
+    return (
+      <main className="min-h-screen bg-background flex items-center justify-center p-6">
+        <div className="w-full max-w-md bg-card border border-border rounded-xl p-8 space-y-4 text-center">
+          <div className="flex justify-center">
+            <BrandLogo className="h-12 w-auto" priority />
+          </div>
+          <h1 className="text-2xl font-semibold text-foreground">Rejestracja jest obecnie zamknięta</h1>
+          <p className="text-sm text-muted-foreground">
+            Ta appka działa dziś w trybie jednoosobowym — konto już istnieje, więc nowe rejestracje są wyłączone.
+          </p>
+          <Link
+            href="/login"
+            className="inline-block px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium"
+          >
+            Przejdź do logowania
+          </Link>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-background flex items-center justify-center p-6">

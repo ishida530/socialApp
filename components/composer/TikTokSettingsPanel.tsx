@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
 import { Switch } from '@/components/ui/switch';
-import { Checkbox } from '@/components/ui/checkbox';
 import type { DraftJob, TikTokCreatorInfo } from './types';
 
 export function TikTokSettingsPanel({
@@ -135,19 +134,6 @@ export function TikTokSettingsPanel({
           )}
         </>
       )}
-
-      <label className="flex items-start gap-2 rounded-lg border border-border bg-background/40 p-3">
-        <Checkbox
-          checked={Boolean(job.tiktokConsentAt)}
-          onCheckedChange={(checked) => handleChange({ tiktokConsent: checked === true })}
-          disabled={isSaving}
-          className="mt-0.5"
-        />
-        <span className="text-xs text-muted-foreground">
-          Potwierdzam, że publikacja na TikTok jest inicjowana ręcznie przeze mnie i zgadza się z warunkami TikTok
-          Music Usage Confirmation.
-        </span>
-      </label>
     </div>
   );
 }

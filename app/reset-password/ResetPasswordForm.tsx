@@ -38,17 +38,17 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
     event.preventDefault();
 
     if (!token) {
-      toast.error('Brak tokenu resetu hasla. Uzyj linku z wiadomosci e-mail.');
+      toast.error('Brak tokenu resetu hasła. Użyj linku z wiadomości e-mail.');
       return;
     }
 
     if (password.length < MIN_PASSWORD_LENGTH) {
-      toast.error(`Haslo musi miec co najmniej ${MIN_PASSWORD_LENGTH} znakow.`);
+      toast.error(`Hasło musi mieć co najmniej ${MIN_PASSWORD_LENGTH} znaków.`);
       return;
     }
 
     if (password !== confirmPassword) {
-      toast.error('Hasla nie sa identyczne.');
+      toast.error('Hasła nie są identyczne.');
       return;
     }
 
@@ -60,16 +60,16 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
         hpWebsite,
         formStartedAt,
       });
-      toast.success('Haslo zostalo ustawione. Mozesz sie teraz zalogowac.');
+      toast.success('Hasło zostało ustawione. Możesz się teraz zalogować.');
       router.replace('/login');
     } catch (error) {
       if (axios.isAxiosError(error)) {
         if (error.response?.status === 429) {
           const retryAfter = parseRetryAfterSeconds(error.response.headers?.['retry-after'] as string | undefined);
           if (retryAfter) {
-            toast.error(`Za duzo prob. Sprobuj ponownie za ${retryAfter} s.`);
+            toast.error(`Za dużo prób. Spróbuj ponownie za ${retryAfter} s.`);
           } else {
-            toast.error('Za duzo prob. Sprobuj ponownie pozniej.');
+            toast.error('Za dużo prób. Spróbuj ponownie później.');
           }
           return;
         }
@@ -80,7 +80,7 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
         }
       }
 
-      toast.error('Nie udalo sie zresetowac hasla. Link mogl wygasnac.');
+      toast.error('Nie udało się zresetować hasła. Link mógł wygasnąć.');
     } finally {
       setIsSubmitting(false);
     }
@@ -93,13 +93,13 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
         className="w-full max-w-md bg-card border border-border rounded-xl p-8 space-y-5"
       >
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Ustaw nowe haslo</h1>
+          <h1 className="text-2xl font-semibold text-foreground">Ustaw nowe hasło</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Wpisz nowe haslo do swojego konta.
+            Wpisz nowe hasło do swojego konta.
           </p>
           {!token ? (
             <p className="text-sm text-red-500 mt-2">
-              Ten link jest nieprawidlowy. Wygeneruj nowy link resetu hasla.
+              Ten link jest nieprawidłowy. Wygeneruj nowy link resetu hasła.
             </p>
           ) : null}
         </div>
@@ -120,7 +120,7 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
             aria-hidden="true"
           />
 
-          <label className="text-sm text-foreground">Nowe haslo</label>
+          <label className="text-sm text-foreground">Nowe hasło</label>
           <input
             autoFocus
             value={password}
@@ -135,7 +135,7 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm text-foreground">Powtorz haslo</label>
+          <label className="text-sm text-foreground">Powtórz hasło</label>
           <input
             value={confirmPassword}
             onChange={(event) => setConfirmPassword(event.target.value)}
@@ -153,12 +153,12 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
           disabled={isSubmitting || !token}
           className="w-full py-2.5 rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-60"
         >
-          {isSubmitting ? 'Zapisywanie...' : 'Zapisz nowe haslo'}
+          {isSubmitting ? 'Zapisywanie...' : 'Zapisz nowe hasło'}
         </button>
 
         <p className="text-sm text-muted-foreground text-center">
           <Link className="text-primary hover:underline" href="/login">
-            Wroc do logowania
+            Wróć do logowania
           </Link>
         </p>
       </form>

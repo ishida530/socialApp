@@ -153,7 +153,7 @@ export default function LoginPage() {
           />
           <div className="flex justify-end">
             <Link className="text-sm text-primary hover:underline" href="/forgot-password">
-              Zapomniales hasla?
+              Zapomniałeś hasła?
             </Link>
           </div>
         </div>

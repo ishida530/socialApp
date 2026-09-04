@@ -36,15 +36,15 @@ export default function ForgotPasswordPage() {
         hpWebsite,
         formStartedAt,
       });
-      toast.success('Jesli konto istnieje, wyslalismy wiadomosc e-mail z instrukcja resetu hasla.');
+      toast.success('Jeśli konto istnieje, wysłaliśmy wiadomość e-mail z instrukcją resetu hasła.');
     } catch (error) {
       if (axios.isAxiosError(error)) {
         if (error.response?.status === 429) {
           const retryAfter = parseRetryAfterSeconds(error.response.headers?.['retry-after'] as string | undefined);
           if (retryAfter) {
-            toast.error(`Za duzo prob. Sprobuj ponownie za ${retryAfter} s.`);
+            toast.error(`Za dużo prób. Spróbuj ponownie za ${retryAfter} s.`);
           } else {
-            toast.error('Za duzo prob. Sprobuj ponownie pozniej.');
+            toast.error('Za dużo prób. Spróbuj ponownie później.');
           }
           return;
         }
@@ -55,7 +55,7 @@ export default function ForgotPasswordPage() {
         }
       }
 
-      toast.error('Nie udalo sie wyslac instrukcji resetu hasla. Sprobuj ponownie.');
+      toast.error('Nie udało się wysłać instrukcji resetu hasła. Spróbuj ponownie.');
     } finally {
       setIsSubmitting(false);
     }
@@ -72,9 +72,9 @@ export default function ForgotPasswordPage() {
         </div>
 
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Zapomnialem hasla</h1>
+          <h1 className="text-2xl font-semibold text-foreground">Zapomniałem hasła</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Podaj adres e-mail, a wyslemy Ci link do ustawienia nowego hasla.
+            Podaj adres e-mail, a wyślemy Ci link do ustawienia nowego hasła.
           </p>
         </div>
 
@@ -111,13 +111,13 @@ export default function ForgotPasswordPage() {
           disabled={isSubmitting}
           className="w-full py-2.5 rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-60"
         >
-          {isSubmitting ? 'Wysylanie...' : 'Wyslij link resetu'}
+          {isSubmitting ? 'Wysyłanie...' : 'Wyślij link resetu'}
         </button>
 
         <p className="text-sm text-muted-foreground text-center">
-          Pamietasz haslo?{' '}
+          Pamiętasz hasło?{' '}
           <Link className="text-primary hover:underline" href="/login">
-            Wroc do logowania
+            Wróć do logowania
           </Link>
         </p>
       </form>

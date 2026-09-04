@@ -6,7 +6,7 @@ import { hasTrippedHoneypot } from '@/lib/server/honeypot';
 import { prisma } from '@/lib/server/prisma';
 import { consumeRateLimit, getRequestIp } from '@/lib/server/rate-limit';
 import { sendWelcomeEmail } from '@/lib/mail/service';
-import { resolveAppMode } from '@/lib/server/app-mode';
+import { isRegistrationOpen } from '@/lib/server/app-mode';
 
 function resolveCookieMaxAge() {
   const raw = Number(process.env.JWT_EXPIRES_IN ?? 3600);
@@ -42,11 +42,8 @@ export async function POST(request: NextRequest) {
       return badRequest('Validation failed');
     }
 
-    if (resolveAppMode() === 'personal') {
-      const existingUsersCount = await prisma.user.count();
-      if (existingUsersCount >= 1) {
-        return badRequest('Rejestracja jest zamknięta w trybie personal — appka jest skonfigurowana dla jednego użytkownika.');
-      }
+    if (!(await isRegistrationOpen())) {
+      return badRequest('Rejestracja jest zamknięta w trybie personal — appka jest skonfigurowana dla jednego użytkownika.');
     }
 
     if (!body.email || !body.name || !body.password) {

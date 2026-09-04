@@ -21,7 +21,7 @@ function resolveResetTtlMinutes() {
 
 function genericSuccessResponse() {
   return NextResponse.json({
-    message: 'Jesli konto istnieje, wyslalismy wiadomosc e-mail z instrukcja resetu hasla.',
+    message: 'Jeśli konto istnieje, wysłaliśmy wiadomość e-mail z instrukcją resetu hasła.',
   });
 }
 

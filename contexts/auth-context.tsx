@@ -19,6 +19,8 @@ type AuthContextValue = {
   user: AuthUser | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  sessionError: boolean;
+  retrySession: () => void;
   login: (payload: {
     email: string;
     password: string;
@@ -40,13 +42,21 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [sessionError, setSessionError] = useState(false);
 
   const refreshSession = useCallback(async () => {
     try {
       const response = await apiClient.get<{ user: AuthUser }>('/auth/me');
       setUser(response.data.user);
-    } catch {
+      setSessionError(false);
+    } catch (error: unknown) {
       setUser(null);
+      // A 401 here just means "not logged in" — expected, not an error state.
+      // Anything else (timeout, network failure, 5xx) is a real connectivity
+      // problem: surface it instead of leaving the caller stuck on a loading
+      // state that will never resolve on its own.
+      const status = (error as { response?: { status?: number } })?.response?.status;
+      setSessionError(status !== 401);
     }
   }, []);
 
@@ -57,6 +67,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     void bootstrap();
+  }, [refreshSession]);
+
+  const retrySession = useCallback(() => {
+    setIsLoading(true);
+    void refreshSession().finally(() => setIsLoading(false));
   }, [refreshSession]);
 
   const login = useCallback(async (payload: {
@@ -100,11 +115,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       isAuthenticated: !!user,
       isLoading,
+      sessionError,
+      retrySession,
       login,
       register,
       logout,
     }),
-    [isLoading, login, logout, register, user],
+    [isLoading, sessionError, retrySession, login, logout, register, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -54,7 +54,7 @@ function statusLabel(status: 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'CAN
 }
 
 export default function AdminJobsPage() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, sessionError, retrySession } = useAuth();
   const router = useRouter();
   const [jobs, setJobs] = useState<PublishJob[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,10 +72,10 @@ export default function AdminJobsPage() {
   const pageSize = 20;
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
+    if (!isLoading && !isAuthenticated && !sessionError) {
       router.replace('/login');
     }
-  }, [isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, isLoading, sessionError, router]);
 
   useEffect(() => {
     const load = async () => {
@@ -100,6 +100,21 @@ export default function AdminJobsPage() {
       void load();
     }
   }, [isAuthenticated, page]);
+
+  if (sessionError) {
+    return (
+      <main className="min-h-screen bg-background flex flex-col items-center justify-center gap-3">
+        <p className="text-sm text-muted-foreground">Nie udało się połączyć z serwerem.</p>
+        <button
+          type="button"
+          onClick={retrySession}
+          className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium"
+        >
+          Spróbuj ponownie
+        </button>
+      </main>
+    );
+  }
 
   if (isLoading || !isAuthenticated) {
     return (

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Sparkles, Link2 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { usePostComposerState } from './composer/usePostComposerState';
 import { MediaStep } from './composer/MediaStep';
 import { ContentPreviewStep } from './composer/ContentPreviewStep';
@@ -48,6 +49,7 @@ export function PostComposer() {
 
   const showStepNav = state.step === 'media' || state.step === 'content' || state.step === 'schedule';
   const activeStepForNav = state.step === 'media' || state.step === 'content' || state.step === 'schedule' ? state.step : null;
+  const tiktokJob = state.jobs.find((job) => job.socialAccount.platform === 'TIKTOK') ?? null;
 
   return (
     <div id="post-composer" className="h-full w-full bg-card flex flex-col">
@@ -143,7 +145,26 @@ export function PostComposer() {
       </div>
 
       {state.step === 'content' && (
-        <div className="border-t border-border p-3 sm:p-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
+        <div className="border-t border-border p-3 sm:p-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 space-y-3">
+          {tiktokJob && state.activeTab === 'TIKTOK' && (
+            // Required by TikTok's terms, and the one step this flow must hard-block on — kept
+            // outside the scrollable tab content (unlike the rest of TikTokSettingsPanel) so it's
+            // always visible next to the actual submit action, not something a user can miss by
+            // not scrolling to the bottom of a long per-platform form.
+            <label className="flex items-start gap-2 rounded-lg border border-border bg-background/40 p-3">
+              <Checkbox
+                checked={Boolean(tiktokJob.tiktokConsentAt)}
+                onCheckedChange={(checked) =>
+                  actions.saveJobFieldNow(tiktokJob.id, { tiktokConsent: checked === true })
+                }
+                className="mt-0.5"
+              />
+              <span className="text-xs text-muted-foreground">
+                Potwierdzam, że publikacja na TikTok jest inicjowana ręcznie przeze mnie i zgadza się z warunkami
+                TikTok Music Usage Confirmation.
+              </span>
+            </label>
+          )}
           <div className="flex items-center justify-between gap-3">
             <button onClick={actions.goBack} className="px-4 py-2.5 rounded-lg bg-secondary/50 text-foreground text-sm">
               Wstecz
