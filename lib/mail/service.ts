@@ -69,6 +69,35 @@ export async function sendPasswordResetEmail(userEmail: string, resetLink: strin
   }
 }
 
+export async function sendPaymentFailedEmail(userEmail: string, userName: string) {
+  const from = process.env.EMAIL_FROM ?? 'PostFly <hello@postfly.pl>';
+  const safeName = escapeHtml(userName?.trim() || 'Twórco');
+  const billingUrl = `${process.env.FRONTEND_URL ?? 'https://postfly.pl'}/billing`;
+  const safeBillingUrl = escapeHtml(billingUrl);
+
+  const result = await getResendClient().emails.send({
+    from,
+    to: userEmail,
+    subject: 'PostFly — nie udało się pobrać płatności za subskrypcję',
+    text:
+      `Cześć ${userName || 'Twórco'}!\n\n` +
+      'Nie udało się pobrać płatności za Twoją subskrypcję PostFly. Sprawdź dane karty w ustawieniach ' +
+      `płatności, aby uniknąć przerwy w dostępie:\n${billingUrl}\n\n` +
+      'Pozdrawiamy,\nZespół PostFly',
+    html:
+      '<div style="font-family:Inter,Arial,sans-serif;line-height:1.6;color:#111827">' +
+      `<p>Cześć ${safeName}!</p>` +
+      '<p>Nie udało się pobrać płatności za Twoją subskrypcję PostFly.</p>' +
+      `<p><a href="${safeBillingUrl}" target="_blank" rel="noopener noreferrer">Sprawdź dane płatności</a>, aby uniknąć przerwy w dostępie.</p>` +
+      '<p>Pozdrawiamy,<br/>Zespół PostFly</p>' +
+      '</div>',
+  });
+
+  if (result.error) {
+    throw new Error(`[mail] Resend error ${result.error.statusCode}: ${result.error.message}`);
+  }
+}
+
 type ContactMessageInput = {
   name: string;
   email: string;

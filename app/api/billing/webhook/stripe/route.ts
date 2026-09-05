@@ -6,6 +6,7 @@ import { badRequest, serverError, tooManyRequests } from '@/lib/server/http';
 import { getStripeClient } from '@/lib/server/stripe';
 import { logError, logEvent } from '@/lib/server/observability';
 import { consumeRateLimit, getRequestIp } from '@/lib/server/rate-limit';
+import { sendPaymentFailedEmail } from '@/lib/mail/service';
 
 function requireStripeWebhookSecret() {
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -113,7 +114,13 @@ async function upsertFromStripeSubscription(
   });
 }
 
-async function processStripeEvent(tx: Prisma.TransactionClient, event: Stripe.Event) {
+type PaymentFailedNotification = { email: string; name: string };
+
+async function processStripeEvent(
+  tx: Prisma.TransactionClient,
+  event: Stripe.Event,
+  paymentFailedNotifications: PaymentFailedNotification[],
+) {
   switch (event.type) {
     case 'customer.subscription.created':
     case 'customer.subscription.updated':
@@ -134,6 +141,53 @@ async function processStripeEvent(tx: Prisma.TransactionClient, event: Stripe.Ev
       logEvent('billing-webhook', 'invoice-paid', {
         invoiceId: invoice.id,
         customerId: typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id,
+      });
+      break;
+    }
+    case 'invoice.payment_failed': {
+      const invoice = event.data.object as Stripe.Invoice;
+      const customerId = typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id;
+      const subscriptionRef =
+        invoice.parent?.type === 'subscription_details'
+          ? invoice.parent.subscription_details?.subscription
+          : null;
+      const subscriptionId = typeof subscriptionRef === 'string' ? subscriptionRef : subscriptionRef?.id;
+
+      if (!customerId && !subscriptionId) {
+        logEvent('billing-webhook', 'invoice-payment-failed-missing-reference', { invoiceId: invoice.id });
+        break;
+      }
+
+      const matched = await tx.subscription.findFirst({
+        where: subscriptionId
+          ? { providerSubscriptionId: subscriptionId }
+          : { providerCustomerId: customerId! },
+        select: { id: true, user: { select: { email: true, name: true } } },
+      });
+
+      if (!matched) {
+        logEvent('billing-webhook', 'invoice-payment-failed-no-match', {
+          invoiceId: invoice.id,
+          customerId,
+          subscriptionId,
+        });
+        break;
+      }
+
+      // Marking the subscription PAST_DUE (rather than CANCELED) immediately re-engages
+      // the existing assertUsageAllowed/checkUsageLimits enforcement (subscription.ts),
+      // which already blocks any non-ACTIVE subscription — no separate access check needed.
+      await tx.subscription.update({
+        where: { id: matched.id },
+        data: { status: SubscriptionStatus.PAST_DUE },
+      });
+
+      paymentFailedNotifications.push({ email: matched.user.email, name: matched.user.name });
+
+      logEvent('billing-webhook', 'invoice-payment-failed', {
+        invoiceId: invoice.id,
+        customerId,
+        subscriptionId,
       });
       break;
     }
@@ -175,8 +229,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: 'Event already processed' });
     }
 
+    const paymentFailedNotifications: PaymentFailedNotification[] = [];
+
     await prisma.$transaction(async (tx) => {
-      await processStripeEvent(tx, event);
+      await processStripeEvent(tx, event, paymentFailedNotifications);
 
       await tx.stripeEvent.create({
         data: {
@@ -186,6 +242,16 @@ export async function POST(request: NextRequest) {
         },
       });
     });
+
+    // Sent after the transaction commits, and best-effort: a failed email must not make
+    // Stripe retry a webhook whose DB update already succeeded.
+    for (const notification of paymentFailedNotifications) {
+      try {
+        await sendPaymentFailedEmail(notification.email, notification.name);
+      } catch (error) {
+        logError('billing-webhook', 'payment-failed-email-error', error, { email: notification.email });
+      }
+    }
 
     return NextResponse.json({ received: true });
   } catch (error) {
