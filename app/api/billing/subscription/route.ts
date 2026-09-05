@@ -23,10 +23,12 @@ export async function GET(request: NextRequest) {
       return unauthorized();
     }
 
+    // P2003 (FK violation) / P2025 (record not found) included deliberately: neither is a
+    // session problem (e.g. a race between two concurrent writes to the same subscription
+    // row can hit a user whose JWT is completely valid) — returning 401 here would make the
+    // client's global axios interceptor (lib/api-client.ts) misread it as "session expired"
+    // and hard-redirect to /login. Same failure mode already fixed once in DELETE /api/account.
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      if (error.code === 'P2003' || error.code === 'P2025') {
-        return unauthorized();
-      }
       return badRequest('Nie udało się pobrać danych subskrypcji.');
     }
 
@@ -64,10 +66,10 @@ export async function PATCH(request: NextRequest) {
       return unauthorized();
     }
 
+    // P2003/P2025 handled the same way as GET above: not a session problem, so must not
+    // return 401 (the client's global axios interceptor treats any non-/auth/me 401 as
+    // "session expired" and hard-redirects to /login).
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      if (error.code === 'P2003' || error.code === 'P2025') {
-        return unauthorized();
-      }
       return badRequest('Zmiana planu nie powiodła się.');
     }
 
