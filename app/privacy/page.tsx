@@ -23,7 +23,7 @@ export default function PrivacyPage() {
         <p className="mt-6 text-sm text-muted-foreground">
           Niniejsza Polityka Prywatności opisuje zasady przetwarzania danych w ramach serwisu Postfly.
         </p>
-        <p className="mt-2 text-sm text-muted-foreground">Data ostatniej aktualizacji: 17 marca 2026 r.</p>
+        <p className="mt-2 text-sm text-muted-foreground">Data ostatniej aktualizacji: 4 września 2026 r.</p>
 
         <section className="mt-8 space-y-4 text-sm leading-6 text-muted-foreground">
           <h2 className="text-base font-semibold text-foreground">1. Administrator danych</h2>
@@ -102,14 +102,20 @@ export default function PrivacyPage() {
 
           <h2 className="text-base font-semibold text-foreground">8. Prawa osób, których dane dotyczą</h2>
           <p>
-            Zgodnie z RODO przysługuje Ci prawo do: dostępu do swoich danych, ich sprostowania, usunięcia, ograniczenia przetwarzania, 
+            Zgodnie z RODO przysługuje Ci prawo do: dostępu do swoich danych, ich sprostowania, usunięcia, ograniczenia przetwarzania,
             przenoszenia danych, wniesienia sprzeciwu oraz wniesienia skargi do organu nadzorczego (Prezesa UODO).
+            Prawo dostępu i przenoszenia danych realizujemy dziś na żądanie mailowe (adres w punkcie 12) — przygotowujemy
+            i przekazujemy kopię danych konta w ustrukturyzowanym formacie w terminie do 30 dni.
           </p>
 
           <h2 className="text-base font-semibold text-foreground">9. Usunięcie konta i tokenów OAuth</h2>
           <p>
-            Użytkownik może w każdej chwili zażądać usunięcia konta w ustawieniach aplikacji lub kontaktując się z administratorem. 
-            Skutkuje to wygaśnięciem uprawnień i usunięciem powiązanych tokenów platform zewnętrznych.
+            Użytkownik może samodzielnie i w każdej chwili usunąć konto w ustawieniach aplikacji
+            (Ustawienia konta → Usuń konto), po potwierdzeniu hasłem. Usunięcie konta jest natychmiastowe
+            i trwale kasuje dane konta, połączone konta social media wraz z tokenami dostępowymi, przesłane
+            media oraz historię zadań publikacji; aktywna płatna subskrypcja jest przy tym anulowana.
+            Alternatywnie można zażądać usunięcia konta, kontaktując się z administratorem pod adresem
+            e-mail wskazanym w punkcie 12 — takie żądanie realizujemy niezwłocznie, nie później niż w ciągu 30 dni.
           </p>
 
           <h2 className="text-base font-semibold text-foreground">10. Bezpieczeństwo danych</h2>

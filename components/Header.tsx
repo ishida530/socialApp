@@ -30,7 +30,9 @@ export function Header() {
                 ? 'Subskrypcja'
                 : pathname.startsWith('/admin')
                   ? 'Panel administracyjny'
-                  : 'Pulpit';
+                  : pathname.startsWith('/account')
+                    ? 'Ustawienia konta'
+                    : 'Pulpit';
 
   useEffect(() => {
     setMounted(true);
@@ -166,6 +168,15 @@ export function Header() {
                   Subskrypcja
                 </button>
               )}
+              <button
+                onClick={() => {
+                  setMenuOpen(false);
+                  router.push('/account');
+                }}
+                className="w-full text-left px-3 py-2 rounded-md text-sm text-foreground hover:bg-secondary"
+              >
+                Ustawienia konta
+              </button>
               <button
                 onClick={() => {
                   setMenuOpen(false);
