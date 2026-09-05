@@ -1,12 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { badRequest, serverError } from '@/lib/server/http';
+import { badRequest, serverError, tooManyRequests } from '@/lib/server/http';
+import { consumeRateLimit, getRequestIp } from '@/lib/server/rate-limit';
 import { buildGoogleLoginUrl, createGoogleLoginState } from '@/lib/server/google-auth';
 
 const GOOGLE_LOGIN_STATE_COOKIE = 'google_login_state';
 const GOOGLE_LOGIN_STATE_COOKIE_PATH = '/api/auth/google/callback';
 
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
+    const rateLimit = await consumeRateLimit({
+      key: `auth:google:${getRequestIp(request)}`,
+      limit: 20,
+      windowMs: 15 * 60 * 1000,
+    });
+    if (!rateLimit.allowed) {
+      return tooManyRequests('Too many requests. Try again later.', rateLimit.retryAfterSec);
+    }
+
     const state = createGoogleLoginState();
     const authUrl = buildGoogleLoginUrl(state);
 

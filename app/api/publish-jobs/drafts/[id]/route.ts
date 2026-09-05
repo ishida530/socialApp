@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUserFromRequest } from '@/lib/server/auth';
 import { prisma } from '@/lib/server/prisma';
-import { badRequest, notFound, serverError, unauthorized } from '@/lib/server/http';
+import { badRequest, notFound, tooManyRequests, unauthorized } from '@/lib/server/http';
+import { consumeRateLimit } from '@/lib/server/rate-limit';
 import { fetchTikTokCreatorInfo } from '@/lib/server/tiktok-creator-info';
 import { collectContentWarnings } from '@/lib/server/content-safety';
 
@@ -21,6 +22,16 @@ type PatchBody = {
 export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const user = getAuthUserFromRequest(request);
+
+    const rateLimit = await consumeRateLimit({
+      key: `publish-jobs:drafts-patch:${user.userId}`,
+      limit: 30,
+      windowMs: 15 * 60 * 1000,
+    });
+    if (!rateLimit.allowed) {
+      return tooManyRequests('Too many requests. Try again later.', rateLimit.retryAfterSec);
+    }
+
     const params = await context.params;
     const body = (await request.json()) as PatchBody;
 
@@ -144,10 +155,10 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
       return unauthorized();
     }
 
-    if (error instanceof Error) {
-      return badRequest(error.message);
-    }
-
-    return serverError(error);
+    // Same failure mode as social-accounts/tiktok/creator-info: fetchTikTokCreatorInfo can
+    // throw internal details (token decryption, TikTok API errors) that must not reach the
+    // client verbatim. Log server-side, return a message the user can act on.
+    console.error('[publish-jobs/drafts/:id] PATCH failed', error);
+    return badRequest('Nie udało się zaktualizować posta. Spróbuj ponownie później.');
   }
 }

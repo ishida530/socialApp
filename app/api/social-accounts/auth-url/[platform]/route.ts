@@ -4,7 +4,8 @@ import {
   buildAuthUrl,
   encodePkcePayload,
 } from '@/lib/server/social-oauth';
-import { badRequest, serverError, unauthorized } from '@/lib/server/http';
+import { badRequest, serverError, tooManyRequests, unauthorized } from '@/lib/server/http';
+import { consumeRateLimit } from '@/lib/server/rate-limit';
 
 const TIKTOK_PKCE_COOKIE = 'tiktok_pkce';
 const TIKTOK_PKCE_COOKIE_PATH = '/api/auth/callback/tiktok';
@@ -18,6 +19,16 @@ export async function GET(
   try {
     const params = await context.params;
     const user = getAuthUserFromRequest(request);
+
+    const rateLimit = await consumeRateLimit({
+      key: `social-accounts:auth-url:${user.userId}`,
+      limit: 20,
+      windowMs: 15 * 60 * 1000,
+    });
+    if (!rateLimit.allowed) {
+      return tooManyRequests('Too many requests. Try again later.', rateLimit.retryAfterSec);
+    }
+
     const result = buildAuthUrl(params.platform, user.userId);
     const debugEnabled = request.nextUrl.searchParams.get('debug') === '1';
     const authUrl = new URL(result.url);

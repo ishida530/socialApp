@@ -5,9 +5,11 @@ import { writeFile } from 'fs/promises';
 import { put } from '@vercel/blob';
 import { getAuthUserFromRequest } from '@/lib/server/auth';
 import { prisma } from '@/lib/server/prisma';
-import { badRequest, serverError, unauthorized } from '@/lib/server/http';
+import { badRequest, serverError, tooManyRequests, unauthorized } from '@/lib/server/http';
+import { consumeRateLimit } from '@/lib/server/rate-limit';
 import { ensureUploadsDirectory } from '@/lib/server/uploads';
 import { assertUsageAllowed, incrementUsage } from '@/lib/server/subscription';
+import { detectMediaSignature, matchesExtensionKind } from '@/lib/server/magic-bytes';
 
 export const maxDuration = 60;
 
@@ -28,6 +30,16 @@ function canUseLocalStorage() {
 export async function POST(request: NextRequest) {
   try {
     const user = getAuthUserFromRequest(request);
+
+    const rateLimit = await consumeRateLimit({
+      key: `videos:upload:${user.userId}`,
+      limit: 20,
+      windowMs: 15 * 60 * 1000,
+    });
+    if (!rateLimit.allowed) {
+      return tooManyRequests('Too many requests. Try again later.', rateLimit.retryAfterSec);
+    }
+
     await assertUsageAllowed(user.userId, 'video_uploads');
     const formData = await request.formData();
     const file = formData.get('file');
@@ -52,6 +64,12 @@ export async function POST(request: NextRequest) {
       return badRequest('Maksymalny rozmiar pliku to 500MB');
     }
 
+    const bytes = Buffer.from(await file.arrayBuffer());
+    const signature = detectMediaSignature(bytes);
+    if (!matchesExtensionKind(extension, signature)) {
+      return badRequest('Zawartość pliku nie odpowiada zadeklarowanemu typowi.');
+    }
+
     const baseName = file.name.replace(extension, '');
     const safeName = sanitizeFileName(baseName);
     const fileName = `${Date.now()}-${safeName}${extension}`;
@@ -60,9 +78,10 @@ export async function POST(request: NextRequest) {
     let localPath: string | null = null;
 
     if (canUseBlobStorage()) {
-      const blob = await put(`uploads/videos/${fileName}`, file, {
+      const blob = await put(`uploads/videos/${fileName}`, bytes, {
         access: 'public',
         addRandomSuffix: true,
+        contentType: file.type || undefined,
       });
 
       sourceUrl = blob.url;
@@ -70,7 +89,6 @@ export async function POST(request: NextRequest) {
       const uploadDir = ensureUploadsDirectory();
       const filePath = `${uploadDir}/${fileName}`;
 
-      const bytes = Buffer.from(await file.arrayBuffer());
       await writeFile(filePath, bytes);
 
       sourceUrl = `/uploads/videos/${fileName}`;

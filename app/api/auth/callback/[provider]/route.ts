@@ -76,12 +76,13 @@ export async function GET(
 
     return response;
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'OAuth callback failed';
     logError('oauth-callback', 'failure', error, {
       provider: normalizedProvider,
     });
+    // The real error (raw social-oauth/TikTok/Google API text, incl. token/crypto
+    // details) is logged above — it must not leak into a URL the browser displays.
     redirectUrl.searchParams.set('status', 'error');
-    redirectUrl.searchParams.set('message', message);
+    redirectUrl.searchParams.set('message', 'Nie udało się połączyć konta. Spróbuj ponownie.');
 
     const response = NextResponse.redirect(redirectUrl, 302);
     if (isTikTok) {

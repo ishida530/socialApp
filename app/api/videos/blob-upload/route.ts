@@ -1,10 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { MediaType, VideoStatus } from '@prisma/client';
 import { handleUpload, type HandleUploadBody } from '@vercel/blob/client';
+import { del } from '@vercel/blob';
 import { getAuthUserFromRequest } from '@/lib/server/auth';
-import { badRequest, serverError, unauthorized } from '@/lib/server/http';
+import { badRequest, serverError, tooManyRequests, unauthorized } from '@/lib/server/http';
+import { consumeRateLimit } from '@/lib/server/rate-limit';
 import { assertUsageAllowed, incrementUsage } from '@/lib/server/subscription';
 import { prisma } from '@/lib/server/prisma';
+import { detectMediaSignature, matchesDeclaredContentTypeKind } from '@/lib/server/magic-bytes';
+
+// Vercel Blob's client-upload flow sends bytes directly from the browser to
+// storage — the server never sees them before they're already public. This
+// fetches just enough of the uploaded blob to sniff its real format after the
+// fact, so a mislabeled/malicious file can still be caught and removed.
+async function fetchLeadingBytes(url: string, length = 32): Promise<Uint8Array | null> {
+  try {
+    const response = await fetch(url, { headers: { Range: `bytes=0-${length - 1}` } });
+    if (!response.ok && response.status !== 206) {
+      return null;
+    }
+
+    const buffer = await response.arrayBuffer();
+    return new Uint8Array(buffer);
+  } catch {
+    return null;
+  }
+}
 
 function sanitizeTitle(value: string) {
   const cleaned = value.trim().replace(/\s+/g, ' ');
@@ -33,7 +54,16 @@ export async function POST(request: NextRequest) {
         const tokenStartTime = Date.now();
         try {
           const user = getAuthUserFromRequest(request);
-          
+
+          const rateLimit = await consumeRateLimit({
+            key: `videos:blob-upload:${user.userId}`,
+            limit: 20,
+            windowMs: 15 * 60 * 1000,
+          });
+          if (!rateLimit.allowed) {
+            throw new Error('Too many upload attempts. Try again later.');
+          }
+
           console.log('[blob-upload] onBeforeGenerateToken', {
             userId: user.userId,
             pathname: _pathname,
@@ -138,6 +168,24 @@ export async function POST(request: NextRequest) {
             return;
           }
 
+          const leadingBytes = await fetchLeadingBytes(blob.url);
+          const signature = leadingBytes ? detectMediaSignature(leadingBytes) : null;
+          const contentTypeOk =
+            leadingBytes !== null &&
+            matchesDeclaredContentTypeKind(blob.contentType ?? '', signature);
+
+          if (!contentTypeOk) {
+            console.error('[blob-upload] rejected: content does not match declared type', {
+              userId,
+              blobUrl: blob.url,
+              declaredContentType: blob.contentType,
+              detectedSignature: signature,
+            });
+
+            await del(blob.url).catch(() => {});
+            throw new Error('Uploaded file content does not match its declared type');
+          }
+
           const mediaType = (blob.contentType ?? '').startsWith('image/') ? MediaType.IMAGE : MediaType.VIDEO;
 
           const createdVideo = await prisma.video.create({
@@ -194,6 +242,10 @@ export async function POST(request: NextRequest) {
     if (error instanceof Error && error.message.includes('Przekroczono limit planu')) {
       console.error('[blob-upload] Usage limit exceeded', { message: error.message });
       return badRequest(error.message);
+    }
+
+    if (error instanceof Error && error.message.includes('Too many upload attempts')) {
+      return tooManyRequests(error.message);
     }
 
     console.error('[blob-upload] Unhandled error, returning 500', { errorMessage });

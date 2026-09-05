@@ -2,7 +2,8 @@ import { randomUUID } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUserFromRequest } from '@/lib/server/auth';
 import { prisma } from '@/lib/server/prisma';
-import { badRequest, serverError, unauthorized } from '@/lib/server/http';
+import { badRequest, serverError, tooManyRequests, unauthorized } from '@/lib/server/http';
+import { consumeRateLimit } from '@/lib/server/rate-limit';
 import {
   assertScheduleWindowAllowed,
   assertUsageAllowed,
@@ -38,6 +39,16 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const user = getAuthUserFromRequest(request);
+
+    const rateLimit = await consumeRateLimit({
+      key: `publish-jobs:create:${user.userId}`,
+      limit: 30,
+      windowMs: 15 * 60 * 1000,
+    });
+    if (!rateLimit.allowed) {
+      return tooManyRequests('Too many requests. Try again later.', rateLimit.retryAfterSec);
+    }
+
     await assertUsageAllowed(user.userId, 'publish_jobs');
     const body = (await request.json()) as {
       videoId?: string;

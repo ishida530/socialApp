@@ -5,7 +5,8 @@ import {
   buildAuthUrl,
   encodePkcePayload,
 } from '@/lib/server/social-oauth';
-import { badRequest, serverError, unauthorized } from '@/lib/server/http';
+import { badRequest, serverError, tooManyRequests, unauthorized } from '@/lib/server/http';
+import { consumeRateLimit } from '@/lib/server/rate-limit';
 
 const TIKTOK_PKCE_COOKIE = 'tiktok_pkce';
 const TIKTOK_PKCE_COOKIE_PATH = '/api/auth/callback/tiktok';
@@ -18,6 +19,16 @@ export async function POST(
 ) {
   try {
     const user = getAuthUserFromRequest(request);
+
+    const rateLimit = await consumeRateLimit({
+      key: `social-accounts:reconnect:${user.userId}`,
+      limit: 10,
+      windowMs: 15 * 60 * 1000,
+    });
+    if (!rateLimit.allowed) {
+      return tooManyRequests('Too many requests. Try again later.', rateLimit.retryAfterSec);
+    }
+
     const params = await context.params;
 
     const account = await prisma.socialAccount.findFirst({

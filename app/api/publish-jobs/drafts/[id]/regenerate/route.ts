@@ -1,13 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUserFromRequest } from '@/lib/server/auth';
 import { prisma } from '@/lib/server/prisma';
-import { badRequest, notFound, serverError, unauthorized } from '@/lib/server/http';
+import { badRequest, notFound, serverError, tooManyRequests, unauthorized } from '@/lib/server/http';
+import { consumeRateLimit } from '@/lib/server/rate-limit';
 import { generatePlatformBundles } from '@/lib/server/composer-drafts';
 import { collectContentWarnings } from '@/lib/server/content-safety';
 
 export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const user = getAuthUserFromRequest(request);
+
+    const rateLimit = await consumeRateLimit({
+      key: `publish-jobs:drafts-regenerate:${user.userId}`,
+      limit: 15,
+      windowMs: 15 * 60 * 1000,
+    });
+    if (!rateLimit.allowed) {
+      return tooManyRequests('Too many requests. Try again later.', rateLimit.retryAfterSec);
+    }
+
     const params = await context.params;
     const body = (await request.json()) as { rawInput?: string; timezone?: string };
 
