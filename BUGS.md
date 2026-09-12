@@ -73,4 +73,4 @@ Kroki reprodukcji:
 2. TikTok przyjmuje publikację asynchronicznie (`PENDING` + `errorMessage` z tagiem `[tiktok-tracking:...]`).
 3. Ekran statusu w kompozytorze pokazuje "Zaplanowane — publikacja tego dnia (patrz uwaga o cronie)" mimo że to nie było zaplanowane, tylko "opublikuj teraz" w trakcie przetwarzania.
 4. Po faktycznym sukcesie (status `SUCCESS`, `remotePostUrl` ustawiony w bazie) ekran nadal pokazuje tylko "Opublikowano" bez linku, mimo że dane są dostępne w odpowiedzi API.
-Status: [ ] test napisany (czerwony) → [ ] poprawka wdrożona (test zielony) → [ ] zamknięty (PR #...)
+Status: [x] test napisany → [x] poprawka wdrożona (test zielony) → [x] zamknięty (PR #19)
