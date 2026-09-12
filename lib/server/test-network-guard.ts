@@ -5,7 +5,14 @@ import https from 'node:https';
 // realnie dotrzeć do platform OAuth - błąd kodu (albo pomyłkowo wklejony prawdziwy
 // token do .env) nigdy nie ma szansy nic opublikować/pobrać z prawdziwego konta,
 // bo samo połączenie jest blokowane zanim wyjdzie z procesu Node.
-const BLOCKED_HOST_SUFFIXES = ['googleapis.com', 'google.com', 'tiktokapis.com', 'tiktok.com', 'facebook.com'];
+const BLOCKED_HOST_SUFFIXES = [
+  'googleapis.com',
+  'google.com',
+  'tiktokapis.com',
+  'tiktok.com',
+  'facebook.com',
+  'telegram.org',
+];
 
 export function isBlockedHost(hostname: string | undefined | null): boolean {
   if (!hostname) {

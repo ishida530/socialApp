@@ -219,6 +219,55 @@ To potwierdza wartość dosłownego wymogu DoD "realna symulacja" zamiast przegl
 
 ---
 
+---
+
+**Faza: Etap 1 — TASK-3.1.1 [P0/M]** — Mechanizm łączenia konta Telegram z kontem użytkownika
+
+**[PO] Backlog + DoD:**
+
+Analiza stanu: zero istniejącego kodu Telegram w repo — budowa od zera. Użytkownik potwierdził: **nie ma jeszcze bota** (@BotFather) — implementacja z pełnym pokryciem testowym (mockowane wywołania Telegram Bot API, ten sam wzorzec co reszta projektu), realna weryfikacja z prawdziwym botem odłożona do momentu, gdy użytkownik go założy (instrukcja poniżej).
+
+Zakres (ściśle wg sekcji 4.1 głównego planu — **tylko mechanizm łączenia**, komendy `/status` itd. to TASK-3.2.1, routing wiadomości do kolejki to TASK-3.1.2):
+1. **Model danych**: `User.telegramChatId` (String?, unique) + nowy model `TelegramLinkCode` (wzorowany na już istniejącym `PasswordResetToken` — hash kodu, nie kod w plaintext, `expiresAt`, `usedAt`).
+2. **Generowanie kodu**: `POST /api/telegram/link-code` (uwierzytelniony, jak reszta API) — tworzy jednorazowy kod (10 min ważności), unieważnia poprzedni nieużyty kod tego użytkownika, zwraca kod + nazwę bota do wyświetlenia w UI.
+3. **Webhook**: `POST /api/telegram/webhook` — **weryfikacja podpisu** przez nagłówek `X-Telegram-Bot-Api-Secret-Token` (oficjalny mechanizm Telegrama, `secret_token` ustawiany przy `setWebhook`) zgodnie z sekcją 9.3 głównego planu, zanim TASK-1.5.1 zrobi to systematycznie dla wszystkich webhooków. `/start <kod>` → weryfikacja hasha kodu, powiązanie `telegramChatId` z userem, oznaczenie kodu jako użyty, potwierdzenie wysłane z powrotem przez Telegram Bot API. Nieprawidłowy/wygasły kod → odrzucenie z komunikatem. Każda inna wiadomość z **niepowiązanego** `chatId` → odrzucona z komunikatem "musisz najpierw połączyć konto" (nigdy cicho, nigdy nie pokazuje niczyich danych).
+4. **UI**: sekcja w `/account` (już istnieje z TASK BUG-002/wcześniej) — przycisk generujący kod, wyświetlenie kodu + `@nazwabota` + odliczanie ważności, status "połączono"/"nie połączono".
+5. **`test-network-guard.ts`** (TASK-1.1.1) rozszerzony o `telegram.org` — żaden test nie ma prawa wykonać realnego wywołania do Telegram Bot API.
+
+Nowe zmienne env: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_BOT_USERNAME` (do `.env.example`, `.env.test.example` z pustymi/testowymi wartościami).
+
+DoD:
+- Test integracyjny: `POST /api/telegram/webhook` z poprawnym `/start <kod>` i prawidłowym nagłówkiem sekretu → `telegramChatId` zapisany w bazie, kod oznaczony jako użyty, wysłana (zamockowana) wiadomość potwierdzająca.
+- Test: żądanie webhooka bez poprawnego nagłówka sekretu → odrzucone (401), zero efektów w bazie.
+- Test: wiadomość od `chatId` bez powiązania → odrzucona, zero dostępu do jakichkolwiek danych.
+- Test: wygasły/nieprawidłowy kod → nie łączy, komunikat błędu.
+- `npm test`/`npm run build` bez regresji.
+- Instrukcja dla użytkownika w `docs/postfly-instrukcja-startu.md` lub nowym dokumencie: jak założyć bota u @BotFather i skonfigurować webhook (`setWebhook` z `secret_token`) — do wykonania przez użytkownika, gdy będzie gotowy na realny test.
+
+**[Architekt] Decyzja/zmiany:** Zatwierdzone. `telegramChatId` bezpośrednio na `User` (nie osobna tabela relacji) — jeden Telegram na jednego użytkownika wystarcza na obecną skalę (personal + commercial z własnym kontem per klient), zgodnie z sekcją 8.8 (brak przedwczesnej normalizacji). `TelegramLinkCode` wzorowany na `PasswordResetToken` — spójna konwencja, nie nowy wzorzec. Webhook musi weryfikować sekret PRZED jakimkolwiek przetwarzaniem treści (sekcja 9.1 i 9.3) — to pierwszy webhook w projekcie, ustawia precedens dla TASK-1.5.1. Re-link (ten sam `telegramChatId` na inne konto Postfly) nadpisuje poprzednie powiązanie — zachowanie analogiczne do reconnect kont social już istniejącego w kodzie, nie nowy wzorzec do wymyślania.
+
+**[Inżynier] Zaimplementowano, build/testy:**
+
+Branch `feat/TASK-3.1.1-telegram-account-link`:
+- Migracja `telegram_account_link`: `User.telegramChatId` (unique, nullable), model `TelegramLinkCode` (wzorowany na `PasswordResetToken`).
+- `lib/server/telegram.ts` — generowanie czytelnego 8-znakowego kodu (bez znaków mylących: 0/O, 1/I/l), hash SHA-256 (nie plaintext w bazie), weryfikacja `X-Telegram-Bot-Api-Secret-Token` (timing-safe porównanie), `sendTelegramMessage`, `consumeTelegramLinkCode` (transakcja: odłącza poprzedniego właściciela `chatId` jeśli istnieje, łączy nowego, oznacza kod jako użyty).
+- `POST /api/telegram/link-code` (uwierzytelniony) — generuje kod, unieważnia poprzedni nieużyty. `GET` — zwraca status `linked`.
+- `POST /api/telegram/webhook` — weryfikacja sekretu PRZED przetwarzaniem (401 przy braku/błędnym), `/start <kod>` łączy konto, każda inna wiadomość z niepowiązanego czatu odrzucona z wyjaśnieniem, zero wycieku danych.
+- `lib/server/test-network-guard.ts` rozszerzony o `telegram.org` (TASK-1.1.1) — żaden test nie może realnie uderzyć w Telegram Bot API.
+- UI: sekcja "Telegram" w `/account` — generowanie kodu, status połączenia.
+- Instrukcja zakładania bota (@BotFather, `setWebhook` z `secret_token`) w `docs/postfly-instrukcja-startu.md`, Krok 6.5.
+- `npm test`: 45/45 (oba tryby). `npm run build`: przechodzi.
+
+**Świadome ograniczenie tego zamknięcia:** użytkownik nie ma jeszcze prawdziwego bota Telegram (potwierdzone na starcie zadania) — w przeciwieństwie do TASK-1.1.2, **nie było możliwe uruchomienie realnego testu end-to-end przeciw prawdziwemu Telegram Bot API**. Weryfikacja ogranicza się do testów integracyjnych z zamockowanym `fetch` (ten sam wzorzec co reszta projektu dla zewnętrznych API — TikTok/Google/Meta również nigdy nie są wołane naprawdę w testach). Realna weryfikacja end-to-end (Krok 6.5 instrukcji) czeka na założenie bota przez użytkownika — odnotowane jawnie, nie ukryte jako "zrobione w 100%".
+
+**[QA] Niezależna weryfikacja, znalezione problemy:**
+
+Niezależnie potwierdzone: (1) test webhooka bez poprawnego nagłówka sekretu → 401, zero zmian w bazie (zweryfikowane odczytem `User.telegramChatId` po próbie); (2) poprawny `/start <kod>` → `telegramChatId` faktycznie zapisany, kod oznaczony `usedAt`, wysłana (zamockowana) wiadomość zawiera prawidłowy `chat_id` i treść; (3) nieprawidłowy/inny kod → zero zmian w bazie, komunikat błędu; (4) wiadomość z niepowiązanego czatu → zero odczytu/ujawnienia jakichkolwiek danych, tylko odrzucenie z wyjaśnieniem. Kod nigdy nie jest przechowywany w postaci jawnej (`codeHash` ≠ `code` zweryfikowane wprost w teście). Znalezione problemy: brak. DoD spełnione **w zakresie możliwym bez prawdziwego bota** — jawnie odnotowany brak realnej weryfikacji end-to-end, zgodnie z zasadą "nie nazywaj czegoś gotowym, gdy nie jest".
+
+**Status: TASK-3.1.1 zamknięte (z jawnie odnotowanym ograniczeniem realnej weryfikacji — brak bota po stronie użytkownika).**
+
+---
+
 **Definicja "gotowy projekt w 100%":** każdy checkbox w sekcjach 6 i 7 odhaczony, każdy z jawnym DoD spełnionym i potwierdzonym testem (nie deklaracją), **QA niezależnie zweryfikowało, nie tylko Inżynier**, Architekt podpisał się pod skalowalnością w sekcji 9 dla każdej nowej warstwy, i sekcja 8 (Review końcowy) przeszła bez zastrzeżeń blokujących.
 
 ## 0.1 Zespół UX/UI — równoległy tor pracy
