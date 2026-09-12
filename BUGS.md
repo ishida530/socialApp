@@ -41,3 +41,14 @@ Kroki weryfikacji fixu (prod mode, przechodzi):
 1. `npm run build:test && npm run start:test` (albo `npm run build && npm run start` ze spójną, lokalną bazą).
 2. `npx playwright test tests/e2e/account-deletion.spec.ts` → 2 passed.
 Status: [x] test napisany (czerwony pod `next dev`) → [x] potwierdzone jako nie-błąd (zielony pod build produkcyjnym, bez zmian w kodzie) → [x] zamknięty — brak PR, bo brak zmiany kodu aplikacji; nie blokuje dalszej pracy.
+
+## BUG-003
+Zgłoszony: 2026-09-12
+Kontekst: TASK-3.3.1 — pierwszy realny (nie zamockowany) przebieg pełnego cyklu przez Telegram: użytkownik wysłał wideo do @Post_flyBot na produkcji, dostał podgląd z 4 platformami (Facebook/Instagram/YouTube/TikTok — wszystkie podłączone), kliknął "✅ Publikuj".
+Opis: Bot odpowiedział błędem: "Nie udało się opublikować: Dla TikTok wybierz poziom prywatności publikacji w kroku przeglądu." Efekt: **żadna z 4 platform nie została opublikowana**, nie tylko TikTok — `enqueueDraftGroup` (`lib/server/publish-jobs.ts`) sprawdza `tiktokPrivacyLevel` na DRAFT jobie TikToka i zwraca błąd PRZED transakcją, która przełącza jakikolwiek job na PENDING (wszystko-albo-nic w ramach jednego wywołania). Przyczyna: `handleIncomingMedia` w `app/api/telegram/webhook/route.ts` (TASK-3.1.2) tworzy DRAFT-y przez `createDraftGroupForVideo`, ale nigdy nie ustawia `tiktokPrivacyLevel` na DRAFT jobie TikToka — mimo że dokładnie to zachowanie ("domyślny tiktokPrivacyLevel=SELF_ONLY") zostało opisane jako decyzja Architekta w logu ról TASK-3.1.2 (`docs/postfly-plan-projektu.md`) i nigdy nie zaimplementowane. Rozjazd między udokumentowaną decyzją a kodem — znaleziony dopiero przy realnym użyciu, nie przy code review.
+Kroki reprodukcji:
+1. Połączone konto Telegram + podłączone konto TikTok w Postfly.
+2. Wyślij wideo/zdjęcie do bota → dostajesz podgląd z przyciskami.
+3. Kliknij "✅ Publikuj".
+4. Obserwacja: błąd o braku poziomu prywatności TikTok, zero platform opublikowanych (nie tylko TikTok).
+Status: [x] test napisany (czerwony) → [x] poprawka wdrożona (test zielony) → [ ] zamknięty (PR #...)

@@ -25,6 +25,7 @@ vi.mock('@/lib/server/telegram', async (importOriginal) => {
 
 const mockBundles = new Map([
   ['INSTAGRAM', { platform: 'INSTAGRAM', title: 'IG Title', caption: 'Instagram caption', hashtags: ['#rap'] }],
+  ['TIKTOK', { platform: 'TIKTOK', title: 'TikTok Title', caption: 'TikTok caption', hashtags: ['#rap'] }],
 ]);
 
 vi.mock('@/lib/server/composer-drafts', () => ({
@@ -124,6 +125,62 @@ describe('POST /api/telegram/webhook — media upload (TASK-3.1.2)', () => {
     expect(response.status).toBe(200);
     expect(mockUploadTelegramMediaAsVideo).not.toHaveBeenCalled();
     expect(mockSendTelegramMessage.mock.calls[0][1]).toMatch(/za duży/);
+  });
+
+  // BUG-003: pierwszy realny przebieg TASK-3.3.1 (prawdziwy bot, prawdziwy klik "Publikuj")
+  // failował dla TikToka: "Dla TikTok wybierz poziom prywatności publikacji w kroku przeglądu."
+  // - żadna platforma nie została opublikowana, nie tylko TikTok (enqueueDraftGroup jest
+  // wszystko-albo-nic). Przyczyna: DRAFT tworzony przez upload z Telegrama nigdy nie dostawał
+  // domyślnego tiktokPrivacyLevel, mimo że dokładnie to zachowanie było opisane jako decyzja
+  // Architekta w logu ról TASK-3.1.2 - udokumentowane, ale nigdy nie zaimplementowane.
+  it('sets a default tiktokPrivacyLevel on the TikTok DRAFT job created from a Telegram upload (BUG-003)', async () => {
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
+    await createSocialAccount(user.id, 'TIKTOK', { accessToken: encrypt('real-looking-tiktok-access-token') });
+    const chatId = '555444333222';
+    await linkChat(user.id, chatId);
+
+    const fakeVideo = await createVideo(user.id);
+    mockUploadTelegramMediaAsVideo.mockResolvedValue(fakeVideo);
+
+    await POST(
+      webhookRequest({ message: { chat: { id: Number(chatId) }, video: { file_id: 'tg-file-tiktok' } } }),
+    );
+
+    const tiktokJob = await prisma.publishJob.findFirstOrThrow({ where: { videoId: fakeVideo.id } });
+    expect(tiktokJob.tiktokPrivacyLevel).toBeTruthy();
+
+    // Domknięcie pełnego cyklu: z domyślnym poziomem prywatności ustawionym, kliknięcie
+    // "Publikuj" musi faktycznie ruszyć publikację TikTok, nie powtórzyć ten sam błąd.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ data: { publish_id: 'tiktok-publish-1' } }),
+        text: async () => '',
+      }),
+    );
+
+    const response = await POST(
+      webhookRequest({
+        callback_query: {
+          id: 'cbq-bug003',
+          data: `publish:${tiktokJob.postGroupId}`,
+          message: { chat: { id: Number(chatId) }, message_id: 55 },
+        },
+      }),
+    );
+    expect(response.status).toBe(200);
+    vi.unstubAllGlobals();
+
+    const refreshed = await prisma.publishJob.findUniqueOrThrow({ where: { id: tiktokJob.id } });
+    // TikTok publish jest async (init -> poll status), więc po "Publikuj" job jest PENDING
+    // ze znacznikiem śledzenia, NIE z powrotem w DRAFT ani z błędem braku poziomu prywatności.
+    expect(refreshed.status).toBe('PENDING');
+    expect(refreshed.errorMessage).toMatch(/tiktok-tracking/);
+
+    expect(mockEditTelegramMessage).toHaveBeenCalledTimes(1);
+    expect(mockEditTelegramMessage.mock.calls[0][2]).not.toMatch(/poziom prywatności/);
   });
 });
 
