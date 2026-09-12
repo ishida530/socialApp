@@ -94,9 +94,12 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
         return badRequest(`Niepoprawna prywatność TikTok. Dozwolone: ${privacyOptions.join(', ')}`);
       }
 
-      const allowComment = body.tiktokAllowComment !== false;
-      const allowDuet = body.tiktokAllowDuet !== false;
-      const allowStitch = body.tiktokAllowStitch !== false;
+      const allowComment =
+        body.tiktokAllowComment !== undefined ? body.tiktokAllowComment !== false : job.tiktokAllowComment !== false;
+      const allowDuet =
+        body.tiktokAllowDuet !== undefined ? body.tiktokAllowDuet !== false : job.tiktokAllowDuet !== false;
+      const allowStitch =
+        body.tiktokAllowStitch !== undefined ? body.tiktokAllowStitch !== false : job.tiktokAllowStitch !== false;
 
       if (creatorInfo?.comment_disabled && allowComment) {
         return badRequest('Na tym koncie TikTok komentarze są wyłączone. Odznacz komentarze.');

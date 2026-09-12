@@ -52,3 +52,14 @@ Kroki reprodukcji:
 3. Kliknij "✅ Publikuj".
 4. Obserwacja: błąd o braku poziomu prywatności TikTok, zero platform opublikowanych (nie tylko TikTok).
 Status: [x] test napisany (czerwony) → [x] poprawka wdrożona (test zielony) → [ ] zamknięty (PR #...)
+
+## BUG-004
+Zgłoszony: 2026-09-12
+Kontekst: TASK-3.3.1 — realny test publikacji TikTok przez web (kompozytor na postfly.pl), po podmianie danych TikToka na Sandbox (target user) i potwierdzeniu, że OAuth token ma pełny scope (video.publish, video.upload). Próba ręcznej zmiany prywatności posta w kompozytorze na koncie, na którym TikTok ma wyłączony duet/stitch.
+Opis: `PATCH /api/publish-jobs/drafts/[id]` (`app/api/publish-jobs/drafts/[id]/route.ts:97-99`) liczy `allowDuet`/`allowStitch`/`allowComment` wyłącznie z pól obecnych w BIEŻĄCYM body requestu (`body.tiktokAllowDuet !== false`), ignorując już zapisaną wartość na jobie (`job.tiktokAllowDuet`). Kompozytor (`TikTokSettingsPanel.tsx`) wysyła osobne PATCH-e per pole — zmiana samej rozwijanej listy "Prywatność postu" wysyła `{tiktokPrivacyLevel: "SELF_ONLY"}` bez pola `tiktokAllowDuet`. Skutek: `body.tiktokAllowDuet` jest `undefined`, `undefined !== false` daje `true`, więc endpoint traktuje duet jako włączony niezależnie od realnego stanu jobu i odrzuca zapis błędem "Na tym koncie TikTok duet jest wyłączony. Odznacz duet." — mimo że duet i tak jest już zapisany jako wyłączony. Efekt: na kontach z wyłączonym duet/stitch (częste, to ustawienie właściciela konta TikTok) nie da się w ogóle zmienić prywatności posta przez kompozytor — zablokowało to testy end-to-end TASK-3.3.1 dla TikToka.
+Kroki reprodukcji:
+1. Podłączone konto TikTok z wyłączonym duet (`duet_disabled: true` z `/creator_info`).
+2. Utwórz draft, poczekaj aż panel ustawień TikTok ustawi domyślne wartości (w tym `tiktokAllowDuet: false`).
+3. Zmień samą "Prywatność postu" w dropdownie (bez dotykania przełączników Duet/Stitch).
+4. Obserwacja: `PATCH .../drafts/:id` zwraca 400 "Na tym koncie TikTok duet jest wyłączony. Odznacz duet." — zmiana prywatności nie zapisuje się.
+Status: [x] test napisany (czerwony) → [x] poprawka wdrożona (test zielony) → [ ] zamknięty (PR #...)
