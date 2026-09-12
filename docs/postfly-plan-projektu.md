@@ -57,9 +57,16 @@ Zakres zadania (z `postfly-backlog-sprinty.md`): utworzyć w korzeniu repo dwa p
 
 **Uwaga PO — stan repo:** w drzewie roboczym są już niezacommitowane zmiany sprzed tej sesji (usunięte stare pliki `docs/*.md`, zmodyfikowane `tests/e2e/login-happy-path.spec.ts` i `tests/e2e/register-happy-path.spec.ts`, nowe nieśledzone `docs/postfly-*.md`). Nie są częścią zakresu TASK-1.1.0 — PO rekomenduje wyjaśnienie/rozdzielenie tego stanu (osobny commit porządkowy albo świadome zachowanie) **przed** utworzeniem nowego brancha na TASK-1.1.0, żeby branch zadania nie dziedziczył niepowiązanych zmian.
 
-[Architekt] Decyzja/zmiany: *(oczekuje na akceptację PO przez użytkownika)*
-[Inżynier] Zaimplementowano, build/testy: *(oczekuje)*
-[QA] Niezależna weryfikacja, znalezione problemy: *(oczekuje)*
+**[Architekt] Decyzja/zmiany:**
+
+Backlog PO zaakceptowany przez użytkownika bez zmian. Ocena pod kątem sekcji 9 (bezpieczeństwo agentów) i skalowalności: nie dotyczy — to zadanie nie tworzy kodu produkcyjnego, endpointu, modelu danych ani agenta, tylko dwa pliki procesowe w korzeniu repo czytane/nadpisywane wyłącznie przez Claude Code między sesjami. Żaden z wzorców z sekcji 8 (kolejka, worker, indeksy, rate limiting, cache) ani z sekcji 9 (uprawnienia agenta, webhooki, logi, wypłaty) nie ma tu zastosowania — brak ryzyka do zaadresowania przed implementacją.
+
+Jedyna uwaga architektoniczna: `BUGS.md` w obecnym kształcie (pojedynczy plik Markdown) wystarczy na obecną skalę (jeden developer, sekwencyjna praca). Gdyby w przyszłości liczba jednoczesnych wątków błędów urosła na tyle, że płaski plik stanie się nieczytelny, to problem do rozwiązania wtedy (np. katalog per-bug) — nie przedwczesna optymalizacja teraz (sekcja 8.8), świadomie odrzucam rozbudowę struktury na tym etapie.
+
+Podejście PO zatwierdzone bez modyfikacji zakresu. Przekazuję do roli Inżyniera.
+
+**[Inżynier] Zaimplementowano, build/testy:** *(oczekuje)*
+**[QA] Niezależna weryfikacja, znalezione problemy:** *(oczekuje)*
 
 ---
 
