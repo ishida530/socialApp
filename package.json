@@ -20,7 +20,9 @@
     "test:personal": "cross-env APP_MODE=personal vitest run",
     "test:commercial": "cross-env APP_MODE=commercial vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "backup:db": "node scripts/backup-database.mjs",
+    "restore:db": "node scripts/restore-database.mjs"
   },
   "dependencies": {
     "@popperjs/core": "2.11.8",
