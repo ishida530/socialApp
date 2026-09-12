@@ -18,6 +18,14 @@ export async function register() {
     await import('./sentry.edge.config');
   }
 
+  // TASK-1.1.1: serwer uruchomiony pod NODE_ENV=test (tak jak w CI dla testów e2e,
+  // .github/workflows/test.yml) nigdy nie łączy się z prawdziwymi platformami OAuth,
+  // nawet jeśli błąd w kodzie albo pomyłkowo wklejony token by o to poprosił.
+  if (process.env.NEXT_RUNTIME === 'nodejs' && process.env.NODE_ENV === 'test') {
+    const { installNetworkGuard } = await import('./lib/server/test-network-guard');
+    installNetworkGuard();
+  }
+
   if (process.env.NODE_ENV === 'production') {
     return;
   }

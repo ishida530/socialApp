@@ -57,6 +57,25 @@ npm run dev
 
 Sprawdź: `http://localhost:3000` działa lokalnie. Jeśli tak — fundament stoi, możesz przejść dalej.
 
+### Krok 3.1 — środowisko testowe (osobna baza, TASK-1.1.1)
+
+Testy (`npm test`, `npm run test:e2e`) **nigdy** nie używają bazy deweloperskiej ani prawdziwych sekretów OAuth — patrz `docs/postfly-plan-projektu.md` sekcja 3. Jednorazowo:
+
+```bash
+cp .env.test.example .env.test
+# .env.test.example ma już poprawny DATABASE_URL na osobną bazę flowstate_test —
+# nie kopiuj tu sekretów OAuth z własnego .env, mają zostać puste.
+npm run prisma:migrate:test
+```
+
+Jeśli `npm run docker:up` uruchomiłeś **przed** tą zmianą (kontener Postgres miał już istniejący wolumen), baza `flowstate_test` nie powstanie automatycznie — załóż ją ręcznie jednym poleceniem:
+
+```bash
+docker exec flowstate-postgres psql -U postgres -c "CREATE DATABASE flowstate_test;"
+```
+
+Od tego momentu `npm test`/`npm run test:e2e` piszą wyłącznie do `flowstate_test`, a każda próba realnego połączenia z platformą OAuth (Google/TikTok/Meta) w procesie testowym kończy się błędem — nawet gdybyś przez pomyłkę wkleił prawdziwy token do `.env.test`.
+
 ## Krok 4 — Claude Code w VS Code
 
 1. Otwórz folder projektu w VS Code (`code .` w terminalu, w folderze repo).

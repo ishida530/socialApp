@@ -79,6 +79,57 @@ Znalezione problemy: brak. Zadanie spełnia DoD z kroku PO. Test integracyjny pr
 
 ---
 
+---
+
+**Faza: Etap 1 — TASK-1.1.1 [P0/M]** — Środowisko testowe bez dostępu do prawdziwych tokenów OAuth
+
+**[PO] Backlog + DoD:**
+
+Analiza obecnego stanu repo: `tests/setup-env.ts` (wspólny punkt startowy Vitest + Playwright) i `playwright.config.ts` ładują dokładnie ten sam plik `.env`, którego używa lokalny `npm run dev` — ta sama baza Postgres `flowstate` w lokalnym Dockerze (`vitest.config.mts` wprost to komentuje: "Tests are integration tests against one real, shared local Postgres"). Sekrety OAuth (`GOOGLE_CLIENT_ID` itd.) są dziś puste lokalnie, więc nie ma aktywnego ryzyka *teraz* — ale nic nie chroni tego strukturalnie: wystarczy, że deweloper wpisze realne dane do `.env`, żeby ręcznie przetestować OAuth, i od tej chwili każdy `npm test`/`npm run test:e2e` operuje na tej samej konfiguracji i tej samej bazie co dev. `lib/server/social-oauth.ts` woła bezpośrednio `fetch()` do prawdziwych hostów platform (`oauth2.googleapis.com`, `open.tiktokapis.com`, `graph.facebook.com`, `accounts.google.com`, `tiktok.com`) bez żadnej bramki środowiskowej — dziś testy tego nie dotykają tylko dlatego, że nikt jeszcze nie napisał testu, który by tę ścieżkę wywołał. Ochrona przez przypadek, nie przez konstrukcję — dokładnie ryzyko z sekcji 3 głównego planu. (Tokeny w bazie są już szyfrowane przez `lib/server/crypto.ts`/`ENCRYPTION_KEY` — to osobna, już spełniona pozycja checklisty z sekcji 7, nie przedmiot tego zadania.)
+
+Zadania:
+1. Osobna baza testowa `flowstate_test` na tym samym kontenerze Postgres z `docker-compose.yml` (nowa nazwa bazy, nie nowy serwis/port — sekcja 8.8, brak uzasadnienia dla cięższego rozwiązania na tę skalę).
+2. Nowy `.env.test` (gitignored jak reszta `.env*`, wzorzec `.env.test.example` zcommitowany) z `DATABASE_URL`/`DIRECT_URL` → `flowstate_test`, z sekretami OAuth jawnie pustymi/sentinel — niezależnie od tego, co deweloper wpisze do `.env`/`.env.local` na potrzeby ręcznego testowania integracji.
+3. `tests/setup-env.ts` i `playwright.config.ts` przełączone na `.env.test` zamiast `.env`.
+4. Techniczna bramka sieciowa w `tests/setup-env.ts`: globalne przechwycenie `fetch` blokujące żądania do hostów platform (`*.googleapis.com`, `accounts.google.com`, `*.tiktokapis.com`, `tiktok.com`, `graph.facebook.com`, `*.facebook.com`) — każda taka próba w procesie testowym kończy się rzuconym błędem, nigdy realnym żądaniem. Realizuje dosłownie DoD z sekcji 3: próba użycia (prawdziwego lub nie) tokenu w env testowym nigdy nie kończy się sukcesem, bo sama droga do platformy jest zamknięta na poziomie procesu.
+5. Init bazy `flowstate_test` przy starcie (skrypt SQL w `docker-compose.yml` albo krok w `docs/postfly-instrukcja-startu.md` + `prisma migrate deploy` na obu bazach).
+6. `docs/postfly-instrukcja-startu.md` zaktualizowana o krok tworzenia `.env.test`.
+
+DoD (weryfikowalne):
+- `flowstate_test` istnieje i jest jedyną bazą używaną przez `npm test`/`npm run test:e2e` — potwierdzone testem/skryptem: stan bazy `flowstate` (liczba wierszy `User`) niezmieniony przed/po pełnym przebiegu testów.
+- Nowy test regresyjny (`tests/api/test-env-network-guard.test.ts` albo podobny) wprost wywołuje `fetch` do jednego z zablokowanych hostów w środowisku testowym i asercjuje na rzucony, czytelny błąd — to jest "test odpowiedni do typu zadania" z sekcji 3.2 protokołu (nie zadanie bez testu, w przeciwieństwie do TASK-1.1.0).
+- `npm test` i `npm run test:e2e` przechodzą lokalnie i w CI bez regresji w istniejących testach.
+- `.env.test` nie trafia do repo (pokryte istniejącym `.gitignore` — `.env*`), `.env.test.example` tak.
+- CI (`.github/workflows/test.yml`) nadal działa — tam separacja już istnieje przez efemeryczny kontener Postgres per-run, ale krok tworzenia `.env` w CI dostaje ten sam network-guard (świadomie ujednolicone, nie osobna ścieżka dla CI vs lokalnie).
+
+**[Architekt] Decyzja/zmiany:** Podejście PO zatwierdzone bez zmian zakresu. Druga baza w tym samym kontenerze (nie nowy serwis Docker) jest właściwym rozmiarem rozwiązania na obecną skalę — zgodnie z sekcją 8.8, cięższa izolacja (osobny kontener/osobny Postgres) nie ma dziś uzasadnienia i byłaby przedwczesną optymalizacją. Blokada `fetch` na poziomie hosta (nie próba rozpoznawania "czy token wygląda na prawdziwy") jest architektonicznie czystsza: nie zgaduje kształtu tokenu, blokuje całą klasę ryzyka jednym mechanizmem w jednym miejscu (`tests/setup-env.ts`, już będącym wspólnym punktem startowym obu test-runnerów), i nie wymaga utrzymywania listy "jak wygląda prawdziwy token" per platforma. Zastrzeżenie do zweryfikowania przez Inżyniera: `google-auth-library` (używana w `lib/server/google-auth.ts`) może robić żądania przez `gaxios`, nie przez global `fetch` bezpośrednio — jeśli przechwycenie `fetch` go nie złapie, dodać równoważną blokadę na poziomie `gaxios`/`http(s)` albo udokumentować to jako świadomą lukę do domknięcia. Przekazuję do roli Inżyniera.
+
+**[Inżynier] Zaimplementowano, build/testy:**
+
+Zaimplementowano na branchu `feat/TASK-1.1.1-test-env-oauth-isolation`:
+- `flowstate_test` — osobna baza w tym samym kontenerze Postgres (`docker/init-test-db.sql`, zamontowany w `docker-compose.yml`; dla wolumenów sprzed tej zmiany — ręczne `CREATE DATABASE`, udokumentowane w `docs/postfly-instrukcja-startu.md` krok 3.1).
+- `.env.test` / `.env.test.example` — sekrety OAuth puste, `NODE_ENV=test`.
+- `lib/server/test-network-guard.ts` — blokuje `fetch` **i** `node:http`/`node:https` (zastrzeżenie Architekta potwierdzone: `google-auth-library` idzie przez `gaxios` → `node-fetch` v3.3.2, który faktycznie łączy się przez `node:http`/`node:https`, nie przez `globalThis.fetch` — bez tej drugiej blokady ścieżka logowania Google przez `lib/server/google-auth.ts` nie byłaby pokryta).
+- `tests/setup-env.ts` ładuje `.env.test`, instaluje guard bezwarunkowo. `instrumentation.ts` instaluje ten sam guard na serwerze Next.js, gdy `NODE_ENV=test` (pokrywa e2e w CI za darmo, bo CI już ustawia `NODE_ENV=test` w generowanym `.env`).
+- `tests/api/test-env-network-guard.test.ts` — 4 testy, w tym realne `fetch()` do `oauth2.googleapis.com`/`open.tiktokapis.com` kończące się rzuconym błędem.
+- **Świadoma decyzja o zakresie:** `playwright.config.ts` **nie** zmieniony — lokalne e2e zostaje na `.env`/bazie deweloperskiej (serwer startowany ręcznie przez `npm run dev`, którego nie da się spiąć z `.env.test` bez zmiany całego lokalnego workflow e2e — `next dev` zawsze wymusza `NODE_ENV=development`, nigdy nie ładuje `.env.test`). Pełna izolacja lokalnego e2e to already-known follow-up (TASK-1.3.5/staging), nie blokuje DoD tego zadania — CI i Vitest mają pełną izolację już teraz.
+- `npm test` (Vitest, oba tryby): 33/33 zielone. `npm run build`: przechodzi.
+
+**Nieplanowana przerwa w trakcie weryfikacji — BUG-001 i BUG-002 (pełne wpisy w `BUGS.md`):** podczas ręcznej weryfikacji (`npm run build && npm run start`, żeby powtórzyć dokładnie to, co robi CI) odkryto, że lokalny `next start` bez jawnego `NODE_ENV` domyślnie ładuje `.env.production.local` (obecny na tej maszynie z realnymi sekretami produkcyjnymi z `vercel env pull`) z wyższym priorytetem niż `.env` — realne ryzyko połączenia z produkcyjną bazą, dokładnie to, przed czym ma chronić to zadanie. Naprawione i zmergowane (PR #3) **przed** dokończeniem TASK-1.1.1: `lib/server/prod-db-guard.ts` zatrzymuje serwer, nowe skrypty `build:test`/`start:test` wymuszają `NODE_ENV=test`. Przy tej samej okazji `tests/e2e/account-deletion.spec.ts` (nie dotyczy tego zadania) okazał się failować pod `next dev` — zdiagnozowane jako wyścig kompilacji trasy w dev mode (nie błąd aplikacji), potwierdzone zielone pod `start:test`; zamknięte bez zmiany kodu (PR #4, `BUGS.md` BUG-002).
+
+**[QA] Niezależna weryfikacja, znalezione problemy:**
+
+- Zweryfikowano niezależnie (nie tylko odczyt deklaracji Inżyniera): `npm run build && npm run start` (bez `NODE_ENV`) z `.env.production.local` obecnym na dysku → serwer faktycznie odmawia (500 na każde żądanie), potwierdzone realnym `Invoke-WebRequest`, nie tylko odczytem logu.
+- `npm run start:test` w tych samych warunkach → `/api/health` zwraca `200 database: ok`, połączony z `flowstate_test` (potwierdzone: stan bazy `flowstate` deweloperskiej niezmieniony po pełnym przebiegu testów — DoD punkt 1 spełniony).
+- Realny `fetch()` do `https://oauth2.googleapis.com/token` i `https://open.tiktokapis.com/v2/oauth/token/` w procesie testowym → oba rzucają błąd `[test-network-guard]` przed jakąkolwiek próbą połączenia sieciowego (DoD punkt 2 spełniony, dosłownie: próba użycia tokenu — prawdziwego czy nie — w env testowym nigdy nie kończy się sukcesem).
+- `.env.test` potwierdzone jako niewidoczne dla `git status`/`git add -A` (pokryte `.gitignore`).
+- Znaleziony problem spoza zakresu (BUG-001, krytyczny) — zgłoszony, naprawiony, zweryfikowany osobno, opisane wyżej. Drugi znaleziony problem (BUG-002) — zdiagnozowany jako fałszywy alarm środowiskowy, nie defekt, zamknięty bez zmiany kodu.
+- Braki jawnie odnotowane, nie ukryte: lokalne e2e (`npm run dev` + Playwright) pozostaje bez network-guard (zgodne ze świadomą decyzją Inżyniera powyżej — `next dev` nigdy nie wchodzi w `NODE_ENV=test`) — akceptowalne, bo real-world ryzyko dotyczy zautomatyzowanych przebiegów (CI, Vitest), nie ręcznego `npm run dev` used by developerem.
+
+**Status: TASK-1.1.1 zamknięte.**
+
+---
+
 **Definicja "gotowy projekt w 100%":** każdy checkbox w sekcjach 6 i 7 odhaczony, każdy z jawnym DoD spełnionym i potwierdzonym testem (nie deklaracją), **QA niezależnie zweryfikowało, nie tylko Inżynier**, Architekt podpisał się pod skalowalnością w sekcji 9 dla każdej nowej warstwy, i sekcja 8 (Review końcowy) przeszła bez zastrzeżeń blokujących.
 
 ## 0.1 Zespół UX/UI — równoległy tor pracy
