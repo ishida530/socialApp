@@ -1,12 +1,9 @@
-import { randomUUID } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
-import { Platform } from '@prisma/client';
 import { getAuthUserFromRequest } from '@/lib/server/auth';
 import { prisma } from '@/lib/server/prisma';
 import { badRequest, notFound, serverError, tooManyRequests, unauthorized } from '@/lib/server/http';
 import { consumeRateLimit } from '@/lib/server/rate-limit';
-import { generatePlatformBundles } from '@/lib/server/composer-drafts';
-import { collectContentWarnings } from '@/lib/server/content-safety';
+import { createDraftGroupForVideo } from '@/lib/server/publish-jobs';
 
 const PUBLISH_JOB_INCLUDE = {
   video: true,
@@ -101,91 +98,21 @@ export async function POST(request: NextRequest) {
       return badRequest('Validation failed', ['videoId: videoId jest wymagany']);
     }
 
-    const [video, socialAccounts, dbUser] = await Promise.all([
-      prisma.video.findFirst({ where: { id: body.videoId, userId: user.userId } }),
-      prisma.socialAccount.findMany({
-        where: { userId: user.userId },
-        orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
-      }),
-      prisma.user.findUnique({
-        where: { id: user.userId },
-        select: { defaultExplicitContent: true },
-      }),
-    ]);
-
-    if (!video) {
-      return badRequest('videoId nie należy do zalogowanego użytkownika');
-    }
-
-    if (socialAccounts.length === 0) {
-      return badRequest('Brak podłączonych kont social. Połącz przynajmniej jedno konto przed dodaniem posta.');
-    }
-
-    const accountByPlatform = new Map<Platform, (typeof socialAccounts)[number]>();
-    socialAccounts.forEach((account) => {
-      if (!accountByPlatform.has(account.platform)) {
-        accountByPlatform.set(account.platform, account);
-      }
+    const result = await createDraftGroupForVideo(user.userId, body.videoId, {
+      contentType: body.contentType,
+      songTitle: body.songTitle,
+      timezone: body.timezone,
     });
 
-    const connectedPlatforms = Array.from(accountByPlatform.keys()).filter(
-      (platform) => !(video.mediaType === 'IMAGE' && platform === Platform.YOUTUBE),
-    );
-
-    if (connectedPlatforms.length === 0) {
-      return badRequest('Żadna podłączona platforma nie obsługuje tego typu materiału.');
+    if (!result.ok) {
+      return badRequest(result.error);
     }
-
-    const postGroupId = randomUUID();
-
-    const createdJobs = await prisma.$transaction(
-      connectedPlatforms.map((platform) =>
-        prisma.publishJob.create({
-          data: {
-            status: 'DRAFT',
-            postGroupId,
-            scheduledFor: new Date(),
-            video: { connect: { id: video.id } },
-            socialAccount: { connect: { id: accountByPlatform.get(platform)!.id } },
-          },
-          include: PUBLISH_JOB_INCLUDE,
-        }),
-      ),
-    );
-
-    const rawInputParts = [body.contentType?.trim(), body.songTitle?.trim()].filter(Boolean);
-
-    const { bundlesByPlatform, orchestrationWarning } = await generatePlatformBundles(user.userId, {
-      rawInput: rawInputParts.join(' — '),
-      targetPlatforms: connectedPlatforms,
-      timezone: body.timezone || 'Europe/Warsaw',
-      idempotencyKey: postGroupId,
-    });
-
-    const updatedJobs = await Promise.all(
-      createdJobs.map(async (job) => {
-        const bundle = bundlesByPlatform.get(job.socialAccount.platform);
-        const caption = bundle?.caption ?? '';
-        const hashtags = bundle?.hashtags ?? [];
-
-        return prisma.publishJob.update({
-          where: { id: job.id },
-          data: {
-            caption,
-            hashtags,
-            title: bundle?.title ?? null,
-            contentWarnings: collectContentWarnings(caption, job.socialAccount.platform),
-          },
-          include: PUBLISH_JOB_INCLUDE,
-        });
-      }),
-    );
 
     return NextResponse.json({
-      postGroupId,
-      jobs: updatedJobs,
-      askDefaultExplicit: dbUser?.defaultExplicitContent === null,
-      orchestrationWarning,
+      postGroupId: result.postGroupId,
+      jobs: result.jobs,
+      askDefaultExplicit: result.askDefaultExplicit,
+      orchestrationWarning: result.orchestrationWarning,
     });
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
