@@ -36,6 +36,10 @@ jobs:
           sudo sh -c 'echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
           sudo apt-get update
           sudo apt-get install -y postgresql-client-17
+          # ubuntu-latest runners already ship an older postgresql-client (16) on PATH -
+          # installing 17 alongside it does not make plain `pg_dump` resolve to 17 unless
+          # its versioned bin dir is put first on PATH explicitly.
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
 
       - name: Run backup
         env:
