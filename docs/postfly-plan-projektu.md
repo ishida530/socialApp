@@ -312,6 +312,52 @@ Zweryfikowano niezależnie: (1) refaktor `publish-jobs.ts` nie zmienił zachowan
 
 ---
 
+---
+
+**Faza: Etap 1 — TASK-3.2.1 [P0/L, zawężone]** — Komendy Telegram: `/status`, `/pause`, `/approve`, `/reject`
+
+**[PO] Backlog + DoD:**
+
+Zakres wg uproszczenia Etapu 1: tylko te 4 komendy, reszta (`/resume /retry /cancel /logs /revenue`) na Etap 2. **Uwaga PO:** `/pause` bez `/resume` w tym samym kroku zostawia użytkownika bez sposobu na odpauzowanie przez Telegram — literalnie zgodne z zapisem w `postfly-plan-wykonania.md`, ale ryzyko UX na tyle realne, że dodaję `/resume` jako naturalny, symetryczny, tani dodatek (kilka linii), nie rozszerzenie zakresu funkcjonalnego — bez tego `/pause` jest półśrodkiem, nie bezpiecznikiem.
+
+Mapowanie na istniejące endpointy (ten sam wzorzec co TASK-3.1.2 — wydzielenie do `lib/server/publish-jobs.ts`, żeby web i Telegram dzieliły logikę):
+- `/approve <id>` → logika `/api/publish-jobs/[id]/trigger` (publikacja natychmiastowa, poza standardowym oknem).
+- `/reject <id>` → logika `/api/publish-jobs/[id]/cancel`.
+- `/pause`, `/resume` → nowe pole `User.publishingPaused` (migracja); `claimDuePublishJobs` w `publish-processor.ts` (raw SQL) rozszerzone o join do `User` i filtr `publishingPaused = false` — **to jest zmiana w rdzeniu kolejki publikacji**, wymaga testu wprost na to zachowanie (nie tylko na warstwie Telegrama).
+- `/status` — nowy, tylko-do-odczytu: liczba `PENDING` (z najbliższym `scheduledFor`), `DRAFT` (czeka na decyzję), ostatnie `SUCCESS`/`FAILED`, stan pauzy.
+
+DoD:
+- Test: `processDuePublishJobs` NIE zabiera joba użytkownika z `publishingPaused=true`, ale zabiera joba innego, niespauzowanego użytkownika w tym samym przebiegu (izolacja między userami, nie globalny wyłącznik).
+- Test: `/approve <id>` z Telegrama dla joba należącego do INNEGO użytkownika → odrzucone (ta sama bramka co `callback_query` z TASK-3.1.2).
+- Test: `/reject <id>` → status `CANCELED`.
+- Test: `/status` zwraca poprawne liczby dla znanego stanu bazy.
+- Istniejące testy `publish-processor-content.test.ts` i inne dotykające `claimDuePublishJobs`/kolejki dalej zielone.
+- `npm test`/`npm run build` bez regresji.
+
+**[Architekt] Decyzja/zmiany:** Zatwierdzone, z akceptacją rozszerzenia PO o `/resume` (uzasadnienie UX ważniejsze niż literalna zgodność z zawężonym zapisem — to nie nowy obszar funkcjonalny, tylko domknięcie już zaplanowanego). Modyfikacja `claimDuePublishJobs` (raw SQL, `FOR UPDATE SKIP LOCKED`) — join do `User` przez `Video.userId`, nie przez `SocialAccount.userId` (oba prowadzą do tego samego usera w praktyce, ale `Video` jest kanonicznym właścicielem treści w tym schemacie). Krytyczne: to jest współdzielona ścieżka z cronem produkcyjnym — błąd tutaj wstrzymałby WSZYSTKIE publikacje, nie tylko Telegram. Wymagany osobny, bezpośredni test tej funkcji, nie tylko pośrednio przez webhook.
+
+**[Inżynier] Zaimplementowano, build/testy:**
+
+Branch `feat/TASK-3.2.1-telegram-commands`:
+- Migracja `user_publishing_paused`: `User.publishingPaused` (Boolean, default false).
+- `claimDuePublishJobs` (`lib/server/publish-processor.ts`, rdzeń crona produkcyjnego) rozszerzone o `JOIN "Video"`/`JOIN "User"` i filtr `publishingPaused = false` — per-user, nie globalny wyłącznik.
+- `lib/server/publish-jobs.ts` rozszerzony: `triggerPublishJob`/`cancelPublishJob` (rdzeń `/api/publish-jobs/[id]/trigger`/`.../cancel`, oba routy zrefaktoryzowane na cienkie wrappery, ten sam wzorzec co TASK-3.1.2), `getTelegramStatusSnapshot` (tylko odczyt).
+- `lib/server/telegram.ts`: `setPublishingPaused`.
+- Webhook: `/status`, `/pause`, `/resume`, `/approve <id>`, `/reject <id>` — `/approve`/`/reject` używają tej samej bramki własności co `callback_query` z TASK-3.1.2 (zapytanie do bazy, nie zaufanie do treści komendy).
+- `npm test`: 58/58 (oba tryby, +7 nowych testów). `npm run build`: przechodzi.
+
+**Rozszerzenie zakresu przez PO (odnotowane w backlogu):** dodano `/resume`, którego nie było w zawężonym zapisie Etapu 1 — uzasadnienie: `/pause` bez sposobu na odwrócenie przez Telegram byłby realną pułapką UX, nie oszczędnością zakresu.
+
+**[QA] Niezależna weryfikacja, znalezione problemy:**
+
+Zweryfikowano niezależnie, bezpośrednim testem na `processDuePublishJobs` (nie tylko przez warstwę Telegrama): PENDING job spauzowanego użytkownika NIE jest zabierany do przetworzenia, podczas gdy PENDING job innego, niespauzowanego użytkownika w TYM SAMYM przebiegu jest zabierany i kończy się sukcesem — potwierdza izolację per-user, nie globalny wyłącznik (dokładnie ryzyko, które Architekt odnotował jako wymagające osobnego testu). Odwrócenie pauzy (`/resume`) również zweryfikowane — job zaczyna być zabierany ponownie po `publishingPaused=false`. `/approve <id>` na cudzym zadaniu → zero zmiany statusu, zero efektu, czytelny komunikat odmowy. Znalezione problemy: brak.
+
+**Świadome ograniczenie (jak TASK-3.1.1/3.1.2):** brak prawdziwego bota u użytkownika — weryfikacja przez testy integracyjne, nie realny end-to-end.
+
+**Status: TASK-3.2.1 zamknięte (zawężone do /status /pause /resume /approve /reject, zgodnie z Etapem 1 + uzasadnionym rozszerzeniem o /resume).**
+
+---
+
 **Definicja "gotowy projekt w 100%":** każdy checkbox w sekcjach 6 i 7 odhaczony, każdy z jawnym DoD spełnionym i potwierdzonym testem (nie deklaracją), **QA niezależnie zweryfikowało, nie tylko Inżynier**, Architekt podpisał się pod skalowalnością w sekcji 9 dla każdej nowej warstwy, i sekcja 8 (Review końcowy) przeszła bez zastrzeżeń blokujących.
 
 ## 0.1 Zespół UX/UI — równoległy tor pracy

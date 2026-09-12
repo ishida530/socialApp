@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUserFromRequest } from '@/lib/server/auth';
-import { prisma } from '@/lib/server/prisma';
 import { badRequest, serverError, tooManyRequests, unauthorized } from '@/lib/server/http';
 import { consumeRateLimit } from '@/lib/server/rate-limit';
+import { cancelPublishJob } from '@/lib/server/publish-jobs';
 
 export async function POST(
   request: NextRequest,
@@ -21,37 +21,13 @@ export async function POST(
     }
 
     const params = await context.params;
+    const result = await cancelPublishJob(user.userId, params.id);
 
-    const job = await prisma.publishJob.findFirst({
-      where: {
-        id: params.id,
-        video: {
-          userId: user.userId,
-        },
-      },
-      select: {
-        id: true,
-        status: true,
-      },
-    });
-
-    if (!job) {
-      return badRequest('Nie znaleziono zadania publikacji dla użytkownika');
+    if (!result.ok) {
+      return badRequest(result.error);
     }
 
-    if (job.status === 'SUCCESS' || job.status === 'FAILED' || job.status === 'CANCELED') {
-      return badRequest('Tego zadania nie można anulować w aktualnym statusie');
-    }
-
-    const updated = await prisma.publishJob.update({
-      where: { id: job.id },
-      data: {
-        status: 'CANCELED',
-        errorMessage: 'Anulowane ręcznie przez użytkownika.',
-      },
-    });
-
-    return NextResponse.json({ success: true, publishJob: updated });
+    return NextResponse.json({ success: true, publishJob: result.publishJob });
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return unauthorized();

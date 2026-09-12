@@ -6,11 +6,18 @@ import {
   findUserByTelegramChatId,
   sendTelegramMessage,
   sendTelegramMessageWithButtons,
+  setPublishingPaused,
   TELEGRAM_MAX_DOWNLOADABLE_FILE_BYTES,
   uploadTelegramMediaAsVideo,
   verifyTelegramWebhookSecret,
 } from '@/lib/server/telegram';
-import { createDraftGroupForVideo, enqueueDraftGroup } from '@/lib/server/publish-jobs';
+import {
+  cancelPublishJob,
+  createDraftGroupForVideo,
+  enqueueDraftGroup,
+  getTelegramStatusSnapshot,
+  triggerPublishJob,
+} from '@/lib/server/publish-jobs';
 import { prisma } from '@/lib/server/prisma';
 import { unauthorized } from '@/lib/server/http';
 import { logError, logEvent } from '@/lib/server/observability';
@@ -99,6 +106,75 @@ async function handleIncomingMedia(
       'Coś poszło nie tak przy przetwarzaniu materiału. Spróbuj ponownie albo dodaj go przez panel Postfly.',
     ).catch(() => {});
   }
+}
+
+function formatStatusMessage(snapshot: Awaited<ReturnType<typeof getTelegramStatusSnapshot>>): string {
+  const lines = [
+    snapshot.publishingPaused ? '⏸️ Publikacje wstrzymane (/resume żeby wznowić).' : '▶️ Publikacje aktywne.',
+    `Zaplanowane: ${snapshot.pendingCount}${snapshot.nextScheduledFor ? ` (najbliższa: ${snapshot.nextScheduledFor.toLocaleString('pl-PL')})` : ''}`,
+    `Szkice czekające na decyzję: ${snapshot.draftCount}`,
+    `Opublikowane w ostatnich 7 dniach: ${snapshot.recentSuccess}`,
+  ];
+
+  if (snapshot.recentFailed.length > 0) {
+    lines.push('');
+    lines.push('Ostatnie błędy:');
+    snapshot.recentFailed.forEach((job) => {
+      lines.push(`❌ ${job.platform} (${job.id}): ${job.errorMessage ?? 'nieznany błąd'}`);
+    });
+  }
+
+  return lines.join('\n');
+}
+
+async function handleTextCommand(chatIdStr: string, userId: string, text: string): Promise<boolean> {
+  const trimmed = text.trim();
+
+  if (trimmed === '/status') {
+    const snapshot = await getTelegramStatusSnapshot(userId);
+    await sendTelegramMessage(chatIdStr, formatStatusMessage(snapshot)).catch((error) =>
+      logError('telegram', 'send-status-failed', error, { chatId: chatIdStr }),
+    );
+    return true;
+  }
+
+  if (trimmed === '/pause') {
+    await setPublishingPaused(userId, true);
+    await sendTelegramMessage(chatIdStr, '⏸️ Publikacje wstrzymane. Nic nie zostanie opublikowane, dopóki nie wyślesz /resume.').catch(
+      (error) => logError('telegram', 'send-pause-confirmation-failed', error, { chatId: chatIdStr }),
+    );
+    return true;
+  }
+
+  if (trimmed === '/resume') {
+    await setPublishingPaused(userId, false);
+    await sendTelegramMessage(chatIdStr, '▶️ Publikacje wznowione.').catch((error) =>
+      logError('telegram', 'send-resume-confirmation-failed', error, { chatId: chatIdStr }),
+    );
+    return true;
+  }
+
+  const approveMatch = trimmed.match(/^\/approve\s+(\S+)/i);
+  if (approveMatch) {
+    const result = await triggerPublishJob(userId, approveMatch[1]);
+    await sendTelegramMessage(
+      chatIdStr,
+      result.ok ? `✅ Zatwierdzono. Status: ${result.immediateOutcome}.` : `Nie udało się zatwierdzić: ${result.error}`,
+    ).catch((error) => logError('telegram', 'send-approve-result-failed', error, { chatId: chatIdStr }));
+    return true;
+  }
+
+  const rejectMatch = trimmed.match(/^\/reject\s+(\S+)/i);
+  if (rejectMatch) {
+    const result = await cancelPublishJob(userId, rejectMatch[1]);
+    await sendTelegramMessage(
+      chatIdStr,
+      result.ok ? '❌ Odrzucono.' : `Nie udało się odrzucić: ${result.error}`,
+    ).catch((error) => logError('telegram', 'send-reject-result-failed', error, { chatId: chatIdStr }));
+    return true;
+  }
+
+  return false;
 }
 
 async function handleCallbackQuery(update: NonNullable<TelegramUpdate['callback_query']>) {
@@ -252,7 +328,13 @@ export async function POST(request: NextRequest) {
       chatIdStr,
       'To konto Telegram nie jest jeszcze połączone z żadnym kontem Postfly. Wygeneruj kod w panelu (Ustawienia konta) i wyślij /start <kod>.',
     ).catch((error) => logError('telegram', 'send-not-linked-failed', error, { chatId: chatIdStr }));
+    return NextResponse.json({ ok: true });
   }
+
+  // TASK-3.2.1: /status /pause /resume /approve <id> /reject <id> - reszta komend
+  // z sekcji 5 głównego planu (/retry /cancel /logs /revenue) to Etap 2, celowo poza
+  // zakresem tego zadania.
+  await handleTextCommand(chatIdStr, linkedUser.id, text);
 
   return NextResponse.json({ ok: true });
 }
