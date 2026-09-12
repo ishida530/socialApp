@@ -93,6 +93,20 @@ async function handleIncomingMedia(
       return;
     }
 
+    // BUG-003: enqueueDraftGroup wymaga tiktokPrivacyLevel na DRAFT jobie TikToka zanim
+    // pozwoli opublikować - kreator web ustawia to w kroku przeglądu, ale upload z Telegrama
+    // nie przechodzi przez ten krok, więc bez tego "Publikuj" zawsze failowałby dla TikToka
+    // (i tym samym dla WSZYSTKICH platform naraz, bo enqueueDraftGroup jest wszystko-albo-nic).
+    // Domyślny SELF_ONLY (najbezpieczniejszy, tylko dla autora) - kliknięcie "Publikuj" na
+    // Telegramie liczy się jako zgoda, dokładnie jak opisano w logu ról TASK-3.1.2.
+    const tiktokJob = draftResult.jobs.find((job) => job.socialAccount.platform === 'TIKTOK');
+    if (tiktokJob && !tiktokJob.tiktokPrivacyLevel) {
+      await prisma.publishJob.update({
+        where: { id: tiktokJob.id },
+        data: { tiktokPrivacyLevel: 'SELF_ONLY' },
+      });
+    }
+
     const platformNames = draftResult.jobs.map((job) => job.socialAccount.platform).join(', ');
     await sendTelegramMessageWithButtons(
       chatIdStr,
