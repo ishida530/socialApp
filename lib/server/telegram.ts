@@ -130,6 +130,12 @@ export async function findUserByTelegramChatId(chatId: string) {
   return prisma.user.findUnique({ where: { telegramChatId: chatId } });
 }
 
+// TASK-3.2.1: /pause i /resume. Filtr per-user w publish-processor.ts (claimDuePublishJobs),
+// nie globalny wyłącznik.
+export async function setPublishingPaused(userId: string, paused: boolean) {
+  await prisma.user.update({ where: { id: userId }, data: { publishingPaused: paused } });
+}
+
 type InlineButton = { text: string; callback_data: string };
 
 export async function sendTelegramMessageWithButtons(

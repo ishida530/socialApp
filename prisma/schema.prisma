@@ -55,6 +55,7 @@ model User {
   passwordHash   String?
   defaultExplicitContent Boolean?
   telegramChatId String?         @unique
+  publishingPaused Boolean       @default(false)
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   socialAccounts SocialAccount[]

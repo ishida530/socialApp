@@ -905,14 +905,20 @@ function shouldRefreshBeforePublish(account: {
 async function claimDuePublishJobs(batchSizeRaw: number) {
   const batchSize = normalizeBatchSize(batchSizeRaw);
 
+  // TASK-3.2.1: /pause na Telegramie ustawia User.publishingPaused - filtr per-user tutaj,
+  // nie globalny wyłącznik, żeby jeden spauzowany użytkownik nie wstrzymywał publikacji
+  // wszystkich innych. Join przez Video.userId (kanoniczny właściciel treści w tym schemacie).
   const rows = await prisma.$transaction(async (tx) => {
     return tx.$queryRaw<ClaimedJobRow[]>`
       WITH picked AS (
-        SELECT id
-        FROM "PublishJob"
-        WHERE status = 'PENDING'
-          AND "scheduledFor" <= NOW()
-        ORDER BY "scheduledFor" ASC
+        SELECT pj.id
+        FROM "PublishJob" pj
+        JOIN "Video" v ON v.id = pj."videoId"
+        JOIN "User" u ON u.id = v."userId"
+        WHERE pj.status = 'PENDING'
+          AND pj."scheduledFor" <= NOW()
+          AND u."publishingPaused" = false
+        ORDER BY pj."scheduledFor" ASC
         FOR UPDATE SKIP LOCKED
         LIMIT ${batchSize}
       )
