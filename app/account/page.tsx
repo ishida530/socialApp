@@ -8,6 +8,12 @@ import { apiClient } from '@/lib/api-client';
 
 const CONFIRM_PHRASE = 'usuń moje konto';
 
+type TelegramLinkCodeResponse = {
+  code: string;
+  expiresAt: string;
+  botUsername: string | null;
+};
+
 export default function AccountPage() {
   const { isAuthenticated, isLoading, user, logout } = useAuth();
   const router = useRouter();
@@ -16,11 +22,38 @@ export default function AccountPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
+  const [telegramLinked, setTelegramLinked] = useState<boolean | null>(null);
+  const [telegramLinkCode, setTelegramLinkCode] = useState<TelegramLinkCodeResponse | null>(null);
+  const [isGeneratingCode, setIsGeneratingCode] = useState(false);
+
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.replace('/login');
     }
   }, [isAuthenticated, isLoading, router]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    }
+
+    apiClient
+      .get<{ linked: boolean }>('/telegram/link-code')
+      .then((response) => setTelegramLinked(response.data.linked))
+      .catch(() => setTelegramLinked(null));
+  }, [isAuthenticated]);
+
+  const handleGenerateTelegramCode = async () => {
+    try {
+      setIsGeneratingCode(true);
+      const response = await apiClient.post<TelegramLinkCodeResponse>('/telegram/link-code');
+      setTelegramLinkCode(response.data);
+    } catch {
+      toast.error('Nie udało się wygenerować kodu. Spróbuj ponownie.');
+    } finally {
+      setIsGeneratingCode(false);
+    }
+  };
 
   const canDelete = password.length > 0 && confirmText.trim().toLowerCase() === CONFIRM_PHRASE;
 
@@ -60,6 +93,50 @@ export default function AccountPage() {
       <section className="bg-card border border-border rounded-xl p-6 space-y-2 max-w-2xl">
         <h2 className="text-lg font-semibold text-foreground">Ustawienia konta</h2>
         <p className="text-sm text-muted-foreground">Zalogowano jako {user?.email}.</p>
+      </section>
+
+      <section className="bg-card border border-border rounded-xl p-6 space-y-4 max-w-2xl">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">Telegram</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Połącz konto Telegram, żeby otrzymywać powiadomienia i zatwierdzać publikacje z telefonu.
+          </p>
+        </div>
+
+        {telegramLinked && (
+          <p className="text-sm text-emerald-500 font-medium">Połączono ✓</p>
+        )}
+
+        {!telegramLinkCode ? (
+          <button
+            type="button"
+            onClick={handleGenerateTelegramCode}
+            disabled={isGeneratingCode}
+            className="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-secondary/40 transition-colors text-sm font-medium disabled:opacity-50"
+          >
+            {isGeneratingCode
+              ? 'Generowanie...'
+              : telegramLinked
+                ? 'Połącz inne konto Telegram'
+                : 'Wygeneruj kod'}
+          </button>
+        ) : (
+          <div className="space-y-2 text-sm text-foreground">
+            <p>
+              Wyślij wiadomość{' '}
+              <span className="font-mono font-semibold">/start {telegramLinkCode.code}</span> do{' '}
+              {telegramLinkCode.botUsername ? (
+                <span className="font-mono">@{telegramLinkCode.botUsername}</span>
+              ) : (
+                'bota Postfly'
+              )}{' '}
+              na Telegramie.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Kod ważny do {new Date(telegramLinkCode.expiresAt).toLocaleTimeString('pl-PL')}.
+            </p>
+          </div>
+        )}
       </section>
 
       <section className="bg-card border border-destructive/40 rounded-xl p-6 space-y-4 max-w-2xl">

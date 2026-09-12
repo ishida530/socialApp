@@ -123,6 +123,21 @@ zanim go naprawisz (sekcja 3.7) — zacznij od TASK-1.1.0, które tworzy oba pli
 - Jeśli sesja w VS Code się urwie (zamkniesz laptopa, zabraknie kontekstu) — po prostu otwórz nową sesję Claude Code i napisz: *"Przeczytaj PROGRESS.md i kontynuuj zgodnie z protokołem z postfly-plan-wykonania.md"*. Reszta dzieje się zgodnie z sekcją 3.3 tego protokołu — nowa sesja sama zweryfikuje stan przed kontynuacją.
 - Po każdym zadaniu **Ty** decydujesz czy iść dalej, czy się zatrzymać — Claude Code ma zatrzymać się po Etapie 1 i czekać na Twoją zgodę (masz to wpisane w plan wykonania), ale możesz też przerwać wcześniej w dowolnym momencie, po prostu mówiąc "zatrzymaj się tutaj".
 
+## Krok 6.5 — bot Telegram (TASK-3.1.1+)
+
+Mechanizm łączenia konta jest gotowy i przetestowany (mockowane wywołania Telegram Bot API), ale wymaga prawdziwego bota do realnego użycia. Gdy będziesz gotów:
+
+1. Napisz do [@BotFather](https://t.me/BotFather) na Telegramie → `/newbot` → wybierz nazwę i unikalny username (musi kończyć się na `bot`, np. `PostflyBot`).
+2. BotFather odda Ci **token** (`123456:ABC-...`) → wpisz do `.env`/`.env.production.local` jako `TELEGRAM_BOT_TOKEN`, a username (bez `@`) jako `TELEGRAM_BOT_USERNAME`.
+3. Wygeneruj losowy sekret (np. `openssl rand -hex 32`) → `TELEGRAM_WEBHOOK_SECRET`.
+4. Ustaw webhook (raz, po wdrożeniu na Vercel — musi być publiczny HTTPS URL):
+   ```bash
+   curl -X POST "https://api.telegram.org/bot<TWÓJ_TOKEN>/setWebhook" \
+     -H "Content-Type: application/json" \
+     -d '{"url": "https://postfly.pl/api/telegram/webhook", "secret_token": "<TWÓJ_TELEGRAM_WEBHOOK_SECRET>"}'
+   ```
+5. W panelu Postfly → `/account` → sekcja "Telegram" → "Wygeneruj kod" → wyślij `/start <kod>` do swojego bota na Telegramie. Bot powinien odpowiedzieć potwierdzeniem połączenia.
+
 ## Krok 7 — koniec Etapu 1
 
 Gdy TASK-3.3.1 jest zamknięty (pełny cykl upload → potwierdzenie → publikacja działa przez Telegram) — **używaj appki realnie przez 2-3 tygodnie**, zanim wrócisz do tego samego okna Claude Code i napiszesz: *"Zacznij Etap 2, zgodnie z postfly-plan-wykonania.md sekcja 4"*. To jest świadomie oddzielone od Etapu 1 — nie kontynuuj automatycznie.
