@@ -48,6 +48,16 @@ Przy tej okazji znaleziony i naprawiony bug w skryptach: `DIRECT_URL`/`DATABASE_
 
 Warstwa kryptograficzna (szyfrowanie/deszyfrowanie/gzip/sanityzacja URL) ma osobny, deterministyczny test jednostkowy w `npm test` (`tests/api/backup-crypto.test.ts`) — nie wymaga `pg_dump`/`psql` na PATH, więc działa też w CI. Pełny round-trip z prawdziwym `pg_dump`/`psql` nie jest zautomatyzowany w CI (wymagałby efemerycznej drugiej bazy Postgres tylko na tę okazję) — zweryfikowany ręcznie jak wyżej, do powtórzenia przy każdej większej zmianie tych skryptów.
 
+### Realny przebieg przeciw produkcji (2026-09-12, workflow_dispatch)
+
+Po zmergowaniu, workflow uruchomiony ręcznie przeciw prawdziwej produkcyjnej bazie Supabase (`pg_dump` jest tylko-do-odczytu — bezpieczne). Wynik pierwszej próby: **failure** — `pg_dump: error: aborting because of server version mismatch (server version: 17.6; pg_dump version: 16.15)`. Supabase uruchamia Postgres 17, domyślny pakiet `postgresql-client` na `ubuntu-latest` to tylko 16 (pg_dump odmawia dumpowania serwera nowszego od siebie). Naprawione dwoma iteracjami:
+1. Instalacja `postgresql-client-17` z oficjalnego repozytorium PGDG zamiast domyślnego apt — nie wystarczyło samo w sobie, bo runner ma już preinstalowany `pg_dump` 16 na `PATH`, a instalacja 17 obok niego nie zmienia, co znajdzie się jako pierwsze.
+2. Jawne dopisanie `/usr/lib/postgresql/17/bin` na początek `PATH` przez `$GITHUB_PATH`.
+
+Trzecia próba: **sukces.** Realny wynik: dump skompresowany do 35 837 bajtów, zaszyfrowany do 35 865 bajtów, wgrany do `https://xubvjgdishvdmu4a.public.blob.vercel-storage.com/backups/flowstate-2026-09-12T09-41-22-879Z.sql.gz.enc`, 0 starych backupów do wyczyszczenia (pierwszy przebieg). Harmonogram (05:00 UTC) od teraz będzie powtarzał dokładnie tę samą, już zweryfikowaną ścieżkę.
+
+To jest dokładnie powód, dla którego DoD tego zadania wymagał *realnej* symulacji, nie tylko przeglądu kodu — różnica wersji Postgres między lokalnym Dockerem (16) a produkcyjnym Supabase (17) była niewidoczna przy weryfikacji lokalnej i ujawniła się dopiero przy uruchomieniu przeciw prawdziwej infrastrukturze.
+
 ## Ograniczenia świadomie zaakceptowane na tym etapie
 
 - Backup materiałów (Vercel Blob) — brak. Ryzyko zaakceptowane: jeden użytkownik, źródłowe wideo zwykle nadal istnieje lokalnie u twórcy przed publikacją. Do rewizji, gdy `APP_MODE=commercial` z realnymi klientami.
