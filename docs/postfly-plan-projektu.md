@@ -358,6 +358,26 @@ Zweryfikowano niezależnie, bezpośrednim testem na `processDuePublishJobs` (nie
 
 ---
 
+---
+
+**Znalezisko z realnego użycia (przed formalnym TASK-3.3.1)** — pytanie właściciela produktu po pierwszej prawdziwej publikacji przez Telegram: czy jedna publikacja wideo powinna tworzyć na Facebooku/Instagramie **post, Reel, czy oba naraz** — i który to powinien być domyślnie. Konsultacja przez role z sekcji 0 i 0.1, nie osobny TASK (zbyt małe, świeże odkrycie na osobny numer w backlogu), ale decyzja udokumentowana tu, bo wpływa na realne zachowanie appki już dziś.
+
+**[PO]:** Grupa docelowa appki (`postfly-opis-aplikacji.md`/kontekst z `prompt-dla-claude-code.md`: "początkujący raper, wchodzę w social media") ma jeden nadrzędny cel na tym etapie — **zasięg**. Reels/krótkie wideo pionowe dostają dziś na Instagramie i Facebooku wielokrotnie większą dystrybucję algorytmiczną niż zwykły post wideo w feedzie. Dla treści, która JEST krótkim wideo (co jest głównym przypadkiem użycia tej appki — `mediaType: VIDEO`), domyślne zachowanie powinno faworyzować Reels, nie zwykły post. Zdjęcia (`mediaType: IMAGE`) nie wchodzą w ten temat w ogóle — Reels to wyłącznie wideo.
+
+**[Architekt]:** Dziś zachowanie jest **niespójne i częściowo niekontrolowane**: Instagram jawnie ustawia `media_type: 'REELS'` + `share_to_feed: 'true'` (świadomy kod, sprzed tej sesji) — publikuje jako Reel I pokazuje w feedzie. Facebook woła zwykły endpoint `/{pageId}/videos` bez żadnego parametru Reels — czy coś stanie się Reelsem na Facebooku zależy dziś od **wewnętrznej, nieudokumentowanej klasyfikacji Mety**, nie od naszego kodu. To zła zależność architektoniczna: budujemy narzędzie do **deliberatnej** publikacji, nie powinniśmy polegać na "może algorytm Facebooka to rozpozna". Meta ma osobny, jawny endpoint do Reelsów na Facebooku (`/{page-id}/video_reels`, dwufazowy upload) — użycie go zamiast zwykłego `/videos` to nie nowa funkcja, tylko domknięcie tej samej deliberatności, którą już mamy dla Instagrama.
+
+**[UX Researcher / UI Designer / Design Critic — sekcja 0.1]:** Zgodnie z zasadą nadrzędną torów projektowych ("prostota wygrywa z możliwościami... jeśli dodanie opcji wymaga tłumaczenia w UI, prawdopodobnie nie powinno być opcją, tylko dobrym domyślnym zachowaniem") — **nie** dodawać przełącznika "post/Reel/oba" jako decyzji użytkownika per publikacja. To złamałoby konwencję "1 ekran = 1 decyzja" już obowiązującą w tej appce i dołożyłoby wybór, którego typowy użytkownik (raper wrzucający klip) nie chce podejmować za każdym razem. Zamiast tego: **automatyczna, cicha reguła** oparta o cechy materiału, którymi już dysponujemy (`Video.durationSec`) — krótkie wideo (w granicach limitu długości Reels obu platform, ~90s) domyślnie jako Reels z widocznością w feedzie; dłuższe wideo jako zwykły post wideo (bo i tak przekroczyłoby limit Reels). Zero nowego ekranu, zero nowej decyzji.
+
+**Wybrany kierunek (konsensus ról):**
+1. Facebook: dodać jawną ścieżkę Reels (`/video_reels`) używaną, gdy `durationSec` mieści się w limicie Reels — zamiast polegać na automatycznej klasyfikacji Mety przez zwykły `/videos`.
+2. Instagram: zachowanie bez zmian (już deliberatne, już Reels+feed).
+3. Próg czasu trwania jako jedyna reguła decyzyjna, bez nowego pola w UI, bez nowej decyzji użytkownika.
+4. Zdjęcia: bez zmian, nie dotyczy.
+
+Status: decyzja zapisana, **nie wdrożona jeszcze** — czeka na potwierdzenie właściciela produktu, czy wdrożyć teraz (mała, testowalna zmiana w `lib/server/publish-processor.ts`, poza formalną numeracją backlogu, dokumentowana tu) czy po zamknięciu TASK-3.3.1.
+
+---
+
 **Definicja "gotowy projekt w 100%":** każdy checkbox w sekcjach 6 i 7 odhaczony, każdy z jawnym DoD spełnionym i potwierdzonym testem (nie deklaracją), **QA niezależnie zweryfikowało, nie tylko Inżynier**, Architekt podpisał się pod skalowalnością w sekcji 9 dla każdej nowej warstwy, i sekcja 8 (Review końcowy) przeszła bez zastrzeżeń blokujących.
 
 ## 0.1 Zespół UX/UI — równoległy tor pracy
