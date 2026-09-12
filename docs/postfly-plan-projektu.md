@@ -164,6 +164,55 @@ Wniosek PO: **bug opisany w `prompt-dla-claude-code.md` jest już naprawiony** (
 
 ---
 
+---
+
+**Faza: Etap 1 — TASK-1.1.2 [P0/M]** — Proces backupu bazy i materiałów, przetestowany realnym odtworzeniem
+
+**[PO] Backlog + DoD:**
+
+Analiza stanu: zero istniejącej infrastruktury backupu w repo (potwierdzone — brak jakichkolwiek skryptów/workflow z tym związanych). Baza produkcyjna to Supabase **Free tier** (potwierdzone przez użytkownika) — **brak wbudowanych automatycznych backupów u dostawcy** (to funkcja płatnego planu Pro+), więc to zadanie wymaga zbudowania własnego mechanizmu od zera, nie tylko udokumentowania cudzego.
+
+Zakres:
+1. **Backup bazy danych** (priorytet — najwyższa wartość, najniższe ryzyko utraty niezastępowalnych danych: konta userów, tokeny OAuth, historia publikacji): zaplanowany GitHub Actions workflow (`pg_dump` przeciw `DIRECT_URL` — połączenie bezpośrednie, nie przez PgBouncer pooler z `DATABASE_URL`, bo `pg_dump` ma z poolerem znane problemy), skompresowany, wgrywany do Vercel Blob pod prefiksem `backups/` (ta sama infrastruktura co media, już opłacona/skonfigurowana).
+2. **Test realnego odtworzenia** — pobranie najnowszego backupu, `pg_restore`/`psql` do **osobnej, jednorazowej bazy** (nigdy nie nadpisuje `flowstate`/`flowstate_test`/produkcji), zmierzony czas całej operacji, wynik udokumentowany.
+3. **Backup materiałów (Vercel Blob)** — do decyzji zakresu z użytkownikiem, patrz pytanie niżej.
+
+DoD:
+- Workflow backupu bazy uruchomiony automatycznie (harmonogram) i ręcznie (`workflow_dispatch`), backup faktycznie trafia do trwałego storage (nie ginie po zakończeniu joba CI, w przeciwieństwie do artefaktu GH Actions).
+- Realna symulacja: świeży, pusty Postgres → odtworzenie z najnowszego backupu → zapytanie potwierdzające obecność danych → zmierzony czas całej operacji, zapisany w dokumentacji.
+- Sekrety (`DIRECT_URL` produkcji, `BLOB_READ_WRITE_TOKEN`) dodane jako GitHub Actions secrets — wymaga świadomej zgody użytkownika (ekspozycja danych produkcyjnych do CI), nie robię tego bez potwierdzenia.
+
+**Pytanie PO do użytkownika (blokujące dalszą pracę Inżyniera):** czy backup materiałów (Vercel Blob — surowe wideo przed publikacją) wchodzi w zakres TASK-1.1.2 teraz, czy to świadomy scope cut na Etap 2? Duże pliki binarne = realny koszt (podwojone zużycie storage) i złożoność (kopiowanie blobów, nie prosty `pg_dump`) nieproporcjonalne do ryzyka na tym etapie (jeden user, źródłowe wideo zwykle nadal istnieje lokalnie u twórcy). Rekomendacja PO: DB backup teraz (P0, jak w tym zadaniu), media backup jako świadomie odłożone (P2, osobna pozycja backlogu) — ale to decyzja właściciela produktu, nie PO.
+
+**[Architekt] Decyzja/zmiany:**
+
+Użytkownik potwierdził: (1) tylko baza teraz, backup materiałów świadomie odłożony (do backlogu, niższy priorytet — nie blokuje tego zadania), (2) zgoda na sekrety produkcyjne w GitHub Actions secrets.
+
+Zatwierdzony projekt:
+- `pg_dump` przeciw `DIRECT_URL` (połączenie bezpośrednie, nie przez PgBouncer pooler z `DATABASE_URL`) → gzip → **szyfrowanie AES-256 osobnym kluczem (`BACKUP_ENCRYPTION_KEY`, nie tym samym co `ENCRYPTION_KEY` appki)** → upload do Vercel Blob pod `backups/`. Uzasadnienie szyfrowania: Vercel Blob na planie Hobby/Pro nie ma trybu "private + auth" per-plik, tylko "public + losowa, nieodgadnięta ścieżka" — surowy dump bazy (hasła hashowane, ale też zaszyfrowane tokeny OAuth, e-maile) nie powinien nigdy istnieć w formie czytelnej pod jakimkolwiek URL-em, nawet trudnym do odgadnięcia. To dodatkowa, niezależna warstwa, zgodnie z duchem sekcji 9.2 (najmniejsze uprawnienia) — kompromitacja URL-a bloba nie kompromituje danych.
+- Node (nie czysty bash/curl) do orkiestracji: `@vercel/blob` już jest zależnością projektu (używaną do mediów) — użycie oficjalnego SDK zamiast ręcznie sklejanego REST call ogranicza ryzyko subtelnie błędnego protokołu w mechanizmie, którego nikt nie zauważy że nie działa, dopóki nie będzie potrzebny naprawdę.
+- Rotacja: workflow usuwa backupy starsze niż ustalony próg (np. 14 dni), żeby koszt storage nie rósł bez końca.
+- Test odtworzenia: **lokalnie, na tej maszynie, przeciw `flowstate_test`** (bezpieczna, jednorazowa baza) → świeża, oddzielna baza `flowstate_restore_test` — nigdy przeciw produkcji ani `flowstate` dev. Sam workflow backupu (uruchomiony ręcznie przez `workflow_dispatch`) będzie faktycznie wykonany przeciw prawdziwej produkcji, żeby DoD "realne odtworzenie" nie był atrapą — `pg_dump` to operacja tylko-do-odczytu, zero ryzyka zapisu do produkcji.
+- Sekrety do GitHub Actions ustawiane przez `gh secret set -f <plik>` (wsad z pliku, nie jako argument komendy) — wartości nigdy nie trafiają jawnie do transkryptu konwersacji ani logów.
+
+Przekazuję do roli Inżyniera.
+
+**[Inżynier] Zaimplementowano, build/testy:**
+
+Branch `feat/TASK-1.1.2-database-backup`:
+- `scripts/backup-database.mjs` — `pg_dump` (przez `DIRECT_URL`, oczyszczony z `?schema=` przed przekazaniem do libpq) → gzip → AES-256-GCM (`BACKUP_ENCRYPTION_KEY`) → Vercel Blob (`backups/`) → rotacja starszych niż 14 dni. Wspiera `BACKUP_LOCAL_OUTPUT_FILE` do lokalnego użycia bez Bloba.
+- `scripts/restore-database.mjs` — odwrotność, celowo wymaga `RESTORE_TARGET_DATABASE_URL` (nie `DATABASE_URL`/`DIRECT_URL`) jako zabezpieczenie przed przypadkowym nadpisaniem żywej bazy.
+- `.github/workflows/backup-database.yml` — harmonogram 05:00 UTC + `workflow_dispatch`.
+- `docs/backup-i-odzyskiwanie.md` — pełna procedura + wynik realnej weryfikacji.
+- `tests/api/backup-crypto.test.ts` — warstwa kryptograficzna/sanityzacji URL, 4 testy, deterministyczne (bez `pg_dump`/`psql`).
+- Sekrety `PROD_DIRECT_URL`, `PROD_BLOB_READ_WRITE_TOKEN`, `BACKUP_ENCRYPTION_KEY` dodane do GitHub Actions (`gh secret set -f`, wartości nigdy nie trafiły do transkryptu).
+
+**Realna weryfikacja odtworzenia (DoD, wykonana lokalnie):** pełny cykl `pg_dump`→gzip→encrypt→decrypt→gunzip→`psql restore` przeciw lokalnemu Postgresowi (Docker), z `flowstate_test` do świeżej, jednorazowej `flowstate_restore_test` (nigdy produkcja/dev). Wynik: dump+szyfrowanie ~1.9s, odtworzenie ~1.6s, **razem ~3.4s**. Liczba wierszy w `User` identyczna przed/po. Przy tej weryfikacji znaleziony i naprawiony bug: `pg_dump`/`psql` (libpq) nie znają parametru `?schema=public` (konwencja Prisma) obecnego w `DIRECT_URL` tego projektu — bez sanityzacji cały mechanizm by nie zadziałał. `npm test`: 38/38 (oba tryby). `npm run build`: przechodzi.
+
+**[QA] Niezależna weryfikacja, znalezione problemy:** *(oczekuje na realny przebieg workflow przeciw produkcji przez `workflow_dispatch` przed mergem — pg_dump jest tylko-do-odczytu, zero ryzyka zapisu)*
+
+---
+
 **Definicja "gotowy projekt w 100%":** każdy checkbox w sekcjach 6 i 7 odhaczony, każdy z jawnym DoD spełnionym i potwierdzonym testem (nie deklaracją), **QA niezależnie zweryfikowało, nie tylko Inżynier**, Architekt podpisał się pod skalowalnością w sekcji 9 dla każdej nowej warstwy, i sekcja 8 (Review końcowy) przeszła bez zastrzeżeń blokujących.
 
 ## 0.1 Zespół UX/UI — równoległy tor pracy
