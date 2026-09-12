@@ -62,4 +62,4 @@ Kroki reprodukcji:
 2. Utwórz draft, poczekaj aż panel ustawień TikTok ustawi domyślne wartości (w tym `tiktokAllowDuet: false`).
 3. Zmień samą "Prywatność postu" w dropdownie (bez dotykania przełączników Duet/Stitch).
 4. Obserwacja: `PATCH .../drafts/:id` zwraca 400 "Na tym koncie TikTok duet jest wyłączony. Odznacz duet." — zmiana prywatności nie zapisuje się.
-Status: [ ] test napisany (czerwony) → [ ] poprawka wdrożona (test zielony) → [ ] zamknięty (PR #...)
+Status: [x] test napisany (czerwony) → [x] poprawka wdrożona (test zielony) → [ ] zamknięty (PR #...)
