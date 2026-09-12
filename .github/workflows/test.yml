@@ -70,6 +70,12 @@ jobs:
           BILLING_MODE="mock"
           EOF
 
+      # TASK-1.1.1: tests/setup-env.ts (Vitest) ładuje .env.test, nigdy .env - w CI to ta
+      # sama, jednorazowa/efemeryczna baza Postgres per-run, więc plik jest identyczny.
+      # Lokalnie .env.test wskazuje na osobną bazę flowstate_test, patrz .env.test.example.
+      - name: Create test .env.test
+        run: cp .env .env.test
+
       - name: Generate Prisma client
         run: npx prisma generate --schema prisma/schema.prisma
 
