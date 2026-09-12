@@ -713,6 +713,26 @@ async function publishToFacebookPhoto(job: PublishInputJob, accessToken: string)
   };
 }
 
+// Post jest już opublikowany, gdy to wołamy - błąd tutaj nie może cofnąć publikacji,
+// tylko zostawić link pusty (i tak dowiadujemy się o tym po zapisie w bazie/panelu).
+async function fetchInstagramPermalink(mediaId: string, accessToken: string, version: string): Promise<string | undefined> {
+  try {
+    const response = await fetch(
+      `https://graph.facebook.com/${version}/${mediaId}?fields=permalink&access_token=${encodeURIComponent(accessToken)}`,
+      { method: 'GET' },
+    );
+
+    if (!response.ok) {
+      return undefined;
+    }
+
+    const payload = (await response.json()) as { permalink?: string };
+    return payload.permalink;
+  } catch {
+    return undefined;
+  }
+}
+
 async function publishInstagramMediaContainer(
   igUserId: string,
   accessToken: string,
@@ -800,10 +820,13 @@ async function publishInstagramMediaContainer(
     throw new Error(`Instagram publish failed: ${lastInstagramPublishError || 'unknown error'}`);
   }
 
+  const publishedMediaId = publishPayload.id ?? createPayload.id;
+  const postUrl = await fetchInstagramPermalink(publishedMediaId, accessToken, version);
+
   return {
     provider: 'INSTAGRAM' as const,
-    remoteId: publishPayload.id ?? createPayload.id,
-    postUrl: undefined,
+    remoteId: publishedMediaId,
+    postUrl,
   };
 }
 
