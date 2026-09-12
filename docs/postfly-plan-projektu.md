@@ -130,6 +130,40 @@ Zaimplementowano na branchu `feat/TASK-1.1.1-test-env-oauth-isolation`:
 
 ---
 
+---
+
+**Faza: Etap 1 — TASK-1.2.1 [P0/M]** — Potwierdzenie/naprawa bugu ginącej treści
+
+**[PO] Backlog + DoD:**
+
+Analiza obecnego stanu repo wobec zgłoszenia z `prompt-dla-claude-code.md` (bug: "treść posta (caption/hashtagi wpisane per platforma w kreatorze) nie jest zapisywana ani używana przy realnej publikacji — `PublishJob` nie ma pól na treść, a `publish-processor.ts` bierze `video.title`/`video.description` zamiast tego, co user napisał w kreatorze"):
+
+1. **Model danych** (`prisma/schema.prisma`, model `PublishJob`) — pola `caption` (String), `hashtags` (String[]), `title` (String?), `postGroupId`, oraz dedykowane kolumny `tiktokPrivacyLevel`/`tiktokAllowComment`/`tiktokAllowDuet`/`tiktokAllowStitch` (zamiast nadużycia `errorMessage` jako markera ustawień TikToka) **już istnieją**.
+2. **Zapis treści** (`app/api/publish-jobs/drafts/route.ts`) — persystuje caption/hashtagi/tytuł per platforma. **Już pokryte testem** `tests/api/drafts-content-persistence.test.ts` (re-odczyt bezpośrednio z bazy przez Prisma, nie tylko odpowiedź API) — zielony w pełnym pakiecie (33/33, ten sesji).
+3. **Użycie treści przy publikacji** (`lib/server/publish-processor.ts`) — zweryfikowane odczytem kodu: `processClaimedJob` (linie 964-980) buduje `publishInput` z `job.caption`/`job.hashtags`/`job.title` (nie `job.video.title`/`description`), każda funkcja `publishTo*` woła `composeCaption(job.caption, job.hashtags)`; fallback na `job.video.title` występuje **tylko** gdy per-platformowy `title` jest pusty — to zamierzone zachowanie, nie regresja buga. **Brak automatycznego testu** wprost na tę konsumpcję (istniejący test kończy się na zapisie do bazy, nie sprawdza co `publish-processor.ts` faktycznie wysyła do platformy) — to jest luka do domknięcia w tym zadaniu.
+4. **`enqueue`** (`app/api/publish-jobs/enqueue/route.ts`) — tylko przełącza `DRAFT`→`PENDING`/kasuje niewybrane, nie dotyka treści — poprawnie zaprojektowane, pokryte `tests/api/enqueue-publish-job.test.ts`.
+
+Wniosek PO: **bug opisany w `prompt-dla-claude-code.md` jest już naprawiony** (prawdopodobnie w sesji, która wygenerowała ten dokument, przed startem obecnego protokołu Etapu 1). Zadanie tego etapu to nie ponowna naprawa, tylko: (a) formalne potwierdzenie stanu z dowodem, (b) domknięcie jedynej realnej luki — brak testu na konsumpcję treści w `publish-processor.ts`, czyli dokładnie ten punkt, w którym bug pierwotnie żył.
+
+**Zadanie:**
+1. Nowy test `tests/api/publish-processor-content.test.ts` — wywołuje `processPublishJobImmediately`/`processDuePublishJobs` na realnym `PublishJob` (caption/hashtagi/tytuł różne od `video.title`/`description`, żeby asercja odróżniła "właściwa treść" od "treść z fallbacku"), z zamockowanym `global.fetch` (nie prawdziwym API — i tak zablokowane przez `test-network-guard` z TASK-1.1.1). Asercja: ciało żądania wysłanego do platformy zawiera caption/hashtagi z `PublishJob`, nie `video.title`/`video.description`.
+2. Zaktualizować `postfly-backlog-sprinty.md`/log ról jako dowód zamknięcia, bez zmiany kodu produkcyjnego (bug już naprawiony).
+
+**DoD:**
+- Nowy test czerwony, gdyby ktoś podmienił `job.caption`/`job.hashtags`/`job.title` z powrotem na `job.video.title`/`job.video.description` w `publishToPlatform`/funkcjach `publishTo*` (zweryfikowane przez chwilowe cofnięcie w trakcie pisania testu, potem przywrócenie).
+- Test zielony na obecnym (poprawnym) kodzie, wchodzi do pełnego pakietu `npm test`, przechodzi w CI.
+- Brak zmian w `lib/server/publish-processor.ts`/schemacie — potwierdzenie, nie naprawa.
+
+**[Architekt] Decyzja/zmiany:** Zatwierdzone bez zmian. To zadanie testowe, zero nowego kodu produkcyjnego, zero ryzyka architektonicznego — sekcje 8/9 nie mają zastosowania. Zgoda na podejście "dopisz brakujący test na granicy, gdzie bug faktycznie żył" zamiast dublowania już istniejącego testu persystencji.
+
+**[Inżynier] Zaimplementowano, build/testy:** Dodano `tests/api/publish-processor-content.test.ts` na branchu `test/TASK-1.2.1-publish-processor-content` — brak zmian w kodzie produkcyjnym (bug już naprawiony wcześniej). Test wywołuje `processPublishJobImmediately` na realnym `PublishJob` z zamockowanym `global.fetch`, asercja na ciało wysłanego żądania. Zweryfikowano czerwony→zielony: chwilowo cofnięto `publish-processor.ts` do starego zachowania (`job.video.title`/pusty opis zamiast `job.caption`/`job.hashtags`/`job.title`) — test poprawnie failował z czytelnym komunikatem asercji, po przywróceniu kodu (zero diffa) test zielony. `npm test`: 34/34 w obu trybach APP_MODE.
+
+**[QA] Niezależna weryfikacja, znalezione problemy:** Niezależnie potwierdzone: (1) `git diff lib/server/publish-processor.ts` po przywróceniu — brak różnic, kod produkcyjny faktycznie niezmieniony; (2) odczyt `processClaimedJob` (linie 964-980) potwierdza budowanie `publishInput` z pól `PublishJob`, nie `Video`; (3) `prisma/schema.prisma` potwierdza obecność `caption`/`hashtags`/`title`/`postGroupId`/dedykowanych kolumn TikTok — model danych z pierwotnego zgłoszenia bugu już wdrożony. Znalezione problemy: brak. DoD spełnione: test istnieje, czerwony na starym zachowaniu (zweryfikowane ręcznie), zielony na obecnym kodzie, wchodzi do `npm test`.
+
+**Status: TASK-1.2.1 zamknięte — bug potwierdzony jako już naprawiony, luka w pokryciu testowym domknięta.**
+
+---
+
 **Definicja "gotowy projekt w 100%":** każdy checkbox w sekcjach 6 i 7 odhaczony, każdy z jawnym DoD spełnionym i potwierdzonym testem (nie deklaracją), **QA niezależnie zweryfikowało, nie tylko Inżynier**, Architekt podpisał się pod skalowalnością w sekcji 9 dla każdej nowej warstwy, i sekcja 8 (Review końcowy) przeszła bez zastrzeżeń blokujących.
 
 ## 0.1 Zespół UX/UI — równoległy tor pracy
