@@ -10,19 +10,46 @@ import { BASE_URL } from './helpers';
 // (already covered server-side and by Vitest).
 
 test('successful login with valid credentials redirects to the dashboard', async ({ page }) => {
-  await page.route('**/api/auth/login', (route) =>
-    route.fulfill({
-      status: 200,
-      body: JSON.stringify({ user: { userId: 'test-user-id', email: 'user@postfly.app' } }),
-    }),
-  );
+  // Landing on /dashboard mounts several components (ConnectedPlatforms, DashboardAIAdvisor,
+  // OnboardingChecklist, RecentActivity, ...) that each fire their own real, unmocked
+  // apiClient calls (/social-accounts, /videos, /jobs, /activity, /analytics, ...). Only
+  // mocking /auth/login + /auth/me leaves those hitting the real backend with no real
+  // session cookie behind this mocked login — a real 401 there trips the client's global
+  // axios interceptor (lib/api-client.ts), which hard-redirects back to /login. This
+  // catch-all (registered first, so more specific routes below take priority — Playwright
+  // matches routes most-recently-registered-first) keeps every such background call inside
+  // the 2xx path so the interceptor never fires, without having to enumerate every
+  // dashboard child component's endpoint by hand.
+  await page.route('**/api/**', (route) => route.fulfill({ status: 200, body: JSON.stringify([]) }));
 
-  await page.route('**/api/auth/me', (route) =>
-    route.fulfill({
+  // /auth/me must be stateful: LoginPage redirects straight to /dashboard on mount if
+  // AuthProvider's initial bootstrap already sees an authenticated session (login/page.tsx:
+  // "if (isAuthenticated) router.replace('/dashboard')"). Mocking it as permanently
+  // authenticated from the start — as this test originally did — raced that redirect
+  // against Playwright's own .fill() calls: slow, uncompiled dev-mode responses happened to
+  // let the fill()s win, but a fast production server (next build + next start, what CI and
+  // the fix-verification below both use) wins the race instead, and the login form the test
+  // is trying to fill in is never reached because the page already bounced away from it.
+  let hasLoggedIn = false;
+
+  await page.route('**/api/auth/login', (route) => {
+    hasLoggedIn = true;
+    return route.fulfill({
       status: 200,
       body: JSON.stringify({ user: { userId: 'test-user-id', email: 'user@postfly.app' } }),
-    }),
-  );
+    });
+  });
+
+  await page.route('**/api/auth/me', (route) => {
+    if (!hasLoggedIn) {
+      return route.fulfill({ status: 401, body: JSON.stringify({ message: 'Unauthorized' }) });
+    }
+
+    return route.fulfill({
+      status: 200,
+      body: JSON.stringify({ user: { userId: 'test-user-id', email: 'user@postfly.app' } }),
+    });
+  });
 
   await page.goto(`${BASE_URL}/login`);
 

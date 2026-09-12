@@ -11,6 +11,13 @@ import { BASE_URL } from './helpers';
 // Vitest already covers (tests/api/*).
 
 test('successful registration with valid data redirects to the dashboard', async ({ page }) => {
+  // See the equivalent comment in login-happy-path.spec.ts: /dashboard mounts several
+  // components that fire their own real, unmocked apiClient calls. Without a real session
+  // cookie behind this mocked registration, those would 401 and trip the client's global
+  // axios interceptor's hard-redirect-to-/login. Registered first so the more specific
+  // routes below (matched most-recently-registered-first) take priority.
+  await page.route('**/api/**', (route) => route.fulfill({ status: 200, body: JSON.stringify([]) }));
+
   await page.route('**/api/auth/register-status', (route) =>
     route.fulfill({ status: 200, body: JSON.stringify({ open: true }) }),
   );
