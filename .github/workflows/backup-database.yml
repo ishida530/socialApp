@@ -23,8 +23,19 @@ jobs:
       - name: Install dependencies
         run: npm ci --omit=dev --ignore-scripts
 
-      - name: Install PostgreSQL client (pg_dump)
-        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      # pg_dump refuses to dump a server newer than itself ("aborting because of server
+      # version mismatch") - Supabase runs Postgres 17, ubuntu-latest's default
+      # postgresql-client package is only 16. Pull client 17 from the official PGDG apt repo
+      # instead. Discovered by actually running this workflow against production (TASK-1.1.2),
+      # not assumed from reading the Supabase plan alone.
+      - name: Install PostgreSQL 17 client (pg_dump/psql)
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          sudo sh -c 'echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
 
       - name: Run backup
         env:
