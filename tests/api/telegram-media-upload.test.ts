@@ -232,7 +232,11 @@ describe('POST /api/telegram/webhook — callback_query (TASK-3.1.2)', () => {
     expect(updatedJob?.status).toBe('SUCCESS');
 
     expect(mockAnswerTelegramCallbackQuery).toHaveBeenCalled();
-    expect(mockEditTelegramMessage).toHaveBeenCalledWith(chatId, 42, expect.stringContaining('Opublikowano'));
+    expect(mockEditTelegramMessage).toHaveBeenCalledWith(
+      chatId,
+      42,
+      expect.stringContaining('https://www.facebook.com/remote-1'),
+    );
 
     vi.unstubAllGlobals();
   });

@@ -191,6 +191,30 @@ async function handleTextCommand(chatIdStr: string, userId: string, text: string
   return false;
 }
 
+function formatPublishResultMessage(
+  publishJobs: Array<{ status: string; remotePostUrl: string | null; socialAccount: { platform: string } }>,
+): string {
+  const lines = publishJobs.map((job) => {
+    if (job.status === 'SUCCESS') {
+      return job.remotePostUrl
+        ? `✅ ${job.socialAccount.platform}: ${job.remotePostUrl}`
+        : `✅ ${job.socialAccount.platform}: opublikowano (link niedostępny z API tej platformy)`;
+    }
+
+    if (job.status === 'PENDING') {
+      // TikTok (i czasem inne platformy) publikuje asynchronicznie - w tym momencie żądania
+      // wciąż trwa przetwarzanie w tle (cron sprawdza status co minutę), link pojawi się
+      // dopiero po zakończeniu. Prywatne posty (np. TikTok SELF_ONLY) mogą nie mieć w ogóle
+      // publicznego linku - patrz docs/postfly-instrukcja-startu.md po jak to zmienić.
+      return `⏳ ${job.socialAccount.platform}: w trakcie przetwarzania - sprawdź panel Postfly za chwilę.`;
+    }
+
+    return `❌ ${job.socialAccount.platform}: ${job.status}`;
+  });
+
+  return lines.join('\n');
+}
+
 async function handleCallbackQuery(update: NonNullable<TelegramUpdate['callback_query']>) {
   const chatId = update.message?.chat?.id;
   const messageId = update.message?.message_id;
@@ -257,9 +281,7 @@ async function handleCallbackQuery(update: NonNullable<TelegramUpdate['callback_
     await editTelegramMessage(
       chatIdStr,
       messageId,
-      result.immediateOutcome === 'succeeded'
-        ? 'Opublikowano ✓'
-        : `Publikacja w toku/kolejce (status: ${result.immediateOutcome}). Sprawdź panel Postfly po szczegóły.`,
+      `Wynik publikacji:\n\n${formatPublishResultMessage(result.publishJobs)}`,
     ).catch((error) => logError('telegram', 'edit-message-publish-success-failed', error, { chatId: chatIdStr }));
     return;
   }
