@@ -1,5 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from 'crypto';
 import { NextRequest } from 'next/server';
+import { put } from '@vercel/blob';
+import { MediaType, VideoStatus } from '@prisma/client';
 import { prisma } from './prisma';
 
 const LINK_CODE_TTL_MS = 10 * 60 * 1000;
@@ -126,4 +128,137 @@ export async function consumeTelegramLinkCode(code: string, chatId: string): Pro
 
 export async function findUserByTelegramChatId(chatId: string) {
   return prisma.user.findUnique({ where: { telegramChatId: chatId } });
+}
+
+type InlineButton = { text: string; callback_data: string };
+
+export async function sendTelegramMessageWithButtons(
+  chatId: string,
+  text: string,
+  buttons: InlineButton[][],
+): Promise<{ messageId: number } | null> {
+  const token = requireBotToken();
+
+  const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: chatId,
+      text,
+      reply_markup: { inline_keyboard: buttons },
+    }),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`Telegram sendMessage (with buttons) failed: ${errorBody || response.statusText}`);
+  }
+
+  const payload = (await response.json()) as { result?: { message_id?: number } };
+  return payload.result?.message_id ? { messageId: payload.result.message_id } : null;
+}
+
+export async function editTelegramMessage(
+  chatId: string,
+  messageId: number,
+  text: string,
+  buttons?: InlineButton[][],
+) {
+  const token = requireBotToken();
+
+  const response = await fetch(`https://api.telegram.org/bot${token}/editMessageText`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: chatId,
+      message_id: messageId,
+      text,
+      ...(buttons ? { reply_markup: { inline_keyboard: buttons } } : {}),
+    }),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`Telegram editMessageText failed: ${errorBody || response.statusText}`);
+  }
+}
+
+export async function answerTelegramCallbackQuery(callbackQueryId: string, text?: string) {
+  const token = requireBotToken();
+
+  const response = await fetch(`https://api.telegram.org/bot${token}/answerCallbackQuery`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ callback_query_id: callbackQueryId, ...(text ? { text } : {}) }),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`Telegram answerCallbackQuery failed: ${errorBody || response.statusText}`);
+  }
+}
+
+// Telegram Bot API nie udostępnia plików ponad 20 MB przez getFile (twardy limit platformy,
+// nie coś do obejścia) - sprawdzane PRZED próbą pobrania, żeby dać czytelny komunikat
+// zamiast milczącego błędu.
+export const TELEGRAM_MAX_DOWNLOADABLE_FILE_BYTES = 20 * 1024 * 1024;
+
+export async function downloadTelegramFile(fileId: string): Promise<{ bytes: Buffer; filePath: string }> {
+  const token = requireBotToken();
+
+  const getFileResponse = await fetch(`https://api.telegram.org/bot${token}/getFile?file_id=${encodeURIComponent(fileId)}`);
+  if (!getFileResponse.ok) {
+    const errorBody = await getFileResponse.text();
+    throw new Error(`Telegram getFile failed: ${errorBody || getFileResponse.statusText}`);
+  }
+
+  const getFilePayload = (await getFileResponse.json()) as {
+    result?: { file_path?: string; file_size?: number };
+  };
+  const filePath = getFilePayload.result?.file_path;
+  if (!filePath) {
+    throw new Error('Telegram getFile response missing file_path');
+  }
+
+  const downloadResponse = await fetch(`https://api.telegram.org/file/bot${token}/${filePath}`);
+  if (!downloadResponse.ok) {
+    throw new Error(`Telegram file download failed: ${downloadResponse.status}`);
+  }
+
+  const bytes = Buffer.from(await downloadResponse.arrayBuffer());
+  return { bytes, filePath };
+}
+
+// Serwer sam wgrywa bajty do Vercel Blob (analogicznie do scripts/backup-database.mjs,
+// TASK-1.1.2) - w przeciwieństwie do app/api/videos/blob-upload/route.ts, które zakłada
+// upload bezpośrednio z przeglądarki przez @vercel/blob/client i tu nie ma zastosowania,
+// bo Telegram dostarcza plik przez własne API, nie przez formularz w przeglądarce.
+export async function uploadTelegramMediaAsVideo(
+  userId: string,
+  fileId: string,
+  mediaType: 'VIDEO' | 'IMAGE',
+  title: string,
+) {
+  const { bytes, filePath } = await downloadTelegramFile(fileId);
+  const extension = filePath.includes('.') ? filePath.slice(filePath.lastIndexOf('.')) : mediaType === 'IMAGE' ? '.jpg' : '.mp4';
+  const contentType = mediaType === 'IMAGE' ? 'image/jpeg' : 'video/mp4';
+
+  const blob = await put(`telegram-uploads/${randomBytes(8).toString('hex')}${extension}`, bytes, {
+    access: 'public',
+    contentType,
+    token: process.env.BLOB_READ_WRITE_TOKEN,
+  });
+
+  const video = await prisma.video.create({
+    data: {
+      title,
+      sourceUrl: blob.url,
+      localPath: null,
+      status: VideoStatus.READY,
+      mediaType: mediaType === 'IMAGE' ? MediaType.IMAGE : MediaType.VIDEO,
+      user: { connect: { id: userId } },
+    },
+  });
+
+  return video;
 }

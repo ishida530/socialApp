@@ -1,44 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUserFromRequest } from '@/lib/server/auth';
-import { prisma } from '@/lib/server/prisma';
 import { badRequest, serverError, tooManyRequests, unauthorized } from '@/lib/server/http';
 import { consumeRateLimit } from '@/lib/server/rate-limit';
-import {
-  assertScheduleWindowAllowed,
-  assertUsageAllowed,
-  getSubscriptionSnapshot,
-  incrementUsage,
-} from '@/lib/server/subscription';
-import { processPublishJobImmediately } from '@/lib/server/publish-processor';
-
-type SocialPlatform = 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'FACEBOOK';
-
-function normalizePlatform(value: string): SocialPlatform {
-  const normalized = value.trim().toUpperCase();
-
-  if (normalized === 'YOUTUBE') {
-    return 'YOUTUBE';
-  }
-
-  if (normalized === 'TIKTOK') {
-    return 'TIKTOK';
-  }
-
-  if (normalized === 'INSTAGRAM') {
-    return 'INSTAGRAM';
-  }
-
-  if (normalized === 'FACEBOOK') {
-    return 'FACEBOOK';
-  }
-
-  throw new Error('Nieobsługiwana platforma');
-}
+import { enqueueDraftGroup } from '@/lib/server/publish-jobs';
 
 /**
  * Krok 4 ("Gdzie i kiedy") finalizuje istniejące DRAFT-y utworzone przez
  * POST /api/publish-jobs/drafts (Krok 1→2). Nie tworzy nowych PublishJob-ów
  * od zera — przełącza wybrane DRAFT-y na PENDING, a odznaczone kasuje.
+ *
+ * Rdzeń logiki żyje w lib/server/publish-jobs.ts (enqueueDraftGroup), żeby przycisk
+ * "Publikuj" w Telegramie (TASK-3.1.2) wołał dokładnie tę samą logikę biznesową, nie kopię.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -65,157 +37,37 @@ export async function POST(request: NextRequest) {
       return badRequest('Validation failed', ['postGroupId: postGroupId jest wymagany']);
     }
 
-    const publishNow = body.publishNow === true;
+    const result = await enqueueDraftGroup(user.userId, {
+      postGroupId: body.postGroupId,
+      scheduledDate: body.scheduledDate,
+      publishNow: body.publishNow,
+      tiktokPostingConsent: body.tiktokPostingConsent,
+      targetPlatforms: body.targetPlatforms ?? [],
+    });
 
-    let scheduledDate = new Date();
-    if (!publishNow) {
-      if (!body.scheduledDate) {
+    if (!result.ok) {
+      // Dwa konkretne przypadki brakującego/pustego pola wejściowego zachowują format
+      // { errors: [...] } zgodny z dotychczasowym API (tests/api/enqueue-publish-job.test.ts) -
+      // reszta błędów z enqueueDraftGroup to zwykłe komunikaty biznesowe (message-only),
+      // czytelne wprost jako odpowiedź bota na Telegramie bez dodatkowego mapowania.
+      if (result.error === 'scheduledDate jest wymagany') {
         return badRequest('Validation failed', ['scheduledDate: scheduledDate jest wymagany']);
       }
-
-      scheduledDate = new Date(body.scheduledDate);
-      if (Number.isNaN(scheduledDate.getTime())) {
-        return badRequest('scheduledDate is invalid');
+      if (result.error === 'wymagane co najmniej 1 platforma') {
+        return badRequest('Validation failed', ['targetPlatforms: wymagane co najmniej 1 platforma']);
       }
-
-      await assertScheduleWindowAllowed(user.userId, scheduledDate);
+      return badRequest(result.error);
     }
 
-    if (!Array.isArray(body.targetPlatforms) || body.targetPlatforms.length === 0) {
-      return badRequest('Validation failed', [
-        'targetPlatforms: wymagane co najmniej 1 platforma',
-      ]);
-    }
-
-    const targetPlatforms = Array.from(
-      new Set(body.targetPlatforms.map((platform) => normalizePlatform(platform))),
-    );
-
-    if (targetPlatforms.includes('TIKTOK') && body.tiktokPostingConsent !== true) {
-      return badRequest('Dla publikacji TikTok wymagana jest akceptacja warunków publikacji.');
-    }
-
-    const snapshot = await getSubscriptionSnapshot(user.userId);
-    const userPlan = snapshot.subscription.plan;
-
-    if (userPlan === 'FREE' && targetPlatforms.length > 1) {
-      return badRequest('Plan Free pozwala publikować jednocześnie maksymalnie na 1 kanale social.');
-    }
-
-    const draftJobs = await prisma.publishJob.findMany({
-      where: {
-        postGroupId: body.postGroupId,
-        status: 'DRAFT',
-        video: { userId: user.userId },
-      },
-      include: {
-        video: true,
-        socialAccount: true,
-      },
-    });
-
-    if (draftJobs.length === 0) {
-      return badRequest('Nie znaleziono niedokończonego posta dla podanego postGroupId.');
-    }
-
-    const draftJobByPlatform = new Map(draftJobs.map((job) => [job.socialAccount.platform, job]));
-
-    const missingPlatforms = targetPlatforms.filter((platform) => !draftJobByPlatform.has(platform));
-    if (missingPlatforms.length > 0) {
-      return badRequest(
-        `Brak przygotowanej treści dla platform: ${missingPlatforms.join(', ')}`,
-      );
-    }
-
-    if (targetPlatforms.includes('TIKTOK')) {
-      const tiktokJob = draftJobByPlatform.get('TIKTOK')!;
-
-      if (!tiktokJob.tiktokPrivacyLevel) {
-        return badRequest('Dla TikTok wybierz poziom prywatności publikacji w kroku przeglądu.');
-      }
-    }
-
-    for (let index = 0; index < targetPlatforms.length; index += 1) {
-      await assertUsageAllowed(user.userId, 'publish_jobs');
-    }
-
-    const platformsToDelete = draftJobs
-      .filter((job) => !targetPlatforms.includes(job.socialAccount.platform))
-      .map((job) => job.id);
-
-    const updateOperations = targetPlatforms.map((platform) => {
-      const job = draftJobByPlatform.get(platform)!;
-
-      return prisma.publishJob.update({
-        where: { id: job.id },
-        data: {
-          status: 'PENDING',
-          scheduledFor: scheduledDate,
-          ...(platform === 'TIKTOK' ? { tiktokConsentAt: new Date() } : {}),
-        },
-        include: {
-          video: true,
-          socialAccount: true,
-        },
-      });
-    });
-
-    const transactionResults = await prisma.$transaction([
-      ...updateOperations,
-      prisma.publishJob.deleteMany({
-        where: { id: { in: platformsToDelete } },
-      }),
-    ]);
-
-    const updatedJobs = transactionResults.slice(0, updateOperations.length) as Array<
-      Awaited<(typeof updateOperations)[number]>
-    >;
-
-    const delay = Math.max(0, scheduledDate.getTime() - Date.now());
-
-    await incrementUsage(user.userId, 'publish_jobs', updatedJobs.length);
-
-    const immediateOutcomes = publishNow
-      ? await Promise.all(
-          updatedJobs.map(async (publishJob) => ({
-            jobId: publishJob.id,
-            platform: publishJob.socialAccount.platform,
-            outcome: await processPublishJobImmediately(publishJob.id),
-          })),
-        )
-      : [];
-
-    const responseJobs = publishNow
-      ? await prisma.publishJob.findMany({
-          where: { id: { in: updatedJobs.map((job) => job.id) } },
-          include: {
-            video: true,
-            socialAccount: true,
-          },
-          orderBy: {
-            createdAt: 'desc',
-          },
-        })
-      : updatedJobs;
-
-    const immediateOutcome =
-      immediateOutcomes.length === 0
-        ? null
-        : immediateOutcomes.some((item) => item.outcome === 'failed')
-          ? 'failed'
-          : immediateOutcomes.some((item) => item.outcome === 'retryScheduled')
-            ? 'retryScheduled'
-            : immediateOutcomes.some((item) => item.outcome === 'skipped')
-              ? 'skipped'
-              : 'succeeded';
+    const firstJob = result.publishJobs[0];
+    const delay = firstJob ? Math.max(0, firstJob.scheduledFor.getTime() - Date.now()) : 0;
 
     return NextResponse.json({
       success: true,
-      publishJob: responseJobs[0] ?? null,
-      publishJobs: responseJobs,
-      targetsCount: targetPlatforms.length,
-      immediateOutcome,
-      immediateOutcomes,
+      publishJob: firstJob ?? null,
+      publishJobs: result.publishJobs,
+      targetsCount: result.targetsCount,
+      immediateOutcome: result.immediateOutcome,
       queue: {
         name: 'next-inline-queue',
         delay,

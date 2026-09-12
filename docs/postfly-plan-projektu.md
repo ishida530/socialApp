@@ -268,6 +268,50 @@ Niezależnie potwierdzone: (1) test webhooka bez poprawnego nagłówka sekretu �
 
 ---
 
+---
+
+**Faza: Etap 1 — TASK-3.1.2 [P0/M]** — Webhook Telegram: upload materiału + podgląd z przyciskami
+
+**[PO] Backlog + DoD:**
+
+Zakres wybrany przez użytkownika (pełny flow, nie tylko przyjęcie pliku): webhook, po otrzymaniu wideo/zdjęcia od **połączonego** czatu, pobiera plik z Telegrama, wgrywa do Vercel Blob, tworzy `Video` + `DRAFT` `PublishJob` per podłączona platforma z wygenerowaną treścią AI (ta sama logika co `/api/publish-jobs/drafts`), wysyła podgląd z przyciskami inline **Publikuj / Anuluj** (Edytuj = link do panelu, nie osobny mechanizm w Telegramie na tym etapie). Kliknięcie **Publikuj** woła tę samą logikę co `/api/publish-jobs/enqueue` (natychmiastowa publikacja, `publishNow`), **Anuluj** kasuje DRAFT-y.
+
+Refaktor konieczny do uniknięcia duplikacji: rdzeń logiki `/api/publish-jobs/drafts` (POST) i `/api/publish-jobs/enqueue` (POST) wydzielony do `lib/server/publish-jobs.ts` jako `createDraftGroupForVideo`/`enqueueDraftGroup`, wołany przez oba istniejące endpointy (cienkie wrappery: parsowanie żądania → wywołanie → serializacja) **oraz** nowy handler Telegrama — jedna prawda o logice biznesowej, nie dwie kopie.
+
+Uproszczenia świadomie przyjęte na ten etap:
+- TikTok: jeśli wśród platform, domyślny `tiktokPrivacyLevel=SELF_ONLY` (najbezpieczniejszy), kliknięcie "Publikuj" liczy się jako zgoda (`tiktokConsentAt`) — użytkownik już uwierzytelnił się przez połączenie konta.
+- Wszystkie podłączone platformy naraz (bez wyboru per-platforma w Telegramie) — granularny wybór zostaje w panelu web.
+- Plan FREE + >1 platforma → istniejący limit z `enqueueDraftGroup` zwraca błąd, przekazany z powrotem jako wiadomość Telegram.
+- `callback_query` (przyciski) weryfikuje, że `chatId` naciskającego faktycznie jest właścicielem `postGroupId` — nigdy akcji na cudzym zadaniu.
+
+DoD:
+- Test: wideo wysłane przez połączonego użytkownika → `Video` + `DRAFT PublishJob` per platforma z treścią AI (zamockowany LLM, jak w istniejących testach), wiadomość z przyciskami wysłana.
+- Test: `callback_query` "Publikuj" z poprawnym `chatId` → joby przechodzą w PENDING/SUCCESS (zamockowany `publish-processor`/fetch), wiadomość edytowana z potwierdzeniem.
+- Test: `callback_query` z `chatId`, który nie jest właścicielem `postGroupId` → odrzucone, zero efektu.
+- Test: `callback_query` "Anuluj" → DRAFT-y skasowane.
+- Istniejące testy `enqueue-publish-job.test.ts`/`drafts-content-persistence.test.ts`/`tiktok-consent.test.ts` dalej zielone po refaktorze (regresja zero).
+- `npm test`/`npm run build` bez regresji.
+
+**[Architekt] Decyzja/zmiany:** Zatwierdzone z wymogiem refaktoru (nie duplikacji) — patrz wyżej. Pobieranie pliku z Telegrama i wgrywanie do Blob po stronie serwera (nie przez `@vercel/blob/client`'s browser-token flow, który zakłada przeglądarkę) — nowa, uzasadniona ścieżka, analogiczna do `scripts/backup-database.mjs` (TASK-1.1.2) pod względem "serwer robi upload bezpośrednio". Limit rozmiaru pliku z Telegram Bot API (do 20 MB przez zwykłe webhooki) ma zostać jawnie sprawdzony i skomunikowany użytkownikowi, nie cichy fail.
+
+**[Inżynier] Zaimplementowano, build/testy:**
+
+Branch `feat/TASK-3.1.2-telegram-upload-flow`:
+- `lib/server/publish-jobs.ts` (nowy) — `createDraftGroupForVideo`/`enqueueDraftGroup`, rdzeń logiki wydzielony z `app/api/publish-jobs/drafts` i `.../enqueue`. Oba route'y zrefaktoryzowane na cienkie wrappery (parsowanie żądania → wywołanie funkcji → mapowanie błędu na odpowiedź HTTP), z zachowaniem dokładnie tego samego kontraktu API (w tym dwóch przypadków z formatem `{errors: [...]}`, reszta jako `message`) — zweryfikowane: wszystkie istniejące testy (`enqueue-publish-job`, `drafts-content-persistence`, `tiktok-consent`) przechodzą bez zmian, zero regresji.
+- `lib/server/telegram.ts` rozszerzony: `downloadTelegramFile`/`uploadTelegramMediaAsVideo` (pobranie z Telegram Bot API, upload do Vercel Blob po stronie serwera — analogicznie do `scripts/backup-database.mjs`), `sendTelegramMessageWithButtons`/`editTelegramMessage`/`answerTelegramCallbackQuery`, limit 20 MB (`TELEGRAM_MAX_DOWNLOADABLE_FILE_BYTES`) sprawdzany PRZED próbą pobrania.
+- `app/api/telegram/webhook/route.ts` rozszerzony: wideo/zdjęcie od połączonego użytkownika → `createDraftGroupForVideo` → podgląd z przyciskami inline (Publikuj/Anuluj). `callback_query` → bramka bezpieczeństwa (właściciel `postGroupId` musi być tym samym userem co `chatId`, zweryfikowane zapytaniem do bazy, nie zaufaniem do danych z przycisku) → `enqueueDraftGroup`/kasowanie DRAFT-ów.
+- `npm test`: 51/51 (oba tryby, +6 nowych testów). `npm run build`: przechodzi.
+
+**[QA] Niezależna weryfikacja, znalezione problemy:**
+
+Zweryfikowano niezależnie: (1) refaktor `publish-jobs.ts` nie zmienił zachowania — wszystkie testy z PRZED refaktoru dalej zielone bez modyfikacji; (2) upload wideo od niepołączonego czatu → zero wywołania `uploadTelegramMediaAsVideo`, zero utworzonego `Video` (sprawdzone zapytaniem do bazy, nie tylko kodem statusu); (3) plik >20 MB → odrzucony przed próbą pobrania; (4) `callback_query` "Publikuj" z czatu, który NIE jest właścicielem `postGroupId` → zero zmiany statusu joba, zero wywołania `editTelegramMessage` (test z dwoma różnymi użytkownikami, intruz naciska przycisk na cudzy post); (5) "Anuluj" faktycznie kasuje DRAFT-y z bazy. Znalezione problemy: brak.
+
+**Świadome ograniczenie (jak w TASK-3.1.1):** brak prawdziwego bota u użytkownika — weryfikacja przez testy integracyjne z zamockowanymi wywołaniami sieciowymi Telegrama, nie przez realny end-to-end. Odnotowane jawnie, nie ukryte.
+
+**Status: TASK-3.1.2 zamknięte (z tym samym jawnie odnotowanym ograniczeniem co TASK-3.1.1).**
+
+---
+
 **Definicja "gotowy projekt w 100%":** każdy checkbox w sekcjach 6 i 7 odhaczony, każdy z jawnym DoD spełnionym i potwierdzonym testem (nie deklaracją), **QA niezależnie zweryfikowało, nie tylko Inżynier**, Architekt podpisał się pod skalowalnością w sekcji 9 dla każdej nowej warstwy, i sekcja 8 (Review końcowy) przeszła bez zastrzeżeń blokujących.
 
 ## 0.1 Zespół UX/UI — równoległy tor pracy
