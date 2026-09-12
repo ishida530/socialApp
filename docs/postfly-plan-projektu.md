@@ -209,7 +209,13 @@ Branch `feat/TASK-1.1.2-database-backup`:
 
 **Realna weryfikacja odtworzenia (DoD, wykonana lokalnie):** pełny cykl `pg_dump`→gzip→encrypt→decrypt→gunzip→`psql restore` przeciw lokalnemu Postgresowi (Docker), z `flowstate_test` do świeżej, jednorazowej `flowstate_restore_test` (nigdy produkcja/dev). Wynik: dump+szyfrowanie ~1.9s, odtworzenie ~1.6s, **razem ~3.4s**. Liczba wierszy w `User` identyczna przed/po. Przy tej weryfikacji znaleziony i naprawiony bug: `pg_dump`/`psql` (libpq) nie znają parametru `?schema=public` (konwencja Prisma) obecnego w `DIRECT_URL` tego projektu — bez sanityzacji cały mechanizm by nie zadziałał. `npm test`: 38/38 (oba tryby). `npm run build`: przechodzi.
 
-**[QA] Niezależna weryfikacja, znalezione problemy:** *(oczekuje na realny przebieg workflow przeciw produkcji przez `workflow_dispatch` przed mergem — pg_dump jest tylko-do-odczytu, zero ryzyka zapisu)*
+**[QA] Niezależna weryfikacja, znalezione problemy:**
+
+Uruchomiono `workflow_dispatch` przeciw prawdziwej produkcji (za zgodą użytkownika) po mergu PR #7. **Pierwsza i druga próba failowały** — znalezione dwa realne problemy niewidoczne przy weryfikacji lokalnej (lokalny Docker to Postgres 16, Supabase to 17): (1) `pg_dump` odmawia dumpowania serwera nowszego od siebie — domyślny `postgresql-client` na `ubuntu-latest` to 16; (2) instalacja `postgresql-client-17` sama w sobie nie wystarczyła, bo preinstalowany `pg_dump` 16 nadal wygrywał na `PATH`. Oba naprawione (PR #8, PR #9), **trzecia próba: sukces** — realny backup produkcji: 35 837 B skompresowane → 35 865 B zaszyfrowane → wgrane do Vercel Blob, potwierdzone URL-em w logu joba. Harmonogram (05:00 UTC) będzie teraz powtarzał tę samą, zweryfikowaną ścieżkę.
+
+To potwierdza wartość dosłownego wymogu DoD "realna symulacja" zamiast przeglądu kodu — różnica wersji Postgres nigdy by się nie ujawniła bez uruchomienia przeciw prawdziwej infrastrukturze. Znalezione problemy: brak pozostałych. DoD w pełni spełnione, łącznie z realnym przebiegiem przeciw produkcji, nie tylko symulacją lokalną.
+
+**Status: TASK-1.1.2 zamknięte.**
 
 ---
 

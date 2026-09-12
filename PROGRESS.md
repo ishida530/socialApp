@@ -1,5 +1,5 @@
-Ostatnio ukończone zadanie: TASK-1.2.1
-Stan builda: przechodzi (npm run build OK, npm test 34/34 OK w obu trybach APP_MODE)
-Następne zadanie w kolejce: TASK-1.1.2 (Etap 1, postfly-plan-wykonania.md sekcja 2) — proces backupu bazy/materiałów, przetestowany realnym odtworzeniem
-Blokery/niedokończone wątki: brak. TASK-1.2.1 potwierdziło, że bug ginącej treści z prompt-dla-claude-code.md był już naprawiony w kodzie produkcyjnym (publish-processor.ts poprawnie czyta job.caption/job.hashtags/job.title) — dodano tylko brakujący test regresyjny na tę konsumpcję, zero zmian w kodzie produkcyjnym.
-Data/godzina ostatniej aktualizacji: 2026-09-12 11:00
+Ostatnio ukończone zadanie: TASK-1.1.2
+Stan builda: przechodzi (npm run build OK, npm test 38/38 OK w obu trybach APP_MODE)
+Następne zadanie w kolejce: TASK-3.1.1 (Etap 1, postfly-plan-wykonania.md sekcja 2) — powiązanie konta Telegram z użytkownikiem
+Blokery/niedokończone wątki: brak. TASK-1.1.2 zweryfikowane realnym przebiegiem przeciw produkcji (workflow_dispatch), nie tylko lokalnie — po drodze znaleziono i naprawiono niedopasowanie wersji pg_dump (Supabase = Postgres 17, ubuntu-latest domyślnie ma 16). Harmonogram backupu: codziennie 05:00 UTC.
+Data/godzina ostatniej aktualizacji: 2026-09-12 11:42
