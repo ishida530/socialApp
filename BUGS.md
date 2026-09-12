@@ -63,3 +63,14 @@ Kroki reprodukcji:
 3. Zmień samą "Prywatność postu" w dropdownie (bez dotykania przełączników Duet/Stitch).
 4. Obserwacja: `PATCH .../drafts/:id` zwraca 400 "Na tym koncie TikTok duet jest wyłączony. Odznacz duet." — zmiana prywatności nie zapisuje się.
 Status: [x] test napisany (czerwony) → [x] poprawka wdrożona (test zielony) → [ ] zamknięty (PR #...)
+
+## BUG-005
+Zgłoszony: 2026-09-12
+Kontekst: konsultacja UX/senior frontend flow "Nowy post" (na wniosek użytkownika po realnej publikacji TikTok) — przegląd `components/composer/PostStatusScreen.tsx` po tym, jak użytkownik zauważył, że po kliknięciu "Opublikuj teraz" i sukcesie widział mylący tekst zamiast linku do posta.
+Opis: `PostStatusScreen.tsx` (linie 85-90) rozróżnia w renderze tylko `job.status === 'SUCCESS'` i `'FAILED'` — każdy inny status (w tym `PENDING` w trakcie async-pollingu statusu TikToka po `publishNow: true`, patrz `scheduleTikTokStatusPoll` w `publish-processor.ts`) dostaje ten sam, zaszyty na sztywno tekst "Zaplanowane — publikacja tego dnia (patrz uwaga o cronie)", napisany z myślą wyłącznie o prawdziwie zaplanowanych (`Zaplanuj`) postach. Efekt: użytkownik klikający "Opublikuj teraz" dla TikToka (który publikuje asynchronicznie — najpierw `PENDING` z tagiem `tiktok-tracking:...`, dopiero po kolejnym poll-u `SUCCESS`) widzi mylącą informację sugerującą, że post czeka na publikację "tego dnia" przez cron, zamiast informacji że jest w trakcie przetwarzania. Dodatkowo: nawet dla `SUCCESS` ekran pokazuje wyłącznie statyczny tekst "Opublikowano" — `job.remotePostUrl` (link do opublikowanego posta, liczony dla Instagrama i TikToka i już używany w wiadomościach Telegram, `formatPublishResultMessage` w `app/api/telegram/webhook/route.ts`) nigdy nie trafia do UI webowego kompozytora — niespójność między dwoma kanałami tej samej funkcji.
+Kroki reprodukcji:
+1. Podłączone konto TikTok, kliknij "Opublikuj teraz" z platformą TikTok zaznaczoną.
+2. TikTok przyjmuje publikację asynchronicznie (`PENDING` + `errorMessage` z tagiem `[tiktok-tracking:...]`).
+3. Ekran statusu w kompozytorze pokazuje "Zaplanowane — publikacja tego dnia (patrz uwaga o cronie)" mimo że to nie było zaplanowane, tylko "opublikuj teraz" w trakcie przetwarzania.
+4. Po faktycznym sukcesie (status `SUCCESS`, `remotePostUrl` ustawiony w bazie) ekran nadal pokazuje tylko "Opublikowano" bez linku, mimo że dane są dostępne w odpowiedzi API.
+Status: [ ] test napisany (czerwony) → [ ] poprawka wdrożona (test zielony) → [ ] zamknięty (PR #...)

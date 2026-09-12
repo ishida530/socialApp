@@ -1,28 +1,10 @@
 import { useState } from 'react';
-import { CheckCircle2, Clock, XCircle, RotateCw } from 'lucide-react';
+import { CheckCircle2, Clock, XCircle, RotateCw, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
 import { PLATFORM_LABEL } from './types';
 import type { DraftJob } from './types';
-
-function needsReconnect(errorMessage: string | null) {
-  if (!errorMessage) {
-    return false;
-  }
-  return (
-    errorMessage.includes('oauth-scope-missing') ||
-    errorMessage.includes('permission-missing') ||
-    errorMessage.includes('unaudited-client')
-  );
-}
-
-function friendlyError(errorMessage: string | null) {
-  if (!errorMessage) {
-    return 'Publikacja nie powiodła się.';
-  }
-  const withoutTags = errorMessage.replace(/^\[[a-z0-9-]+\]\s*/i, '');
-  return withoutTags || 'Publikacja nie powiodła się.';
-}
+import { getJobStatusDisplay } from './job-status-display';
 
 export function PostStatusScreen({ jobs, onStartNewPost }: { jobs: DraftJob[]; onStartNewPost: () => void }) {
   const [busyJobId, setBusyJobId] = useState<string | null>(null);
@@ -68,39 +50,44 @@ export function PostStatusScreen({ jobs, onStartNewPost }: { jobs: DraftJob[]; o
         {jobs.map((job) => {
           const platform = job.socialAccount.platform;
           const isBusy = busyJobId === job.id || busyJobId === job.socialAccountId;
+          const display = getJobStatusDisplay(job);
 
           return (
             <div key={job.id} className="rounded-xl border border-border bg-secondary/20 p-3 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                {job.status === 'SUCCESS' ? (
-                  <CheckCircle2 className="w-5 h-5 text-green-500" />
-                ) : job.status === 'FAILED' ? (
-                  <XCircle className="w-5 h-5 text-destructive" />
+              <div className="flex items-center gap-2 min-w-0">
+                {display.kind === 'success' ? (
+                  <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0" />
+                ) : display.kind === 'failed' ? (
+                  <XCircle className="w-5 h-5 text-destructive shrink-0" />
                 ) : (
-                  <Clock className="w-5 h-5 text-amber-500" />
+                  <Clock className="w-5 h-5 text-amber-500 shrink-0" />
                 )}
-                <div>
+                <div className="min-w-0">
                   <p className="text-sm font-medium text-foreground">{PLATFORM_LABEL[platform]}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {job.status === 'SUCCESS'
-                      ? 'Opublikowano'
-                      : job.status === 'FAILED'
-                        ? `${platform}: ${friendlyError(job.errorMessage)}`
-                        : 'Zaplanowane — publikacja tego dnia (patrz uwaga o cronie)'}
+                  <p className="text-xs text-muted-foreground truncate">
+                    {display.kind === 'failed' ? `${platform}: ${display.label}` : display.label}
                   </p>
+                  {display.kind === 'success' && display.url && (
+                    <a
+                      href={display.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-primary inline-flex items-center gap-1 mt-0.5 hover:underline"
+                    >
+                      Zobacz post <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
                 </div>
               </div>
 
-              {job.status === 'FAILED' && (
+              {display.kind === 'failed' && (
                 <button
-                  onClick={() =>
-                    needsReconnect(job.errorMessage) ? handleReconnect(job.socialAccountId) : handleRetry(job.id)
-                  }
+                  onClick={() => (display.needsReconnect ? handleReconnect(job.socialAccountId) : handleRetry(job.id))}
                   disabled={isBusy}
                   className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium disabled:opacity-60"
                 >
                   <RotateCw className="w-3.5 h-3.5" />
-                  {needsReconnect(job.errorMessage) ? 'Połącz ponownie' : 'Ponów'}
+                  {display.needsReconnect ? 'Połącz ponownie' : 'Ponów'}
                 </button>
               )}
             </div>
