@@ -489,7 +489,19 @@ Status: [x] zaimplementowane → [x] testy napisane i zielone (`tests/api/meta-p
 
 **Wdrożenie:** `lib/server/qstash.ts` (`scheduleQStashPublish`, `cancelQStashMessage`, `verifyQStashSignature` — ta sama zasada weryfikacji podpisu przed zaufaniem treści co webhook Telegrama), nowy endpoint `app/api/qstash/trigger-publish/route.ts`, `PublishJob.qstashMessageId` (nowe pole, śledzi zaplanowaną wiadomość QStash do ewentualnego anulowania), wpięte w `enqueueDraftGroup` (planowanie przy `publishNow: false`) i `cancelPublishJob` (anulowanie wiadomości QStash przy odrzuceniu/anulowaniu posta). `.env.example` dokumentuje `QSTASH_TOKEN`/`QSTASH_CURRENT_SIGNING_KEY`/`QSTASH_NEXT_SIGNING_KEY`.
 
-Status: [x] zaimplementowane → [x] testy napisane i zielone (`tests/unit/qstash.test.ts`, `tests/api/qstash-trigger-publish.test.ts`, `tests/api/qstash-scheduling.test.ts`) → [ ] zweryfikowane realnie (wymaga prawdziwego konta Upstash QStash i kluczy na produkcji) → [ ] zamknięte (PR #...)
+Status: [x] zaimplementowane → [x] testy napisane i zielone (`tests/unit/qstash.test.ts`, `tests/api/qstash-trigger-publish.test.ts`, `tests/api/qstash-scheduling.test.ts`) → [x] zweryfikowane częściowo (klucze dodane, `QSTASH_URL` regionalny wymagał osobnej poprawki — patrz niżej) → [x] zamknięte (PR #30, poprawka regionalna PR #31)
+
+**Poprawka: instancja QStash regionalna.** Użytkownik dostał od Upstash `QSTASH_URL` (endpoint eu-central-1) obok tokenu/kluczy — klient był konstruowany tylko z domyślnym globalnym endpointem SDK, co cicho zawiodłoby przy koncie regionalnym. `lib/server/qstash.ts` przekazuje teraz `QSTASH_URL` jako `baseUrl` gdy ustawiony. Test: `tests/unit/qstash.test.ts`.
+
+### Telegram: przycisk "📅 Zaplanuj" (2026-09-13)
+
+Ostatni brakujący element parytetu Telegram/web — Telegram miał tylko natychmiastowe "✅ Publikuj" (`publishNow: true` na sztywno), zero opcji zaplanowania, mimo że web ma to od dawna i QStash już to obsługuje.
+
+**Projekt:** trzeci przycisk w ostatnim rzędzie ("📅 Zaplanuj" obok "✅ Publikuj"/"❌ Anuluj"), ten sam wzorzec tury swobodnego tekstu co edycja treści — `User.telegramSchedulingPostGroupId` jako stan między turami, zawsze czyszczony na starcie, ukośnikowa komenda zawsze wygrywa. Nowy moduł `lib/server/telegram-schedule-parser.ts` (`parseTelegramScheduleReply`) rozumie naturalne sformułowania: "za 30 minut", "jutro 19:00", "20.09.2026 19:00" — bez sztywnej składni ISO. Wynik trafia do `enqueueDraftGroup(publishNow: false, ...)`, czyli dokładnie tej samej ścieżki co "Zaplanuj" w web — precyzyjny QStash trigger plus dzienny cron jako fallback.
+
+**Znaleziony przy okazji, prawdziwy błąd konwersji stref czasowych:** pierwsza wersja parsera używała tej samej techniki co już istniejący `smart-autopilot/schedule.ts` (`new Date(date.toLocaleString(..., {timeZone}))` do wyliczenia offsetu) — **ta technika zależy od strefy czasowej SYSTEMU wykonującego kod, nie tylko strefy docelowej**. Działa poprawnie tylko gdy system ma `TZ=UTC` (przypadkiem prawda dla Vercela w produkcji, więc `schedule.ts` nigdy nie ujawnił tego błędu na żywo) — ale failowała natychmiast w testach lokalnych na tej maszynie. Naprawione w nowym module przez `Intl.DateTimeFormat().formatToParts()`, które nie zależy od strefy systemowej w ogóle. **`smart-autopilot/schedule.ts` ma ten sam błąd, nienaprawiony** — nieszkodliwy dziś (Vercel = UTC), ale krucha, ukryta zależność warta poprawienia przy następnej okazji dotknięcia tego pliku.
+
+Status: [x] zaimplementowane → [x] testy napisane i zielone (`tests/unit/telegram-schedule-parser.test.ts`, `tests/api/telegram-schedule.test.ts`, zaktualizowany `tests/api/telegram-media-upload.test.ts`) → [ ] zweryfikowane realnie przez prawdziwego bota → [ ] zamknięte (PR #...)
 
 ### Konsultacja: kolejność AI-sugestii strategii (PO/Architekt/UX)
 
