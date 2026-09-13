@@ -30,6 +30,7 @@ type TelegramUpdate = {
     message_id?: number;
     chat?: { id?: number | string };
     text?: string;
+    caption?: string;
     photo?: TelegramPhotoSize[];
     video?: TelegramVideo;
     document?: { file_id: string; file_size?: number; mime_type?: string };
@@ -89,7 +90,7 @@ async function handleStartCommand(chatIdStr: string, code: string) {
     logEvent('telegram', 'account-linked', { userId: result.userId });
     await sendTelegramMessage(
       chatIdStr,
-      'Konto Postfly połączone! Wyślij mi wideo albo zdjęcie, a przygotuję dla Ciebie post.',
+      'Konto Postfly połączone! Wyślij mi wideo albo zdjęcie (dodaj podpis pod plikiem, żeby AI wiedziało o czym jest ten materiał), a przygotuję dla Ciebie post.',
     ).catch((error) => logError('telegram', 'send-link-confirmation-failed', error, { chatId: chatIdStr }));
   } else {
     await sendTelegramMessage(
@@ -102,7 +103,7 @@ async function handleStartCommand(chatIdStr: string, code: string) {
 async function handleIncomingMedia(
   chatIdStr: string,
   userId: string,
-  media: { fileId: string; fileSize?: number; mediaType: 'VIDEO' | 'IMAGE' },
+  media: { fileId: string; fileSize?: number; mediaType: 'VIDEO' | 'IMAGE'; caption?: string },
 ) {
   if (media.fileSize && media.fileSize > TELEGRAM_MAX_DOWNLOADABLE_FILE_BYTES) {
     await sendTelegramMessage(
@@ -114,7 +115,13 @@ async function handleIncomingMedia(
 
   try {
     const video = await uploadTelegramMediaAsVideo(userId, media.fileId, media.mediaType, `Telegram ${new Date().toISOString()}`);
-    const draftResult = await createDraftGroupForVideo(userId, video.id);
+    // Telegram lets a user attach a text caption to the photo/video itself - the natural place
+    // to say what this post is about, no separate step needed. Without it, generatePlatformBundles
+    // gets an empty rawInput and falls back to a generic caption ("Krotka aktualizacja: Nowa
+    // publikacja gotowa do harmonogramu.") since it has nothing to work from.
+    const draftResult = await createDraftGroupForVideo(userId, video.id, {
+      contentType: media.caption?.trim() || undefined,
+    });
 
     if (!draftResult.ok) {
       await sendTelegramMessage(chatIdStr, `Nie udało się przygotować posta: ${draftResult.error}`).catch((error) =>
@@ -405,6 +412,7 @@ export async function POST(request: NextRequest) {
   // TASK-3.2.1, celowo poza zakresem tego zadania.
   const photo = update.message?.photo;
   const video = update.message?.video;
+  const caption = update.message?.caption;
 
   if (photo?.length || video) {
     const linkedUser = await findUserByTelegramChatId(chatIdStr);
@@ -417,10 +425,10 @@ export async function POST(request: NextRequest) {
     }
 
     if (video) {
-      await handleIncomingMedia(chatIdStr, linkedUser.id, { fileId: video.file_id, fileSize: video.file_size, mediaType: 'VIDEO' });
+      await handleIncomingMedia(chatIdStr, linkedUser.id, { fileId: video.file_id, fileSize: video.file_size, mediaType: 'VIDEO', caption });
     } else if (photo && photo.length > 0) {
       const largest = photo[photo.length - 1];
-      await handleIncomingMedia(chatIdStr, linkedUser.id, { fileId: largest.file_id, fileSize: largest.file_size, mediaType: 'IMAGE' });
+      await handleIncomingMedia(chatIdStr, linkedUser.id, { fileId: largest.file_id, fileSize: largest.file_size, mediaType: 'IMAGE', caption });
     }
 
     return NextResponse.json({ ok: true });

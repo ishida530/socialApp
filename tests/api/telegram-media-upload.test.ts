@@ -105,6 +105,35 @@ describe('POST /api/telegram/webhook — media upload (TASK-3.1.2)', () => {
     ]);
   });
 
+  it('forwards the media message caption as AI context, instead of leaving it empty', async () => {
+    const { generatePlatformBundles } = await import('@/lib/server/composer-drafts');
+    vi.mocked(generatePlatformBundles).mockClear();
+
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
+    await createSocialAccount(user.id, 'INSTAGRAM');
+    const chatId = '111222334';
+    await linkChat(user.id, chatId);
+
+    const fakeVideo = await createVideo(user.id);
+    mockUploadTelegramMediaAsVideo.mockResolvedValue(fakeVideo);
+
+    await POST(
+      webhookRequest({
+        message: {
+          chat: { id: Number(chatId) },
+          video: { file_id: 'tg-file-caption', file_size: 1024 },
+          caption: 'Nowy freestyle z dzisiejszej sesji',
+        },
+      }),
+    );
+
+    expect(generatePlatformBundles).toHaveBeenCalledWith(
+      user.id,
+      expect.objectContaining({ rawInput: 'Nowy freestyle z dzisiejszej sesji' }),
+    );
+  });
+
   it('rejects a video from an unlinked chat without uploading anything', async () => {
     const response = await POST(
       webhookRequest({ message: { chat: { id: 987654321 }, video: { file_id: 'tg-file-2' } } }),
