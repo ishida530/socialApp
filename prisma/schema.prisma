@@ -85,6 +85,7 @@ model User {
   usageCounters  UsageCounter[]
   passwordResetTokens PasswordResetToken[]
   telegramLinkCodes   TelegramLinkCode[]
+  agentConversationTurns AgentConversationTurn[]
 }
 
 model TelegramLinkCode {
@@ -257,6 +258,28 @@ model UsageCounter {
 
   @@unique([userId, metric, periodStart])
   @@index([userId, metric])
+}
+
+// Agent-mentor (Telegram): persisted turn history so the conversation has memory across
+// requests (each webhook call is a fresh, stateless Vercel Function invocation). Only ever
+// plain-text user/assistant turns - the tool_use/tool_result exchange within a single turn stays
+// in-memory for that request only (see lib/server/telegram-mentor-agent.ts), never persisted, so
+// this table never needs to round-trip anything but strings.
+model AgentConversationTurn {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   String
+  content String
+  // Monotonic insertion order - createdAt alone isn't reliable for ordering here: two turns
+  // (user + assistant) are written back-to-back fast enough that a fast/colocated Postgres can
+  // give them the identical timestamp (observed in CI, not locally), making createdAt-based
+  // ordering non-deterministic. autoincrement() guarantees correct order regardless of clock
+  // resolution.
+  seq       Int      @default(autoincrement())
+  createdAt DateTime @default(now())
+
+  @@index([userId, seq])
 }
 
 model StripeEvent {
