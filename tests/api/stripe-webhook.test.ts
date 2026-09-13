@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { randomUUID } from 'node:crypto';
+import Stripe from 'stripe';
 
 process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test_only_not_a_real_secret';
 
@@ -59,6 +60,44 @@ afterEach(async () => {
     await deleteTestUser(cleanupUserId);
     cleanupUserId = null;
   }
+});
+
+describe('POST /api/billing/webhook/stripe — signature verification (TASK-1.5.1)', () => {
+  it('rejects a request whose signature fails Stripe verification, with zero effect on the database', async () => {
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
+
+    const customerId = `cus_${randomUUID()}`;
+    const subscriptionId = `sub_${randomUUID()}`;
+
+    await prisma.subscription.create({
+      data: {
+        userId: user.id,
+        plan: 'PRO',
+        status: 'ACTIVE',
+        provider: 'stripe',
+        providerCustomerId: customerId,
+        providerSubscriptionId: subscriptionId,
+      },
+    });
+
+    constructEvent.mockImplementationOnce(() => {
+      throw new Stripe.errors.StripeSignatureVerificationError({
+        type: 'invalid_request_error',
+        message: 'No signatures found matching the expected signature for payload',
+      });
+    });
+
+    const response = await POST(
+      stripeEventRequest(invoicePaymentFailedEvent({ customerId, subscriptionId })),
+    );
+
+    expect(response.status).toBe(401);
+
+    const subscription = await prisma.subscription.findUnique({ where: { userId: user.id } });
+    expect(subscription?.status).toBe('ACTIVE');
+    expect(sendPaymentFailedEmail).not.toHaveBeenCalled();
+  });
 });
 
 describe('POST /api/billing/webhook/stripe — invoice.payment_failed', () => {

@@ -55,22 +55,18 @@ jobs:
       # tests/setup-env.ts loads a real .env file (process.loadEnvFile) and throws if it's
       # missing, so this has to be an actual file, not just workflow `env:`. Values below are
       # not secrets: nothing in the test suite ever calls out to a real external API (TikTok
-      # creator-info is mocked, publish jobs are created with publishNow:false), so JWT_SECRET
-      # only needs to be internally consistent for this run, not kept private.
+      # creator-info is mocked, publish jobs are created with publishNow:false).
+      #
+      # Generated FROM .env.test.example (not a second, hand-maintained copy of the same var
+      # list) - a hand-duplicated heredoc here silently drifted out of sync with reality: it
+      # was missing ENCRYPTION_KEY (among others), so every test exercising lib/server/crypto.ts
+      # (several tests/api/telegram-*.test.ts fixtures) failed in CI while passing locally
+      # against .env.test - undetected because branch protection didn't exist yet to block a
+      # merge on it (TASK-1.3.1). The only CI-specific override is the DB name: the Postgres
+      # service below only pre-creates "flowstate" (POSTGRES_DB), not "flowstate_test".
       - name: Create test .env
         run: |
-          cat <<'EOF' > .env
-          DATABASE_URL="postgresql://postgres:postgres@localhost:5432/flowstate?schema=public"
-          DIRECT_URL="postgresql://postgres:postgres@localhost:5432/flowstate?schema=public"
-          JWT_SECRET="test-only-not-a-real-secret"
-          JWT_EXPIRES_IN="3600"
-          APP_MODE="personal"
-          NODE_ENV="test"
-          NEXT_PUBLIC_SITE_URL="http://localhost:3000"
-          BILLING_MODE="mock"
-          TELEGRAM_BOT_TOKEN="test-only-not-a-real-telegram-bot-token"
-          TELEGRAM_WEBHOOK_SECRET="test-only-not-a-real-telegram-webhook-secret"
-          EOF
+          sed 's/flowstate_test/flowstate/g' .env.test.example > .env
 
       # TASK-1.1.1: tests/setup-env.ts (Vitest) ładuje .env.test, nigdy .env - w CI to ta
       # sama, jednorazowa/efemeryczna baza Postgres per-run, więc plik jest identyczny.

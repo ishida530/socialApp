@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { PlanTier, Prisma, SubscriptionStatus } from '@prisma/client';
 import { prisma } from '@/lib/server/prisma';
-import { badRequest, serverError, tooManyRequests } from '@/lib/server/http';
+import { badRequest, serverError, tooManyRequests, unauthorized } from '@/lib/server/http';
 import { getStripeClient } from '@/lib/server/stripe';
 import { logError, logEvent } from '@/lib/server/observability';
 import { consumeRateLimit, getRequestIp } from '@/lib/server/rate-limit';
@@ -255,6 +255,11 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ received: true });
   } catch (error) {
+    if (error instanceof Stripe.errors.StripeSignatureVerificationError) {
+      logEvent('billing-webhook', 'signature-rejected', {});
+      return unauthorized('Invalid webhook signature');
+    }
+
     logError('billing-webhook', 'stripe-webhook-error', error);
 
     if (

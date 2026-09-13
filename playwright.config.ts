@@ -21,5 +21,8 @@ export default defineConfig({
   timeout: 45_000,
   use: {
     baseURL: 'http://localhost:3000',
+    // TASK-1.3.5: a real, visible browser window locally (so failures are visible during
+    // development), headless in CI (GitHub Actions sets CI=true - no display server there).
+    headless: !!process.env.CI,
   },
 });
