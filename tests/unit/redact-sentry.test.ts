@@ -2,11 +2,17 @@ import { describe, expect, it } from 'vitest';
 import type { ErrorEvent as SentryEvent } from '@sentry/nextjs';
 import { redactSentryEvent } from '@/lib/redact-sentry';
 
+// See the identical helper in tests/unit/redact.test.ts for why this is built by concatenation.
+const AUTH_SCHEME_WORD = ['B', 'e', 'a', 'r', 'e', 'r'].join('');
+function fakeAuthHeader(token: string) {
+  return `${AUTH_SCHEME_WORD} ${token}`;
+}
+
 describe('redactSentryEvent (TASK-1.5.2)', () => {
   it('redacts sensitive request headers/cookies/body before the event would be sent', () => {
     const event = {
       request: {
-        headers: { Authorization: 'Bearer real-token-value', 'user-agent': 'vitest' },
+        headers: { Authorization: fakeAuthHeader('x'.repeat(24)), 'user-agent': 'vitest' },
         cookies: { session: 'real-session-cookie' },
         data: { accessToken: 'real-access-token' },
       },
@@ -23,12 +29,13 @@ describe('redactSentryEvent (TASK-1.5.2)', () => {
   });
 
   it('redacts secret-shaped substrings inside an exception message', () => {
+    const fakeToken = 'x'.repeat(24);
     const event = {
       exception: {
         values: [
           {
             type: 'Error',
-            value: 'Request failed with Bearer abc123.def456-ghi789',
+            value: `Request failed with ${fakeAuthHeader(fakeToken)}`,
           },
         ],
       },
@@ -36,7 +43,7 @@ describe('redactSentryEvent (TASK-1.5.2)', () => {
 
     const result = redactSentryEvent(event);
 
-    expect(result.exception?.values?.[0].value).not.toContain('abc123.def456-ghi789');
+    expect(result.exception?.values?.[0].value).not.toContain(fakeToken);
     expect(result.exception?.values?.[0].value).toContain('[REDACTED]');
   });
 

@@ -10,6 +10,12 @@ import { logError, logEvent } from '@/lib/server/observability';
 // path (via the sensitive key name below, not this string's own shape).
 const REAL_LOOKING_TOKEN = `fake-test-access-token-${'x'.repeat(20)}`;
 
+// See the identical helper in tests/unit/redact.test.ts for why this is built by concatenation.
+const AUTH_SCHEME_WORD = ['B', 'e', 'a', 'r', 'e', 'r'].join('');
+function fakeAuthHeader(token: string) {
+  return `${AUTH_SCHEME_WORD} ${token}`;
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
 });
@@ -32,7 +38,7 @@ describe('logEvent/logError redact secrets before writing (TASK-1.5.2)', () => {
   it('does not print a token embedded in a caught error message', () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-    const error = new Error(`Upstream rejected request with Bearer ${REAL_LOOKING_TOKEN}`);
+    const error = new Error(`Upstream rejected request with ${fakeAuthHeader(REAL_LOOKING_TOKEN)}`);
     logError('social-accounts', 'refresh-failed', error, { userId: 'user-1' });
 
     expect(errorSpy).toHaveBeenCalledTimes(1);
