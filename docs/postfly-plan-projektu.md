@@ -745,7 +745,7 @@ Użytkownik poprosił o (1) analizę dokumentacji każdej platformy pod kątem d
 
 **[QA]:** `tests/api/post-metrics.test.ts` (+1: Instagram `views` z osobnego wywołania insights). `tests/unit/smart-autopilot-performance-data.test.ts` (nowy, 5 testów — w tym bezpośredni test konwersji UTC→lokalna godzina, niezależny od tego kiedy suita faktycznie się uruchamia, żeby nie polegać na założeniu o konkretnej porze roku/strefie czasowej). `tests/unit/smart-autopilot-schedule.test.ts` (nowy, TASK-4.1.3: brak/pusty `performanceData` → reason jawnie "brak danych historycznych", realne dane → inny reason "korekta historyczna"). `tests/api/orchestrate-content-performance-data.test.ts` (nowy, pełne wpięcie od realnej bazy przez orchestrator do harmonogramu, plus test że jawnie podane `performanceData` NIE jest nadpisywane). `tests/unit/smart-autopilot-analysis-validation.test.ts` (nowy, TASK-4.1.2: poprawna odpowiedź bez retry, niepoprawny enum → retry z `previousAttemptError` w treści zapytania, obie próby złe → heurystyka + dokładnie jeden `logError` jako alert, confidence poza zakresem też odrzucone). `tests/unit/smart-autopilot-llm.test.ts` (+2: `previousAttemptError` obecne/nieobecne w zależności od `correctionNote`). Pełna suita: 272/272 w obu trybach APP_MODE, tsc/build czyste.
 
-Status: [x] zaimplementowane → [x] testy napisane i zielone → [x] zweryfikowane (tsc, build czyste) → [ ] zamknięte (PR w przygotowaniu)
+Status: [x] zaimplementowane → [x] testy napisane i zielone → [x] zweryfikowane (tsc, build czyste) → [x] zamknięte (PR #67)
 
 **EPIC 4 — zamknięty.** Wszystkie 3 zadania (TASK-4.1.1/4.1.2/4.1.3) zrealizowane z realnymi testami, nie deklaracją.
 
