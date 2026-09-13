@@ -612,7 +612,27 @@ Status: [x] zaimplementowane → [x] testy napisane i zielone (196/196 w obu try
 
 **[QA]:** `tests/api/telegram-notifications.test.ts` (7 testów: wysyłka+znacznik, brak wysyłki gdy brak konta Telegram ale znacznik i tak ustawiony, brak ponownego powiadomienia, grupowanie wielu sukcesów w JEDNĄ wiadomość, osobne wiadomości per user + pomijanie userów bez Telegrama, brak znacznika przy nieudanej wysyłce żeby kolejny przebieg spróbował ponownie). `tests/api/cron-telegram-digest.test.ts` (autoryzacja + integracja). `tests/api/publish-processor-failure-notification.test.ts` — dowód end-to-end: prawdziwy trwały błąd Facebooka (brak uprawnień) przechodzący przez `processDuePublishJobs` faktycznie wysyła powiadomienie Telegram. Pełna suita: 206/206 w obu trybach APP_MODE, tsc/build czyste.
 
-Status: [x] zaimplementowane → [x] testy napisane i zielone → [x] zweryfikowane (tsc, build czyste) → [ ] zamknięte (PR w przygotowaniu) → [ ] zweryfikowane realnie przez bota
+Status: [x] zaimplementowane → [x] testy napisane i zielone → [x] zweryfikowane (tsc, build czyste) → [x] zamknięte (PR #55, wdrożone na produkcję) → [ ] zweryfikowane realnie przez bota
+
+---
+
+## Etap 2 — podsumowanie sesji (2026-09-13, właściciel produktu nieobecny)
+
+Użytkownik poprosił o kontynuację "by zakończyć wszystko w 100%" i musiał wyjść w trakcie. Poniżej pełny, uczciwy obraz co faktycznie jest zrobione, a co świadomie NIE zostało dotknięte i dlaczego — żeby nie trzeba było odtwarzać tego z historii PR-ów.
+
+**W pełni domknięte w tej sesji:** EPIC 2 (cały), EPIC 1 P0 (cały) + P1/P2 możliwe do zamknięcia bez decyzji produktowych (`TASK-1.3.3`, `TASK-1.3.4`, `TASK-1.5.2`), EPIC 3 P0 (cały) + `TASK-3.2.1`, `TASK-3.2.2`, `TASK-3.3.2`. Wszystko wdrożone na produkcję, `postfly.pl/api/health` zielony po każdym wdrożeniu, pełna suita testów zielona (206/206 × 2 tryby APP_MODE) na każdym kroku.
+
+**Świadomie NIE ruszone, z jasnym powodem — nie przez pominięcie:**
+- **`TASK-1.1.3`** (npm audit) — jedyny fix to bump Prisma na release candidate, zbyt ryzykowne bez Twojej zgody na tak inwazyjną zmianę ORM-a w rdzeniu appki.
+- **`TASK-1.3.2`** (staging) — Twoja wcześniejsza jawna decyzja o pominięciu (koszt infrastruktury).
+- **`TASK-1.5.3`/`TASK-1.5.4`** (audit trail, mapa uprawnień agentów) — appka nie ma dziś ŻADNYCH osobnych "agentów" (EPIC 4/5 niezbudowane) — budowanie infrastruktury uprawnień dla czegoś, co nie istnieje, byłoby spekulacją, nie realną potrzebą.
+- **`TASK-3.1.2`** (webhook Telegrama przez kolejkę, nie synchronicznie) — realna zmiana architektury CORE ścieżki, która dziś DZIAŁA w produkcji i jest w codziennym użyciu. Zmiana tego bez możliwości ręcznego przetestowania z Tobą po fakcie to zbyt duże ryzyko regresji w czymś, co ludzie faktycznie używają teraz.
+- **`TASK-3.2.3`** (wykrywanie nieaktywności + "agent wsparcia") — **sprawdzone wprost**: sekcja 4.1 głównego planu, na którą wskazuje ten task w backlogu, NIE zawiera żadnej specyfikacji tego mechanizmu — ani warunków wyzwalania, ani treści wiadomości. To pojedyncza linijka w backlogu bez realnego projektu za nią, dotycząca z definicji wrażliwego tematu (backlog sam zaznacza "granica: brak trybu terapeutycznego"). Zgadywanie treści/tonu takiej wiadomości bez Twojego przeglądu, w appce której używasz Ty sam na co dzień, byłoby nieodpowiedzialne — to jedna z tych decyzji, które naprawdę muszą wrócić do Ciebie, nie dlatego że nie umiem, tylko dlatego że nie powinienem zgadywać czegoś tak osobistego za Ciebie.
+- **`TASK-3.2.4`** (hardening Agenta społeczności) — nie dotyczy, ten agent nie istnieje (EPIC 5/8).
+
+**Do zrobienia, kiedy wrócisz:** żadnych blokerów technicznych — appka jest w stabilnym, w pełni zielonym stanie. Realna weryfikacja nowych komend (`/retry /cancel /logs /revenue`) i porannego digestu przez prawdziwego bota wciąż czeka (mam tylko testy automatyczne). 12 PR-ów od Dependabota czeka na Twój przegląd. Decyzja o `TASK-3.2.3` (ton/treść wiadomości o nieaktywności) i `TASK-3.1.2` (czy warto ryzykować zmianę działającej ścieżki) należą do Ciebie.
+
+---
 
 ---
 
