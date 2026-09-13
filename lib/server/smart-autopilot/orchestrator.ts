@@ -4,6 +4,7 @@ import { logError, logEvent } from '@/lib/server/observability';
 import { analyzeInput } from './analysis';
 import { generateBundlesWithClaude } from './ai-content';
 import { optimizeSchedule } from './schedule';
+import { getRealPerformanceData } from './performance-data';
 import { buildStrategySummary } from './strategy';
 import { transformByPersona } from './transform';
 import {
@@ -157,10 +158,18 @@ export async function orchestrateContent(userId: string, input: OrchestrateConte
 
   dedupMap.set(payloadHash, Date.now());
 
-  const [subscription, user] = await Promise.all([
+  // TASK-4.1.1 ("obserwuj" step): real performance data only when the caller didn't already
+  // supply its own (external API callers/tests can still override this for simulation) - see
+  // lib/server/smart-autopilot/performance-data.ts.
+  const [subscription, user, realPerformanceData] = await Promise.all([
     prisma.subscription.findUnique({ where: { userId }, select: { plan: true } }),
     prisma.user.findUnique({ where: { id: userId }, select: { businessDescription: true } }),
+    input.performanceData ? Promise.resolve(null) : getRealPerformanceData(userId, input.timezone),
   ]);
+
+  if (realPerformanceData) {
+    input = { ...input, performanceData: realPerformanceData };
+  }
 
   const tier = normalizeSubscriptionTier(subscription?.plan ?? 'FREE');
 

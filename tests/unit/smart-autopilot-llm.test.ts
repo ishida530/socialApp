@@ -52,6 +52,61 @@ describe('refineClassificationWithLlm', () => {
     expect(result).toEqual({ persona: 'video_creator', contentType: 'video', intent: 'promotional', confidence: 0.9 });
   });
 
+  it('includes previousAttemptError in the request when a correctionNote is passed (retry path)', async () => {
+    let capturedBody: { messages: Array<{ content: string }> } | null = null;
+    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
+      capturedBody = JSON.parse(init!.body as string);
+      return {
+        ok: true,
+        json: async () => ({
+          content: [
+            {
+              type: 'tool_use',
+              name: 'classify_content',
+              input: { persona: 'video_creator', contentType: 'video', intent: 'promotional', confidence: 0.8 },
+            },
+          ],
+        }),
+      };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await refineClassificationWithLlm({
+      textSample: 'x',
+      heuristicPersona: 'video_creator',
+      heuristicContentType: 'video',
+      heuristicIntent: 'promotional',
+      correctionNote: 'persona musi być jedną z: video_creator, ecommerce_owner (otrzymano: musician)',
+    });
+
+    const sentText = capturedBody!.messages[0].content;
+    expect(sentText).toContain('previousAttemptError');
+    expect(sentText).toContain('musician');
+  });
+
+  it('omits previousAttemptError from the request when no correctionNote is passed (first attempt)', async () => {
+    let capturedBody: { messages: Array<{ content: string }> } | null = null;
+    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
+      capturedBody = JSON.parse(init!.body as string);
+      return {
+        ok: true,
+        json: async () => ({
+          content: [{ type: 'tool_use', name: 'classify_content', input: { persona: 'video_creator', contentType: 'video', intent: 'promotional', confidence: 0.8 } }],
+        }),
+      };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await refineClassificationWithLlm({
+      textSample: 'x',
+      heuristicPersona: 'video_creator',
+      heuristicContentType: 'video',
+      heuristicIntent: 'promotional',
+    });
+
+    expect(capturedBody!.messages[0].content).not.toContain('previousAttemptError');
+  });
+
   it('returns null without an ANTHROPIC_API_KEY, without calling fetch', async () => {
     delete process.env.ANTHROPIC_API_KEY;
     const fetchMock = vi.fn();

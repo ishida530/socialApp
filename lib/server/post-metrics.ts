@@ -25,10 +25,8 @@ function toNullableInt(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? Math.floor(value) : null;
 }
 
-// Instagram Graph API media node - like_count/comments_count are supported for every media type,
-// unlike view/play counts which vary by media type (Reels vs Feed video vs image) and are left
-// out of this MVP snapshot rather than risking a whole-request 400 on an unsupported field.
-async function fetchInstagramMetrics(mediaId: string, accessToken: string): Promise<MetricSnapshot> {
+// Instagram Graph API media node - like_count/comments_count are supported for every media type.
+async function fetchInstagramLikesComments(mediaId: string, accessToken: string) {
   try {
     const version = resolveMetaApiVersion();
     const response = await fetch(
@@ -36,19 +34,47 @@ async function fetchInstagramMetrics(mediaId: string, accessToken: string): Prom
     );
 
     if (!response.ok) {
-      return EMPTY_SNAPSHOT;
+      return { likes: null, comments: null };
     }
 
     const payload = (await response.json()) as { like_count?: unknown; comments_count?: unknown };
-    return {
-      views: null,
-      likes: toNullableInt(payload.like_count),
-      comments: toNullableInt(payload.comments_count),
-      shares: null,
-    };
+    return { likes: toNullableInt(payload.like_count), comments: toNullableInt(payload.comments_count) };
   } catch {
-    return EMPTY_SNAPSHOT;
+    return { likes: null, comments: null };
   }
+}
+
+// `views` (via /insights) replaced the deprecated `impressions`/`plays` metrics for media
+// created after 2024-07-02 - verified against current Meta docs 2026-09. Every post this app has
+// ever published is newer than that, so `views` is safe to request unconditionally here. Kept as
+// a separate call from the media-node fields above (own try/catch) since insights is a genuinely
+// different endpoint that can fail independently.
+async function fetchInstagramViews(mediaId: string, accessToken: string) {
+  try {
+    const version = resolveMetaApiVersion();
+    const response = await fetch(
+      `https://graph.facebook.com/${version}/${mediaId}/insights?metric=views&access_token=${encodeURIComponent(accessToken)}`,
+    );
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const payload = (await response.json()) as { data?: Array<{ name?: string; values?: Array<{ value?: unknown }> }> };
+    const viewsMetric = payload.data?.find((entry) => entry.name === 'views');
+    return toNullableInt(viewsMetric?.values?.[0]?.value);
+  } catch {
+    return null;
+  }
+}
+
+async function fetchInstagramMetrics(mediaId: string, accessToken: string): Promise<MetricSnapshot> {
+  const [{ likes, comments }, views] = await Promise.all([
+    fetchInstagramLikesComments(mediaId, accessToken),
+    fetchInstagramViews(mediaId, accessToken),
+  ]);
+
+  return { views, likes, comments, shares: null };
 }
 
 // Facebook post/video node - likes/comments as summary connections, shares as a direct field.

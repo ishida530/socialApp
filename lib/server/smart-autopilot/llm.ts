@@ -15,6 +15,7 @@ const CLASSIFY_SYSTEM_PROMPT = [
   'contentType: video | text | image | mixed | unknown.',
   'intent: promotional | educational | informational | listing | unknown.',
   'confidence: your own confidence in this classification, 0..1.',
+  'If the input includes "previousAttemptError", your prior response was rejected for that exact reason - fix it, using only the allowed enum values listed above and a confidence strictly between 0 and 1.',
 ].join(' ');
 
 export async function refineClassificationWithLlm(input: {
@@ -22,6 +23,10 @@ export async function refineClassificationWithLlm(input: {
   heuristicPersona: string;
   heuristicContentType: string;
   heuristicIntent: string;
+  // TASK-4.1.1: set on a retry after the first attempt failed schema/business-rule validation
+  // (see analysis.ts classifyWithValidation) - tells the model exactly what was wrong last time
+  // instead of blindly repeating the same request and risking the same invalid output again.
+  correctionNote?: string;
 }): Promise<LlmRefinementResult | null> {
   const userContent = JSON.stringify({
     heuristic: {
@@ -30,6 +35,7 @@ export async function refineClassificationWithLlm(input: {
       intent: input.heuristicIntent,
     },
     textSample: input.textSample.slice(0, 1500),
+    ...(input.correctionNote ? { previousAttemptError: input.correctionNote } : {}),
   });
 
   return callClaudeTool<LlmRefinementResult>({

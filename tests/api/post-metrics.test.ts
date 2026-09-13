@@ -62,6 +62,28 @@ describe('collectMetricsForRecentJobs', () => {
     expect(metric?.views).toBeNull();
   });
 
+  it('fetches Instagram views from the insights endpoint (separate call from likes/comments)', async () => {
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
+    const job = await makeSuccessJob(user.id, 'INSTAGRAM');
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        if (url.toString().includes('/insights')) {
+          return { ok: true, json: async () => ({ data: [{ name: 'views', values: [{ value: 321 }] }] }) };
+        }
+        return { ok: true, json: async () => ({ like_count: 10, comments_count: 2 }) };
+      }),
+    );
+
+    await collectMetricsForRecentJobs();
+
+    const metric = await prisma.postMetric.findUnique({ where: { publishJobId: job.id } });
+    expect(metric?.views).toBe(321);
+    expect(metric?.likes).toBe(10);
+  });
+
   it('fetches YouTube view/like/comment counts from the videos.list statistics part', async () => {
     const { user } = await createTestUser();
     cleanupUserId = user.id;
