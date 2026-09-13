@@ -81,26 +81,28 @@
 ## EPIC 5 — Monetyzacja
 *Odpowiada Fazie E. Największy epik — dobrze zamknij EPIC 1-4 zanim zaczniesz.*
 
+**Decyzja PO 2026-09-13 o zakresie całego epika** (właściciel produktu poprosił o "kompletny EPIC 5" i wyjechał, dając pełny mandat decyzyjny): zbudowane w tej sesji to, co da się odpowiedzialnie zrobić bez zakładania nieistniejących zewnętrznych integracji (własne konto procesora płatności twórcy, prawdziwe dane o prawach autorskich, nowe zgody OAuth na odczyt komentarzy) — pełne uzasadnienie w logu ról "EPIC 5 — fundament + agenci możliwi bez zewnętrznych integracji" poniżej. Zasada zastosowana: automatyzacja wymagająca założenia/skonfigurowania czegoś w imieniu właściciela (konto płatności, zgoda na szersze uprawnienia OAuth) to decyzja biznesowa, nie inżynierska — ta sama kategoria, którą projekt już wcześniej ustalił dla "wydawania Twoich pieniędzy" (TASK-1.3.2).
+
 ### Sprint 5.1 — Fundament danych
-- [ ] **TASK-5.1.1** [P0/M] Nowe modele Prisma: `Fan`, `Sale`, `FanSubscription` (uwaga: nie `Subscription` — kolizja z billingiem SaaS), `RoyaltyRegistration`, `SyncPitch`. DoD: migracja przechodzi, brak kolizji nazw.
+- [x] **TASK-5.1.1** [P0/M] Nowe modele Prisma: `Fan`, `Sale`, `FanSubscription` (uwaga: nie `Subscription` — kolizja z billingiem SaaS), `RoyaltyRegistration`, `SyncPitch`. DoD: migracja przechodzi, brak kolizji nazw. **Domknięte 2026-09-13**: migracja `20260913205044_epic5_monetization_foundation`, wszystkie 5 modeli.
 
 ### Sprint 5.2 — Podstawowi agenci
-- [ ] **TASK-5.2.1** [P1/M] Agent fanów (sekcja 4.3).
-- [ ] **TASK-5.2.2** [P1/M] Agent sprzedaży + webhook płatności (sekcja 4.3).
+- [x] **TASK-5.2.1** [P1/M] Agent fanów (sekcja 4.3). **Domknięte 2026-09-13**: `/fan <email> [imię]`, `/fans` na Telegramie — kontakty niezależne od platform, dokładnie jak w sekcji 4.3.
+- [ ] **TASK-5.2.2** [P1/M] Agent sprzedaży + webhook płatności (sekcja 4.3). **Częściowo, świadomie 2026-09-13**: `/sale <kwota> <produkt>` — ręczna rejestracja sprzedaży przez twórcę, DZIAŁA i jest realnie użyteczna od razu. Realny automatyczny checkout + webhook potwierdzenia płatności NIE zbudowany — wymaga własnego konta procesora płatności (np. Stripe Connect) należącego do twórcy, którego appka nie ma i nie może sama założyć.
 
 ### Sprint 5.3 — Zaawansowani agenci
-- [ ] **TASK-5.3.1** [P1/M] Agent superfanów.
-- [ ] **TASK-5.3.2** [P1/M] Agent tantiem.
-- [ ] **TASK-5.3.3** [P2/M] Agent sync (z twardym blokiem: bez potwierdzonych 100% praw nie pitchuje).
+- [ ] **TASK-5.3.1** [P1/M] Agent superfanów. **Nie zbudowany 2026-09-13**: model `FanSubscription` istnieje (gotowy fundament), logika rekurencyjnych subskrypcji wymaga tego samego brakującego elementu co TASK-5.2.2 (konto procesora płatności) plus realnej treści ekskluzywnej do zaoferowania.
+- [ ] **TASK-5.3.2** [P1/M] Agent tantiem. **Nie zbudowany 2026-09-13**: model `RoyaltyRegistration` istnieje, ale rejestracja praw/splitów wymaga prawdziwych danych o prawach autorskich od twórcy — appka nie może ich zgadywać ani wymyślać.
+- [ ] **TASK-5.3.3** [P2/M] Agent sync (z twardym blokiem: bez potwierdzonych 100% praw nie pitchuje). **Nie zbudowany 2026-09-13**: model `SyncPitch` (z polem `rightsConfirmed`, twardy blok już zapisany w schemacie) istnieje, logika pitchowania wymaga realnego procesu potwierdzenia praw i kontaktów branżowych.
 
 ### Sprint 5.4 — Budowanie majątku
-- [ ] **TASK-5.4.1** [P1/M] Agent księgowo-podatkowy — tylko agregacja danych, zero porad podatkowych.
-- [ ] **TASK-5.4.2** [P2/M] Agent ochrony treści (wykrywanie reuploadów, zgłoszenia do zatwierdzenia).
-- [ ] **TASK-5.4.3** [P2/M] Agent sponsoringu/brand deals.
-- [ ] **TASK-5.4.4** [P1/M] Dashboard finansowy rozszerzony o realny obraz majątku (nie tylko sumę przychodu).
-- [ ] **TASK-5.4.5** [P0/S] Bramka potwierdzenia rozszerzona na wszystkie wysyłki Monetyzacji, w tym agenta społeczności (sekcja 4.4).
-- [ ] **TASK-5.4.6** [P1/M] Agent społeczności — odpowiedzi na komentarze/DM z pełną bramką (sekcja 4.4).
-- [ ] **TASK-5.4.7** [P0/M] Dodatkowa weryfikacja poza czatem przy zmianie danych wypłat (sekcja 9.5) — nigdy na podstawie samej rozmowy w Telegramie. DoD: próba zmiany danych wypłaty przez Telegram wymaga potwierdzenia przez osobny kanał (np. link mailowy), test to potwierdza.
+- [ ] **TASK-5.4.1** [P1/M] Agent księgowo-podatkowy — tylko agregacja danych, zero porad podatkowych. **Nie zbudowany 2026-09-13**: podstawowa agregacja przychodu już istnieje w `/revenue` (ten sam kod co TASK-5.4.4); kategoryzacja pod VAT/PIT wymaga znajomości jurysdykcji/formy działalności twórcy — appka nie może tego zgadnąć.
+- [ ] **TASK-5.4.2** [P2/M] Agent ochrony treści (wykrywanie reuploadów, zgłoszenia do zatwierdzenia). **Nie zbudowany 2026-09-13**: wymaga zewnętrznego API do wyszukiwania wideo/obrazów (reverse search), którego appka nie integruje.
+- [x] **TASK-5.4.3** [P2/M] Agent sponsoringu/brand deals. **Domknięte 2026-09-13** (zakres: sygnał, nie pełna wycena): `checkSponsorshipGrowth`/`sendSponsorshipSignals` — rzadki sygnał na Telegramie gdy zasięg (dane `PostMetric` z EPIC 4) realnie rośnie (≥50% wzrost, próg szumu 1000 wyświetleń), wpięty w istniejący dzienny cron. Pomoc w przygotowaniu wyceny na bazie realnych stawek rynkowych NIE zbudowana — appka nie ma takich danych.
+- [~] **TASK-5.4.4** [P1/M] Dashboard finansowy rozszerzony o realny obraz majątku (nie tylko sumę przychodu). **Częściowo 2026-09-13**: `/revenue` na Telegramie zwraca teraz realne dane (fani, sprzedaże w tym miesiącu/łącznie) zamiast "nie istnieje jeszcze". Pełny "obraz majątku" (reinwestycje, rozdział środków) i osobna strona web NIE zbudowane — poza zakresem tej sesji, naturalne rozszerzenie na później.
+- [ ] **TASK-5.4.5** [P0/S] Bramka potwierdzenia rozszerzona na wszystkie wysyłki Monetyzacji, w tym agenta społeczności (sekcja 4.4). **Nie dotyczy jeszcze 2026-09-13**: żaden zbudowany w tej sesji mechanizm Monetyzacji nie wysyła niczego autonomicznie (agent fanów/sprzedaży to ręczne komendy twórcy, agent sponsoringu tylko informuje) — nie ma jeszcze czego bramkować. Ten sam wzorzec odłożenia co TASK-3.2.4 ("poczekaj aż powstanie pierwszy agent [wysyłający autonomicznie]").
+- [ ] **TASK-5.4.6** [P1/M] Agent społeczności — odpowiedzi na komentarze/DM z pełną bramką (sekcja 4.4). **Nie zbudowany 2026-09-13**: appka dziś ma tylko uprawnienia OAuth do publikacji i podstawowych statystyk (`social-oauth.ts`) — czytanie komentarzy/DM wymaga NOWYCH zgód OAuth, które wymagałyby ponownego połączenia każdego konta social przez właściciela; decyzja o rozszerzeniu uprawnień to jego wybór, nie coś do zdecydowania pod jego nieobecność.
+- [ ] **TASK-5.4.7** [P0/M] Dodatkowa weryfikacja poza czatem przy zmianie danych wypłat (sekcja 9.5) — nigdy na podstawie samej rozmowy w Telegramie. DoD: próba zmiany danych wypłaty przez Telegram wymaga potwierdzenia przez osobny kanał (np. link mailowy), test to potwierdza. **Nie dotyczy jeszcze 2026-09-13**: appka nie ma dziś żadnego mechanizmu wypłat do zabezpieczenia (TASK-5.2.2 pełne pozostaje niezbudowane) — budowanie zabezpieczenia dla nieistniejącego mechanizmu byłoby inżynierią pod hipotezę, dokładnie to czego ten projekt unika. Wraca razem z realnym mechanizmem wypłat.
 
 ---
 
