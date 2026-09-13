@@ -20,7 +20,7 @@ type PatchBody = {
   metaPostFormat?: string;
 };
 
-const META_POST_FORMATS = ['REELS', 'FEED'];
+const META_POST_FORMATS = ['REELS', 'FEED', 'BOTH'];
 
 export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
@@ -144,6 +144,12 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
 
       if (!META_POST_FORMATS.includes(body.metaPostFormat)) {
         return badRequest(`Niepoprawny format publikacji. Dozwolone: ${META_POST_FORMATS.join(', ')}`);
+      }
+
+      // "Oba" only makes sense on Facebook - Instagram's Reels already appears in the feed too
+      // (share_to_feed), so there's no separate "plain post" surface to also publish to there.
+      if (body.metaPostFormat === 'BOTH' && job.socialAccount.platform !== 'FACEBOOK') {
+        return badRequest('Format "Oba" (Reels + zwykły post) dotyczy tylko Facebooka.');
       }
 
       data.metaPostFormat = body.metaPostFormat;

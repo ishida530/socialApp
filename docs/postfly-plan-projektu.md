@@ -449,6 +449,18 @@ Status: [x] zaimplementowane → [x] testy napisane i zielone (`tests/api/telegr
 
 ---
 
+**Facebook: opcja "Oba" (Reels + zwykły post naraz) (2026-09-13)** — użytkownik zapytał, czy da się opublikować na Facebooku/Instagramie jednocześnie jako Reels i jako zwykły post tego samego materiału, i czy algorytm źle to odbiera. Odpowiedź (wiedza domenowa, nie coś do zweryfikowania w kodzie): Instagram **już to robi automatycznie** — Reel z `share_to_feed: true` (nasz domyślny wybór) pojawia się jednocześnie w zakładce Reels i w gridzie feedu, więc osobna opcja "Oba" na Instagramie byłaby zbędnym duplikatem. Facebook nie ma takiego mostka — Reels i zwykły post wideo to naprawdę osobne powierzchnie, więc "Oba" tam oznacza dwie realne, osobne publikacje. Meta oficjalnie nie penalizuje tego jako spam (to różne typy postów), realny koszt to zmęczenie odbiorców, nie kara algorytmu.
+
+**Decyzja:** opcja "Oba" dostępna **wyłącznie dla Facebooka**, nie dla Instagrama/TikToka/YouTube (te dwie ostatnie nie mają w ogóle wyboru formatu do podwojenia).
+
+**Model danych:** `metaPostFormat` dostaje trzecią wartość `'BOTH'`, ale to nie jest wartość, którą rozumie `publish-processor.ts` — zamiast nowej gałęzi w warstwie publikacji, "Oba" jest rozbijane na **dwa osobne, zwykłe `PublishJob`** już w `enqueueDraftGroup` (moment przejścia DRAFT→PENDING): oryginalny job dostaje `metaPostFormat: 'REELS'`, i powstaje nowy job-bliźniak z `metaPostFormat: 'FEED'` (ten sam caption/hashtagi/tytuł/wideo/konto), oba PENDING, oba liczone do `targetsCount`/limitu planu/`incrementUsage`. Dzięki temu `publish-processor.ts` nie potrzebuje żadnej zmiany — każdy job i tak jest zwykłym REELS albo FEED job, tak jak wcześniej.
+
+**UI:** web (`MetaFormatPanel.tsx`) dostaje trzecią kartę "Oba", widoczną tylko dla Facebooka. Telegram: przycisk formatu dla Facebooka cyklicznie przechodzi przez trzy stany (Reels → Zwykły post → Oba → Reels), dla Instagrama zostaje dwustanowy (Reels ↔ Zwykły post, "Oba" tam odrzucane jako nieprawidłowe).
+
+Status: [x] zaimplementowane → [x] testy napisane i zielone (`tests/api/meta-post-format-both.test.ts`, rozszerzone `tests/api/meta-post-format-draft-patch.test.ts` i `tests/api/telegram-platform-toggle.test.ts`) → [ ] zweryfikowane realnie (podwójna publikacja na Facebooku nigdy nie była przetestowana przeciw prawdziwemu API) → [ ] zamknięte (PR #...)
+
+---
+
 **Definicja "gotowy projekt w 100%":** każdy checkbox w sekcjach 6 i 7 odhaczony, każdy z jawnym DoD spełnionym i potwierdzonym testem (nie deklaracją), **QA niezależnie zweryfikowało, nie tylko Inżynier**, Architekt podpisał się pod skalowalnością w sekcji 9 dla każdej nowej warstwy, i sekcja 8 (Review końcowy) przeszła bez zastrzeżeń blokujących.
 
 ## 0.1 Zespół UX/UI — równoległy tor pracy
