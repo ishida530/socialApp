@@ -161,6 +161,27 @@ async function handleStartCommand(chatIdStr: string, code: string) {
 
   if (result.status === 'linked') {
     logEvent('telegram', 'account-linked', { userId: result.userId });
+
+    const user = await prisma.user.findUnique({
+      where: { id: result.userId },
+      select: { businessDescription: true },
+    });
+
+    if (!user?.businessDescription) {
+      // Onboarding: ask once, before anything else - the answer shapes every caption/hashtag
+      // Claude generates for this account from now on (lib/server/smart-autopilot/ai-content.ts).
+      // /skip is explicit and immediate, not a silent timeout - see handleBusinessDescriptionReply.
+      await prisma.user.update({
+        where: { id: result.userId },
+        data: { telegramAwaitingBusinessDescription: true },
+      });
+      await sendTelegramMessage(
+        chatIdStr,
+        'Konto Postfly połączone! Zanim zaczniemy: opisz w 1-2 zdaniach czym zajmuje się to konto (np. "Jestem raperem, publikuję freestyle" albo "Prowadzę salon kosmetyczny, oferujemy paznokcie i rzęsy") - dzięki temu dopasuję ton i styl generowanych opisów. Możesz też wpisać /skip i zrobić to później w ustawieniach konta.',
+      ).catch((error) => logError('telegram', 'send-onboarding-prompt-failed', error, { chatId: chatIdStr }));
+      return;
+    }
+
     await sendTelegramMessage(
       chatIdStr,
       'Konto Postfly połączone! Wyślij mi wideo albo zdjęcie (dodaj podpis pod plikiem, żeby AI wiedziało o czym jest ten materiał), a przygotuję dla Ciebie post.',
@@ -239,6 +260,41 @@ async function handleIncomingMedia(
       'Coś poszło nie tak przy przetwarzaniu materiału. Spróbuj ponownie albo dodaj go przez panel Postfly.',
     ).catch(() => {});
   }
+}
+
+// Consumes the free-text reply to the onboarding prompt started in handleStartCommand. Same
+// clear-session-first pattern as handleEditReply below - an abandoned/malformed reply can never
+// wedge the chat into treating every future message as an onboarding answer.
+async function handleBusinessDescriptionReply(chatIdStr: string, userId: string, rawText: string) {
+  await prisma.user.update({ where: { id: userId }, data: { telegramAwaitingBusinessDescription: false } });
+
+  const trimmed = rawText.trim();
+
+  if (trimmed.toLowerCase() === '/skip') {
+    await sendTelegramMessage(
+      chatIdStr,
+      'Jasne, pominięte - możesz to uzupełnić później w panelu Postfly (Ustawienia konta). Wyślij mi wideo albo zdjęcie, a przygotuję dla Ciebie post.',
+    ).catch((error) => logError('telegram', 'send-onboarding-skip-failed', error, { chatId: chatIdStr }));
+    return;
+  }
+
+  if (!trimmed) {
+    await sendTelegramMessage(
+      chatIdStr,
+      'Nie rozpoznałem opisu - wyślij mi po prostu wideo albo zdjęcie, opis konta możesz uzupełnić później w Ustawieniach konta.',
+    ).catch((error) => logError('telegram', 'send-onboarding-empty-failed', error, { chatId: chatIdStr }));
+    return;
+  }
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { businessDescription: trimmed.slice(0, 500) },
+  });
+
+  await sendTelegramMessage(
+    chatIdStr,
+    'Zapisane! Wyślij mi teraz wideo albo zdjęcie, a przygotuję dla Ciebie post dopasowany do tego kontekstu.',
+  ).catch((error) => logError('telegram', 'send-onboarding-saved-failed', error, { chatId: chatIdStr }));
 }
 
 // Consumes the free-text reply started by the "✏️ Edytuj" button (see the `editstart` callback
@@ -849,6 +905,17 @@ async function handlePost(request: NextRequest) {
       chatIdStr,
       'To konto Telegram nie jest jeszcze połączone z żadnym kontem Postfly. Wygeneruj kod w panelu (Ustawienia konta) i wyślij /start <kod>.',
     ).catch((error) => logError('telegram', 'send-not-linked-failed', error, { chatId: chatIdStr }));
+    return NextResponse.json({ ok: true });
+  }
+
+  // Onboarding reply takes priority over everything else - it's the very first thing a newly
+  // linked account is asked. Same "slash command wins" escape hatch as edit/schedule below,
+  // except /skip specifically IS consumed here (it's the designated way to answer "not now").
+  if (
+    linkedUser.telegramAwaitingBusinessDescription &&
+    (!text.trim().startsWith('/') || text.trim().toLowerCase() === '/skip')
+  ) {
+    await handleBusinessDescriptionReply(chatIdStr, linkedUser.id, text);
     return NextResponse.json({ ok: true });
   }
 

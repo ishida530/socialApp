@@ -663,6 +663,20 @@ Użytkownik poprosił o kontynuację "by zakończyć wszystko w 100%" i musiał 
 
 ---
 
+### Persona konta — dopasowanie generowania treści do typu biznesu (2026-09-13)
+
+Użytkownik zgłosił: on będzie wgrywał rapy, ale ktoś inny może prowadzić social media salonu kosmetycznego albo biura nieruchomości — appka powinna dopytać, "jak ma pracować główny agent", i dopasować się.
+
+**[PO/Architekt]:** audyt promptu systemowego Claude (`lib/server/smart-autopilot/ai-content.ts`) potwierdził realną lukę: prompt był zahardkodowany pod "niezależnych twórców, głównie muzyków/raperów" — każde konto dostawało treści z tym samym nastawieniem, niezależnie od faktycznej branży. Zakres podzielony na dwie części: (1) zbieranie kontekstu konta + dopasowanie tonu generowania — buildowalne od razu, niskie ryzyko; (2) "raportowanie, analiza, sugestie poprawy" — **świadomie NIE dotknięte**, to dokładnie ten sam prerekwizyt co wcześniej ustalona kolejność AI-strategii (appka nie zbiera żadnych realnych wyników publikacji) — sugestie bez prawdziwych danych byłyby zgadywaniem, nie analizą, więc czekają na zbudowanie zbierania metryk. Ograniczenie "konkretne sugestie bez nakładów finansowych" zanotowane do zastosowania wtedy, nie teraz.
+
+**[Inżynier]:** `User.businessDescription` (wolny tekst, nie sztywna lista kategorii — LLM lepiej radzi sobie z niuansem niż enum) + `User.telegramAwaitingBusinessDescription` (stan tury swobodnego tekstu, ten sam wzorzec co `telegramEditingJobId`). Prompt systemowy przestał zakładać muzyka — dostaje `accountContext` i dopasowuje ton. Pytane w obu kanałach: web (`/account`, sekcja "Profil konta") i Telegram (po `/start`, jeśli jeszcze puste; `/skip` jako jawna ścieżka pominięcia, nie cichy timeout). `PATCH /api/auth/me` rozszerzone o `businessDescription` (limit 500 znaków, pusty string czyści z powrotem do null).
+
+**[QA]:** `tests/unit/smart-autopilot-ai-content.test.ts` (+2: `accountContext` trafia do requestu Claude po redakcji PII, pusty gdy brak opisu). Nowy `tests/api/orchestrate-content-business-persona.test.ts` — **realny orchestrator, nie zamockowany na granicy `composer-drafts.ts`** (każdy istniejący test mockował `generatePlatformBundles` w całości, więc wnętrze `orchestrateContent`, w tym nowe zapytanie o `businessDescription`, nie miało wcześniej ŻADNEGO pokrycia testami — teraz ma). Nowy `tests/api/telegram-business-persona.test.ts` (5 testów: pytanie przy pustym opisie, pominięcie pytania gdy opis już ustawiony, zapis odpowiedzi, `/skip`, inna komenda slash w trakcie oczekiwania nie przerywa sesji). Nowy `tests/api/auth-me-business-description.test.ts` (5 testów: GET/PATCH, czyszczenie pustym stringiem, limit długości, brak wpływu na `defaultExplicitContent`). Ręczna weryfikacja UI: strona `/account` ładuje się bez błędu serwera (200) na lokalnym dev serverze - pełny interaktywny przebieg w przeglądarce NIE wykonany (brak łatwej sesji zalogowanego użytkownika w tym środowisku). Pełna suita: 227/227 w obu trybach APP_MODE, tsc/build czyste.
+
+Status: [x] zaimplementowane → [x] testy napisane i zielone → [x] zweryfikowane (tsc, build czyste; UI zweryfikowane częściowo - patrz wyżej) → [ ] zamknięte (PR w przygotowaniu) → [ ] pełna weryfikacja UI w przeglądarce przez użytkownika
+
+---
+
 ---
 
 **Definicja "gotowy projekt w 100%":** każdy checkbox w sekcjach 6 i 7 odhaczony, każdy z jawnym DoD spełnionym i potwierdzonym testem (nie deklaracją), **QA niezależnie zweryfikowało, nie tylko Inżynier**, Architekt podpisał się pod skalowalnością w sekcji 9 dla każdej nowej warstwy, i sekcja 8 (Review końcowy) przeszła bez zastrzeżeń blokujących.

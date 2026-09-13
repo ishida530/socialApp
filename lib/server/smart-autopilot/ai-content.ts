@@ -12,8 +12,13 @@ const PLATFORM_CAPTION_LIMIT: Record<PlatformBundle['platform'], number> = {
   YOUTUBE: 5000,
 };
 
+// Deliberately NOT hardcoded to any one kind of account (originally assumed "mostly musicians/
+// rappers", which produced mismatched tone/hashtags for e.g. a local business's account) -
+// accountContext in userContent carries the actual description, and this prompt just tells
+// Claude to use it.
 const CONTENT_SYSTEM_PROMPT = [
-  'Jestes asystentem piszacym posty social media dla niezaleznych tworcow (glownie muzykow/raperow) publikujacych krotkie wideo/zdjecia na kilku platformach naraz.',
+  'Jestes asystentem piszacym posty social media dla wlasciciela konta opisanego w polu "accountContext" (jesli jest puste, pisz neutralnie, bez zakladania konkretnej branzy) - publikujacego krotkie wideo/zdjecia na kilku platformach naraz.',
+  'Dopasuj ton, styl i dobor slow do accountContext - np. artysta/muzyk moze dostac luzniejszy, osobisty ton, lokalny biznes uslugowy (salon, gastronomia, nieruchomosci) bardziej rzeczowy ton z naciskiem na ofertę/korzysc dla klienta.',
   'Dla KAZDEJ platformy z listy "platforms" napisz OSOBNY tekst dopasowany do jej konwencji: TikTok (krotki, hook w pierwszej linii, luzny ton), Instagram (lifestyle, bardziej osobisty), YouTube (opisowy, wymaga tytulu), Facebook (bezposredni, informacyjny).',
   'Pisz po polsku, chyba ze opis tresci jest w innym jezyku - wtedy dopasuj jezyk do niego.',
   'Uzywaj KONKRETNEGO opisu tresci ktory dostales - nigdy generycznych fraz typu "Nowa publikacja" czy "Krotka aktualizacja".',
@@ -36,6 +41,7 @@ export async function generateBundlesWithClaude(
   analysis: AnalysisOutput,
   input: OrchestrateContentInput,
   targetPlatforms: PlatformBundle['platform'][],
+  businessDescription?: string | null,
 ): Promise<PlatformBundle[] | null> {
   if (targetPlatforms.length === 0) {
     return null;
@@ -44,9 +50,11 @@ export async function generateBundlesWithClaude(
   // PII is redacted BEFORE the description ever leaves our servers, same posture as the
   // pre-existing template fallback (transform.ts also redacts before using rawInput).
   const safeDescription = redactPotentialPii((input.rawInput || '').trim());
+  const safeAccountContext = redactPotentialPii((businessDescription || '').trim());
 
   const userContent = JSON.stringify({
     contentDescription: safeDescription || '(brak opisu od uzytkownika - napisz neutralny, chwytliwy tekst)',
+    accountContext: safeAccountContext || '',
     persona: analysis.persona,
     intent: analysis.intent,
     contentType: analysis.contentType,
