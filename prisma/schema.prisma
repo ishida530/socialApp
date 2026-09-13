@@ -175,6 +175,13 @@ model PublishJob {
   remotePostId    String?
   remotePostUrl   String?
   errorMessage    String?
+  // TASK-3.2.2: null until the user has been told about this job's terminal outcome via
+  // Telegram - a FAILED job is notified immediately (never batched, see
+  // lib/server/telegram-notifications.ts), a SUCCESS job waits for the next morning digest
+  // sweep. Jobs published from the web (no linked telegramChatId) still get marked, just never
+  // actually notified - notifyJobFailedImmediately/sendMorningDigest both no-op silently when
+  // there's no chat to send to.
+  notifiedAt      DateTime?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
   videoId         String
@@ -186,6 +193,7 @@ model PublishJob {
   @@index([socialAccountId])
   @@index([status, scheduledFor])
   @@index([postGroupId])
+  @@index([status, notifiedAt])
 }
 
 model Subscription {

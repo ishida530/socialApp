@@ -586,7 +586,7 @@ Kontynuacja "Etap 2 — powrót do pełnego backlogu": po EPIC 1 P0, ruch na EPI
 
 **Uczciwie nieodhaczone:** DoD TASK-3.2.1 dosłownie wymaga testu ręcznego przez prawdziwego bota — mam tylko automatyczne testy. TASK-3.1.2 (webhook → kolejka, nie synchronicznie) i TASK-3.2.4 (community agent hardening) świadomie odłożone z uzasadnieniem w `postfly-backlog-sprinty.md`.
 
-Status: [x] zaimplementowane → [x] testy napisane i zielone (190/190 × 2 tryby) → [x] zweryfikowane (tsc, build czyste) → [ ] zamknięte (PR w przygotowaniu), [ ] zweryfikowane realnie przez bota
+Status: [x] zaimplementowane → [x] testy napisane i zielone (190/190 × 2 tryby) → [x] zweryfikowane (tsc, build czyste) → [x] zamknięte (PR #51, wdrożone na produkcję) → [ ] zweryfikowane realnie przez bota
 
 ---
 
@@ -598,7 +598,21 @@ Status: [x] zaimplementowane → [x] testy napisane i zielone (190/190 × 2 tryb
 
 **[QA]:** `tests/unit/request-context.test.ts` (propagacja przez zagnieżdżone async, brak przecieku między współbieżnymi wywołaniami). `tests/api/telegram-request-id-tracing.test.ts` — dowód end-to-end na prawdziwym wywołaniu webhooka: wszystkie linie logów z jednego `/approve` (od `job-processing-started` po `job-succeeded`) mają dokładnie ten sam `requestId`, a dwa osobne wywołania webhooka dostają dwa różne identyfikatory.
 
-Status: [x] zaimplementowane → [x] testy napisane i zielone (196/196 w obu trybach APP_MODE) → [x] zweryfikowane (tsc, build czyste) → [ ] zamknięte (PR w przygotowaniu)
+Status: [x] zaimplementowane → [x] testy napisane i zielone (196/196 w obu trybach APP_MODE) → [x] zweryfikowane (tsc, build czyste) → [x] zamknięte (PR #54, wdrożone na produkcję)
+
+---
+
+### TASK-3.2.2: poranny digest powiadomień Telegram (2026-09-13)
+
+**[PO]:** audyt PRZED implementacją (nie założenie) pokazał, że appka dziś **nie wysyła żadnych proaktywnych powiadomień Telegram w ogóle** — `sendTelegramMessage` jest wołane wyłącznie z wnętrza webhooka, czyli tylko jako bezpośrednia odpowiedź na wiadomość użytkownika. Kiedy zaplanowany post publikuje się przez cron/QStash (bez żadnej akcji użytkownika w danym momencie), appka milczy — użytkownik dowiaduje się tylko ręcznie przez `/status`/`/logs`. TASK-3.2.2 zakładało "dodaj grupowanie do istniejących powiadomień statusowych" — w rzeczywistości trzeba było zbudować cały mechanizm powiadomień od zera, potem zastosować podział zbiorcze/pojedyncze.
+
+**[Architekt]:** decyzja projektowa (bez dostępu do właściciela produktu w danym momencie, świadomie podjęta samodzielnie z jasnym uzasadnieniem): błąd terminalny (FAILED, bez dalszych prób) = wiadomość natychmiast, nigdy zbiorczo — to jest dokładnie "akcja wymagana" (użytkownik może chcieć `/retry`), więc mieści się w DoD-owym "błędy pojedynczo". Sukces = zbiorczo, raz dziennie o 7:00 UTC (8-9 Warszawa zależnie od DST, ten sam wzorzec sztywnego UTC co istniejące crony `/api/cron/publish`/`refresh-tokens` — brak nowej kruchości). `PublishJob.notifiedAt` (nowe pole, nie osobna tabela) jako znacznik "użytkownik już wie o wyniku tego zadania" — obsługuje oba tryby (natychmiastowy i zbiorczy) jednym mechanizmem. Jawnie NIE wpięte w `processPublishJobImmediately` bezpośrednio (współdzielone przez `/approve`/`/retry` na Telegramie, które i tak już wysyłają bezpośrednią odpowiedź w tym samym czacie) — zamiast tego wpięte punktowo w `processDuePublishJobs` (cron) i trasę triggera QStash, jedyne dwa miejsca gdzie NIKT nie czeka w czacie na odpowiedź.
+
+**[Inżynier]:** `lib/server/telegram-notifications.ts` (`notifyJobFailedImmediately`, `sendMorningDigest`), nowy `app/api/cron/telegram-digest/route.ts`, wpis w `vercel.json`. Migracja `PublishJob.notifiedAt`.
+
+**[QA]:** `tests/api/telegram-notifications.test.ts` (7 testów: wysyłka+znacznik, brak wysyłki gdy brak konta Telegram ale znacznik i tak ustawiony, brak ponownego powiadomienia, grupowanie wielu sukcesów w JEDNĄ wiadomość, osobne wiadomości per user + pomijanie userów bez Telegrama, brak znacznika przy nieudanej wysyłce żeby kolejny przebieg spróbował ponownie). `tests/api/cron-telegram-digest.test.ts` (autoryzacja + integracja). `tests/api/publish-processor-failure-notification.test.ts` — dowód end-to-end: prawdziwy trwały błąd Facebooka (brak uprawnień) przechodzący przez `processDuePublishJobs` faktycznie wysyła powiadomienie Telegram. Pełna suita: 206/206 w obu trybach APP_MODE, tsc/build czyste.
+
+Status: [x] zaimplementowane → [x] testy napisane i zielone → [x] zweryfikowane (tsc, build czyste) → [ ] zamknięte (PR w przygotowaniu) → [ ] zweryfikowane realnie przez bota
 
 ---
 
