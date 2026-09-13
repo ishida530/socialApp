@@ -44,8 +44,8 @@
 
 ### Sprint 2.2 — Migracja i odporność
 - [x] **TASK-2.2.1** [P0/M] Migracja z cron-only na kolejkę, cron zostaje jako fallback/health-check (np. co godzinę). DoD: wyłączenie crona nie zatrzymuje publikacji, tylko traci warstwę bezpieczeństwa. Zrealizowane przez QStash + istniejący dzienny cron Vercela jako fallback (bez zmian w `vercel.json` — cron już tam był, teraz jest drugą linią obrony, nie jedyną).
-- [ ] **TASK-2.2.2** [P1/M] Podstawowy test obciążeniowy kolejki. DoD: symulacja N równoczesnych zadań publikacji, brak utraty/duplikacji zadań.
-- [ ] **TASK-2.2.3** [P1/S] Idempotency key per zadanie w całym łańcuchu (nie tylko `postGroupId`). DoD: ponowne przetworzenie tego samego zadania nie publikuje dwa razy.
+- [x] **TASK-2.2.2** [P1/M] Podstawowy test obciążeniowy kolejki. DoD: symulacja N równoczesnych zadań publikacji, brak utraty/duplikacji zadań. `tests/api/publish-processor-concurrency.test.ts` — test ujawnił realny bug w `claimDuePublishJobs` (JOIN do Video/User w zapytaniu z `FOR UPDATE SKIP LOCKED ORDER BY LIMIT` powodował, że równoległe wywołania wzajemnie się "głodziły"; ~40-50% prób traciło większość batcha na daną rundę). Naprawione przez zamianę JOIN na predykat `NOT EXISTS` — patrz Log ról.
+- [x] **TASK-2.2.3** [P1/S] Idempotency key per zadanie w całym łańcuchu (nie tylko `postGroupId`). DoD: ponowne przetworzenie tego samego zadania nie publikuje dwa razy. Potwierdzone testem: `processPublishJobImmediately` (wołane przez QStash/ręczny trigger/Telegram `/approve`) używa atomowego warunkowego `updateMany` jako bramki - dwa równoległe wywołania dla tego samego `jobId` publikują dokładnie raz, drugie dostaje `'skipped'`.
 
 ---
 

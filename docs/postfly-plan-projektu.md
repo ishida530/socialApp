@@ -511,6 +511,24 @@ Użytkownik zapytał o AI dobierające strategię prowadzącą do monetyzacji/wz
 
 Status: skonsultowane, **niezaimplementowane** — kolejne zadanie w kolejce po QStash.
 
+### TASK-2.2.2/TASK-2.2.3: test obciążeniowy kolejki + idempotency (2026-09-13)
+
+Kontynuacja Sprint 2.2 po QStash — dwa ostatnie zadania backlogu: podstawowy test obciążeniowy (N równoczesnych zadań publikacji, brak utraty/duplikacji) i idempotency key per zadanie w całym łańcuchu.
+
+**[Architekt]:** audyt kodu sprzed implementacji pokazał, że mechanizm atomowego "claim" już istniał w obu ścieżkach: `claimDuePublishJobs` (cron, `FOR UPDATE SKIP LOCKED`) i `processPublishJobImmediately` (QStash/ręczny trigger/Telegram `/approve`, warunkowy `updateMany` na `status='PENDING'`). Hipoteza: oba zadania mogą być już spełnione, brakuje tylko testu, który to **udowodni**, a nie założy.
+
+**[Inżynier]:** napisany `tests/api/publish-processor-concurrency.test.ts` z realną współbieżnością (`Promise.all`, prawdziwy lokalny Postgres, bez mocków bazy). Test dla `processPublishJobImmediately` (TASK-2.2.3) przeszedł od razu — dwa równoległe wywołania dla tego samego `jobId` publikują dokładnie raz. Test dla `processDuePublishJobs` (TASK-2.2.2, 12 zadań × 4 równoległe wywołania) **ujawnił realny błąd**: 3-5 z 8 prób traciło większość batcha w danej rundzie (np. tylko 1-2 z 12 zadań realnie zaklejmowane), mimo że żadne zadanie nie zostało zdublowane ani trwale utracone (nieodebrane zadania zostawały `PENDING` i due, więc kolejny nie-równoległy przebieg by je złapał).
+
+**Root cause (namierzony empirycznie, poza vitest, bezpośrednimi zapytaniami do bazy):** `claimDuePublishJobs` łączył (`JOIN`) `PublishJob` z `Video`/`User` w tym samym zapytaniu co `ORDER BY ... FOR UPDATE SKIP LOCKED LIMIT`, żeby odfiltrować zadania spauzowanych userów (TASK-3.2.1). Postgres w tej konfiguracji blokuje wiersze **w trakcie skanowania/joinowania, przed** finalnym sortowaniem i obcięciem do LIMIT — więc transakcja potrafiła zablokować więcej wierszy niż faktycznie zwróciła, a te "zmarnowane" blokady czyniły dany wiersz niewidocznym (`SKIP LOCKED`) dla innych równoległych transakcji, mimo że blokująca transakcja i tak go nie przetwarzała w tej rundzie. Potwierdzone przez izolowane eksperymenty: wariant bez JOIN-a (sam `PublishJob`, bez `ORDER BY`) był stabilny w 16/16 prób; wariant z JOIN+ORDER BY tracił dane w ~40-50% prób, niezależnie od tego czy `$transaction` był użyty czy nie.
+
+**Fix:** filtr pauzy przepisany z `JOIN` na predykat `NOT EXISTS` (podzapytanie po `Video`/`User`, bez joina w głównym `FROM`) — trzyma skan/blokowanie ograniczone do własnych, indeksowanych kolumn `PublishJob` (`@@index([status, scheduledFor])`). Zweryfikowane: 10/10 prób bez utraty, filtr pauzy nadal poprawnie respektowany (osobny spauzowany user w każdej rundzie eksperymentu, jego zadania nigdy nie zaklejmowane).
+
+**[QA]:** test w repozytorium pętli 4 niezależne rundy (świeży batch za każdym razem) właśnie dlatego, że pojedyncza próba nie łapała błędu w 100% przypadków (~40-50% szans) — pojedyncza runda byłaby niepewnym strażnikiem regresji. Pełna suita: 160/160 w obu trybach APP_MODE, `tsc --noEmit` czyste (poza dwoma znanymi błędami `.mjs` w `backup-crypto.test.ts`), build czysty.
+
+**[PO]:** praktyczne ryzyko w produkcji jest ograniczone — `processDuePublishJobs` ma dziś jednego wołającego (`/api/cron/publish`, pojedynczy dzienny trigger Vercela), więc scenariusz "N naprawdę równoległych wywołań" nie zdarza się w normalnej pracy. Mimo to błąd wart był naprawienia od razu, bo (a) Vercel Cron nie gwarantuje ściśle-jednokrotnego wywołania (możliwe nakładanie się przy retry/wolnym poprzednim przebiegu), i (b) dokładnie taki scenariusz jest tym, co TASK-2.2.2 miał zweryfikować z definicji.
+
+Status: [x] zaimplementowane (fix w `lib/server/publish-processor.ts`) → [x] testy napisane i zielone (`tests/api/publish-processor-concurrency.test.ts`, 4 rundy × zero utraty/duplikacji) → [x] zweryfikowane (pełna suita 160/160 × 2 tryby, tsc, build) → [ ] zamknięte (PR w przygotowaniu)
+
 ---
 
 **Definicja "gotowy projekt w 100%":** każdy checkbox w sekcjach 6 i 7 odhaczony, każdy z jawnym DoD spełnionym i potwierdzonym testem (nie deklaracją), **QA niezależnie zweryfikowało, nie tylko Inżynier**, Architekt podpisał się pod skalowalnością w sekcji 9 dla każdej nowej warstwy, i sekcja 8 (Review końcowy) przeszła bez zastrzeżeń blokujących.
