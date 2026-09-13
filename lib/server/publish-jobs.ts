@@ -76,27 +76,36 @@ export async function createDraftGroupForVideo(
   const postGroupId = randomUUID();
 
   const createdJobs = await prisma.$transaction(
-    connectedPlatforms.map((platform) =>
-      prisma.publishJob.create({
+    connectedPlatforms.map((platform) => {
+      const account = accountByPlatform.get(platform)!;
+      const isMetaVideo = video.mediaType === 'VIDEO' && (platform === Platform.FACEBOOK || platform === Platform.INSTAGRAM);
+
+      return prisma.publishJob.create({
         data: {
           status: 'DRAFT',
           postGroupId,
           scheduledFor: new Date(),
           video: { connect: { id: video.id } },
-          socialAccount: { connect: { id: accountByPlatform.get(platform)!.id } },
-          // Default to Reels for Meta platforms, matching the pre-existing behavior (Instagram
-          // already always posted as a Reel) so this doesn't silently change what happens for
-          // anyone who never touches the new format picker. Set server-side, not client-side
-          // like TikTok's privacy default used to be - that split caused BUG-003 (Telegram-created
-          // drafts never got the default because only the web composer set it after load).
-          metaPostFormat:
-            video.mediaType === 'VIDEO' && (platform === Platform.FACEBOOK || platform === Platform.INSTAGRAM)
-              ? 'REELS'
-              : undefined,
+          socialAccount: { connect: { id: account.id } },
+          // Sticky defaults: inherit whatever the user last set on THIS social account (via the
+          // web composer's PATCH .../drafts/:id), falling back to REELS on first use. Read here
+          // (server-side, shared by web and Telegram) rather than only in the web composer's
+          // client code, so Telegram - which has no settings UI of its own - gets the same
+          // inherited value instead of a hardcoded default every time. Same lesson as BUG-003
+          // (a client-only default never reached the Telegram channel).
+          metaPostFormat: isMetaVideo ? (account.lastMetaPostFormat ?? 'REELS') : undefined,
+          ...(platform === Platform.TIKTOK
+            ? {
+                tiktokPrivacyLevel: account.lastTiktokPrivacyLevel ?? undefined,
+                tiktokAllowComment: account.lastTiktokAllowComment ?? undefined,
+                tiktokAllowDuet: account.lastTiktokAllowDuet ?? undefined,
+                tiktokAllowStitch: account.lastTiktokAllowStitch ?? undefined,
+              }
+            : {}),
         },
         include: PUBLISH_JOB_INCLUDE,
-      }),
-    ),
+      });
+    }),
   );
 
   const rawInputParts = [options.contentType?.trim(), options.songTitle?.trim()].filter(Boolean);

@@ -42,14 +42,44 @@ type TelegramUpdate = {
 };
 
 const START_COMMAND_PATTERN = /^\/start(?:@\w+)?\s+(\S+)/i;
+const VALID_TOGGLE_PLATFORMS = ['YOUTUBE', 'TIKTOK', 'INSTAGRAM', 'FACEBOOK'];
 
-function buildPreviewButtons(postGroupId: string) {
+// One row of Publikuj/Anuluj was the whole control surface Telegram had - no way to skip a
+// single platform for one post (the web composer's ScheduleStep has this via checkboxes; this
+// is the Telegram equivalent, built as a keyboard the toggle callback edits in place, same
+// message, same "1 wiadomość = 1 decyzja" pattern - see postfly-plan-projektu.md's discussion
+// of Telegram as "pełny punkt kontroli").
+function buildPreviewButtons(
+  postGroupId: string,
+  jobs: Array<{ socialAccount: { platform: string }; excludedFromPublish: boolean }>,
+) {
+  const platformRows: { text: string; callback_data: string }[][] = [];
+  for (let i = 0; i < jobs.length; i += 2) {
+    platformRows.push(
+      jobs.slice(i, i + 2).map((job) => ({
+        text: `${job.excludedFromPublish ? '☐' : '✅'} ${job.socialAccount.platform}`,
+        callback_data: `toggle:${postGroupId}:${job.socialAccount.platform}`,
+      })),
+    );
+  }
+
   return [
+    ...platformRows,
     [
       { text: '✅ Publikuj', callback_data: `publish:${postGroupId}` },
       { text: '❌ Anuluj', callback_data: `cancel:${postGroupId}` },
     ],
   ];
+}
+
+function buildPreviewMessage(jobs: Array<{ socialAccount: { platform: string }; excludedFromPublish: boolean }>) {
+  const included = jobs.filter((job) => !job.excludedFromPublish).map((job) => job.socialAccount.platform);
+  const targetLine =
+    included.length > 0
+      ? `Publikacja pójdzie na: ${included.join(', ')}.`
+      : 'Wszystkie platformy odznaczone - nie ma czego opublikować.';
+
+  return `Materiał odebrany! ${targetLine}\n\nOdznacz platformę, żeby ją pominąć dla tego posta, potem zatwierdź albo anuluj — treść możesz doprecyzować w panelu Postfly przed zatwierdzeniem.`;
 }
 
 async function handleStartCommand(chatIdStr: string, code: string) {
@@ -107,11 +137,10 @@ async function handleIncomingMedia(
       });
     }
 
-    const platformNames = draftResult.jobs.map((job) => job.socialAccount.platform).join(', ');
     await sendTelegramMessageWithButtons(
       chatIdStr,
-      `Materiał odebrany! Przygotowałem post na: ${platformNames}.\n\nZatwierdź publikację albo anuluj — treść możesz doprecyzować w panelu Postfly przed zatwierdzeniem.`,
-      buildPreviewButtons(draftResult.postGroupId),
+      buildPreviewMessage(draftResult.jobs),
+      buildPreviewButtons(draftResult.postGroupId, draftResult.jobs),
     ).catch((error) => logError('telegram', 'send-preview-failed', error, { chatId: chatIdStr }));
   } catch (error) {
     logError('telegram', 'media-upload-failed', error, { chatId: chatIdStr });
@@ -226,7 +255,7 @@ async function handleCallbackQuery(update: NonNullable<TelegramUpdate['callback_
   }
 
   const chatIdStr = String(chatId);
-  const [action, postGroupId] = data.split(':');
+  const [action, postGroupId, toggleTarget] = data.split(':');
 
   const linkedUser = await findUserByTelegramChatId(chatIdStr);
   if (!linkedUser) {
@@ -255,12 +284,57 @@ async function handleCallbackQuery(update: NonNullable<TelegramUpdate['callback_
     return;
   }
 
+  if (action === 'toggle') {
+    if (!toggleTarget || !VALID_TOGGLE_PLATFORMS.includes(toggleTarget)) {
+      await answerTelegramCallbackQuery(update.id, 'Nieprawidłowa platforma.').catch(() => {});
+      return;
+    }
+
+    const targetJob = await prisma.publishJob.findFirst({
+      where: { postGroupId, status: 'DRAFT', video: { userId: linkedUser.id }, socialAccount: { platform: toggleTarget as never } },
+    });
+
+    if (!targetJob) {
+      await answerTelegramCallbackQuery(update.id, 'Nie znaleziono tej platformy dla tego posta.').catch(() => {});
+      return;
+    }
+
+    const toggled = await prisma.publishJob.update({
+      where: { id: targetJob.id },
+      data: { excludedFromPublish: !targetJob.excludedFromPublish },
+    });
+
+    const allJobs = await prisma.publishJob.findMany({
+      where: { postGroupId, status: 'DRAFT', video: { userId: linkedUser.id } },
+      include: { socialAccount: true },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    await answerTelegramCallbackQuery(
+      update.id,
+      toggled.excludedFromPublish ? `Pominięto ${toggleTarget}.` : `${toggleTarget} z powrotem w publikacji.`,
+    ).catch(() => {});
+
+    await editTelegramMessage(
+      chatIdStr,
+      messageId,
+      buildPreviewMessage(allJobs),
+      buildPreviewButtons(postGroupId, allJobs),
+    ).catch((error) => logError('telegram', 'edit-message-toggle-failed', error, { chatId: chatIdStr }));
+    return;
+  }
+
   if (action === 'publish') {
     const draftJobs = await prisma.publishJob.findMany({
       where: { postGroupId, status: 'DRAFT', video: { userId: linkedUser.id } },
       include: { socialAccount: true },
     });
-    const targetPlatforms = draftJobs.map((job) => job.socialAccount.platform);
+    const targetPlatforms = draftJobs.filter((job) => !job.excludedFromPublish).map((job) => job.socialAccount.platform);
+
+    if (targetPlatforms.length === 0) {
+      await answerTelegramCallbackQuery(update.id, 'Wszystkie platformy odznaczone - nie ma czego opublikować.').catch(() => {});
+      return;
+    }
 
     const result = await enqueueDraftGroup(linkedUser.id, {
       postGroupId,

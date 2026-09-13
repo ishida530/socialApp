@@ -103,6 +103,15 @@ model SocialAccount {
   userId       String
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   publishJobs  PublishJob[]
+  // "Sticky" last-used per-platform settings: written whenever a draft PATCH saves one of
+  // these fields, read when a NEW draft is created (web or Telegram) so Telegram - which has
+  // no UI for these settings - inherits what the user last chose in the web composer, instead
+  // of a hardcoded default every time.
+  lastTiktokPrivacyLevel String?
+  lastTiktokAllowComment Boolean?
+  lastTiktokAllowDuet    Boolean?
+  lastTiktokAllowStitch  Boolean?
+  lastMetaPostFormat     String?
 
   @@index([userId])
   @@unique([platform, externalId])
@@ -144,6 +153,10 @@ model PublishJob {
   tiktokAllowStitch  Boolean?
   tiktokConsentAt    DateTime?
   metaPostFormat  String?
+  // Telegram-only: per-platform toggle on the preview message's inline keyboard, before the
+  // final Publikuj tap. Not exposed in the web composer (that has its own platform checkboxes
+  // in ScheduleStep that act immediately, no separate "excluded" state to persist).
+  excludedFromPublish Boolean   @default(false)
   scheduledFor    DateTime
   publishedAt     DateTime?
   remotePostId    String?
