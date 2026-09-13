@@ -31,6 +31,9 @@ async function createDuePendingJob(userId: string, platform: 'FACEBOOK' = 'FACEB
       scheduledFor: new Date(Date.now() - 1000),
       videoId: video.id,
       socialAccountId: account.id,
+      // Not testing Reels-vs-Feed here - pin to FEED so this stays the plain, single-request
+      // publish path (matches this test's fetch mock).
+      metaPostFormat: 'FEED',
     },
   });
 }

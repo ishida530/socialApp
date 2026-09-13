@@ -18,6 +18,7 @@ function makeJob(platform: Platform, overrides: Partial<DraftJob> = {}): DraftJo
     tiktokAllowDuet: null,
     tiktokAllowStitch: null,
     tiktokConsentAt: null,
+    metaPostFormat: null,
     scheduledFor: new Date().toISOString(),
     publishedAt: null,
     remotePostId: null,

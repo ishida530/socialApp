@@ -17,7 +17,10 @@ type PatchBody = {
   tiktokAllowStitch?: boolean;
   tiktokConsent?: boolean;
   isExplicit?: boolean;
+  metaPostFormat?: string;
 };
+
+const META_POST_FORMATS = ['REELS', 'FEED'];
 
 export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
@@ -128,6 +131,22 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
       data.tiktokAllowComment = allowComment;
       data.tiktokAllowDuet = allowDuet;
       data.tiktokAllowStitch = allowStitch;
+    }
+
+    if (body.metaPostFormat !== undefined) {
+      if (job.socialAccount.platform !== 'FACEBOOK' && job.socialAccount.platform !== 'INSTAGRAM') {
+        return badRequest('Format publikacji (Reels/zwykły post) dotyczy tylko Facebooka i Instagrama.');
+      }
+
+      if (job.video.mediaType !== 'VIDEO') {
+        return badRequest('Format publikacji (Reels/zwykły post) dotyczy tylko materiałów wideo.');
+      }
+
+      if (!META_POST_FORMATS.includes(body.metaPostFormat)) {
+        return badRequest(`Niepoprawny format publikacji. Dozwolone: ${META_POST_FORMATS.join(', ')}`);
+      }
+
+      data.metaPostFormat = body.metaPostFormat;
     }
 
     if (body.tiktokConsent !== undefined) {

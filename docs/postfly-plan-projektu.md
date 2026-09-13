@@ -374,7 +374,23 @@ Zweryfikowano niezależnie, bezpośrednim testem na `processDuePublishJobs` (nie
 3. Próg czasu trwania jako jedyna reguła decyzyjna, bez nowego pola w UI, bez nowej decyzji użytkownika.
 4. Zdjęcia: bez zmian, nie dotyczy.
 
-Status: decyzja zapisana, **nie wdrożona jeszcze** — czeka na potwierdzenie właściciela produktu, czy wdrożyć teraz (mała, testowalna zmiana w `lib/server/publish-processor.ts`, poza formalną numeracją backlogu, dokumentowana tu) czy po zamknięciu TASK-3.3.1.
+Status: **zrewidowana** przez kolejną konsultację niżej (2026-09-13) — właściciel produktu, po realnym użyciu appki (w tym panelu ustawień TikToka, który już ustanowił wzorzec "jawny panel ustawień per platforma"), świadomie wybrał kontrolę użytkownika zamiast cichej reguły opartej o długość materiału. Próg czasu trwania jako jedyna reguła decyzyjna **nie został wdrożony** — zastąpiony jawnym wyborem Reels/zwykły post w UI, patrz niżej.
+
+---
+
+**Rewizja decyzji o formacie Facebook/Instagram (2026-09-13)** — po realnym teście publikacji TikTok w tej sesji, właściciel produktu zapytał wprost, czy appka powinna dawać kontrolę nad formatem publikacji (post/Reels/Shorts) w interfejsie. Zaproponowano konsultację PO → UX/UI → Architekt, analogiczną do powyższej, ale z innym wnioskiem.
+
+**[PO]:** Cel: twórcy (grupa docelowa) mają dziś appkę, która sama decyduje jak ich wideo trafia do odbiorców (IG zawsze Reels, FB zostawione algorytmowi Mety) — to ogranicza kontrolę nad dystrybucją treści. Zakres v1: Instagram (Reels vs zwykły post w feedzie) i Facebook (Reels vs zwykły post wideo), tylko dla wideo. Poza zakresem: Instagram Stories (inny cykl życia treści — znika po 24h, nie pasuje do modelu "trwały cross-post" tej appki), YouTube/TikTok (brak realnego wyboru w ich API — YouTube sam klasyfikuje Short na podstawie proporcji/długości, TikTok ma jeden format wideo). Domyślna wartość: Reels dla obu platform — zero zmiany zachowania dla nikogo, kto nie dotknie nowego panelu.
+
+**[UX/UI]:** Nowy panel w zakładce platformy (ten sam wzorzec co `TikTokSettingsPanel` — appka ma już ten wzorzec ustanowiony i zaakceptowany), widoczny tylko gdy materiał to wideo: dwie wybieralne karty "Reels" / "Zwykły post" z krótkim opisem konsekwencji każdej opcji, nie dropdown — to decyzja o zasięgu, zasługuje na czytelniejszy widget.
+
+**[Architekt]:** Asymetria kosztu między platformami: Instagram to tania zmiana (już wysyłaliśmy `media_type: REELS`, "zwykły post" to zmiana jednego parametru na `VIDEO` bez `share_to_feed`). Facebook jest znacznie droższy — obecny kod używał prostego `POST /{pageId}/videos?file_url=...`, prawdziwe Facebook Reels to osobny, 3-etapowy protokół (`/video_reels?upload_phase=start` → upload przez `file_url` na zwróconym `upload_url` → `?upload_phase=finish` z `video_state=PUBLISHED`) — nowa logika, nie zmiana parametru. Właściciel produktu świadomie wybrał zrobienie całości razem, w tym prawdziwe Facebook Reels.
+
+**Dlaczego to odwraca poprzednią decyzję (UX Researcher/Designer/Critic wyżej):** poprzednia konsultacja odradzała dodawanie przełącznika "post/Reel" jako decyzji użytkownika per publikacja, na rzecz cichej reguły opartej o długość materiału — argumentując zasadą "1 ekran = 1 decyzja". Ta zasada była słuszna w momencie, gdy appka nie miała jeszcze żadnego wzorca dla "panel ustawień per platforma". Od tego czasu appka **już wdrożyła** dokładnie taki wzorzec dla TikToka (prywatność, duet, stitch, komentarze — `TikTokSettingsPanel.tsx`) i jest on używany bez skarg. Właściciel produktu, mając ten wzorzec przed oczami, świadomie zdecydował że kontrola nad dystrybucją treści (Reels vs zwykły post) jest warta jednej dodatkowej, opcjonalnej decyzji — nie jest to already-solved problem cichą regułą, bo próg czasu trwania i tak nie odzwierciedla intencji twórcy (krótkie wideo, które user świadomie chce jako zwykły post, i tak trafiłoby jako Reels).
+
+**Wdrożenie:** `PublishJob.metaPostFormat` (`'REELS' | 'FEED' | null`, domyślnie `'REELS'` ustawiane server-side w `createDraftGroupForVideo` — nie client-side jak przy TikToku, żeby uniknąć powtórki BUG-003, gdzie kanał Telegram nigdy nie dostawał domyślnej wartości ustawianej tylko w komponencie webowym), `MetaFormatPanel.tsx` w kompozytorze, walidacja w `PATCH /api/publish-jobs/drafts/[id]` (tylko FACEBOOK/INSTAGRAM, tylko wideo), branch w `lib/server/publish-processor.ts` (`publishToInstagram`, `publishToFacebookReel`/`publishToFacebookFeed`).
+
+Status: [x] zaimplementowane → [x] testy napisane i zielone (`tests/api/meta-post-format.test.ts`, `tests/api/meta-post-format-draft-patch.test.ts`, `tests/api/meta-post-format-draft-default.test.ts`) → [ ] zweryfikowane realnie (Facebook Reels — 3-etapowy upload — nie był jeszcze przetestowany przeciw prawdziwemu API Mety, tylko zamockowany; wymaga realnej weryfikacji jak reszta tego etapu) → [ ] zamknięte (PR #...)
 
 ---
 
