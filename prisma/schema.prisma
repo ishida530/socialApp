@@ -77,6 +77,9 @@ model User {
   // TASK-3.2.3: last time the "long inactivity" nudge was sent, so it doesn't repeat every day
   // once triggered - see lib/server/telegram-notifications.ts (sendInactivityNudges).
   lastInactivityNudgeSentAt DateTime?
+  // EPIC 5 (TASK-5.4.3): last time the reach-growth sponsorship signal was sent - same
+  // once-per-cooldown pattern as lastInactivityNudgeSentAt, see sendSponsorshipSignals.
+  lastSponsorshipSignalSentAt DateTime?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   socialAccounts SocialAccount[]
@@ -86,6 +89,11 @@ model User {
   passwordResetTokens PasswordResetToken[]
   telegramLinkCodes   TelegramLinkCode[]
   agentConversationTurns AgentConversationTurn[]
+  fans                   Fan[]
+  sales                  Sale[]
+  fanSubscriptions       FanSubscription[]
+  royaltyRegistrations   RoyaltyRegistration[]
+  syncPitches            SyncPitch[]
 }
 
 model TelegramLinkCode {
@@ -280,6 +288,98 @@ model AgentConversationTurn {
   createdAt DateTime @default(now())
 
   @@index([userId, seq])
+}
+
+// EPIC 5 (Monetyzacja) - fundament danych (TASK-5.1.1). Kontakty i sprzedaż NIEZALEŻNE od platform
+// social media - jeśli konto TikTok/Instagram zniknie, ta lista zostaje, dokładnie zgodnie z
+// zasadą "budowanie listy własnych fanów" z opisu produktu.
+//
+// Świadomy zakres tej sesji (decyzja PO 2026-09-13, uzasadnienie w log ról): Fan/Sale rejestrowane
+// RĘCZNIE przez twórcę (komendy /fan, /sale na Telegramie) - PEŁNA automatyzacja (płatny checkout,
+// webhook prawdziwego procesora płatności, rekurencyjne subskrypcje superfanów) wymaga własnego
+// konta procesora płatności (np. Stripe Connect) należącego do twórcy, którego appka nie ma i nie
+// może samodzielnie założyć - to decyzja biznesowa/finansowa twórcy, ta sama kategoria co decyzja
+// o wydawaniu prawdziwych pieniędzy już wcześniej ustalona w tym projekcie jako wymagająca
+// jawnej zgody z pokazaną kwotą, nie coś do zdecydowania za kogoś. FanSubscription/
+// RoyaltyRegistration/SyncPitch to fundament (modele) gotowy pod przyszłą pełną automatyzację,
+// bez migracji od zera - logika agentów nad nimi (Sprint 5.3) świadomie NIE zbudowana teraz,
+// bo wymaga realnych danych (prawa autorskie, umowy) których appka nie ma i nie może zgadywać.
+model Fan {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  email     String
+  name      String?
+  source    String   @default("manual")
+  createdAt DateTime @default(now())
+  sales         Sale[]
+  subscriptions FanSubscription[]
+
+  @@unique([userId, email])
+  @@index([userId])
+}
+
+model Sale {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fanId       String?
+  fan         Fan?     @relation(fields: [fanId], references: [id], onDelete: SetNull)
+  product     String
+  amountCents Int
+  currency    String   @default("PLN")
+  // How this row was created - "manual" (twórca sam wpisuje przez /sale) is the only value
+  // produced by any code path today; "stripe"/other reserved for a future real payment webhook.
+  recordedVia String   @default("manual")
+  createdAt   DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+// Model gotowy pod przyszłą logikę rekurencyjnych subskrypcji (Agent superfanów, TASK-5.3.1) -
+// żadna appka dziś nie tworzy tu wierszy, brak podpiętego billingu.
+model FanSubscription {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fanId      String
+  fan        Fan       @relation(fields: [fanId], references: [id], onDelete: Cascade)
+  tier       String
+  status     String    @default("ACTIVE")
+  startedAt  DateTime  @default(now())
+  canceledAt DateTime?
+
+  @@index([userId])
+}
+
+// Model gotowy pod przyszłą logikę Agenta tantiem (TASK-5.3.2) - appka dziś nie tworzy tu wierszy,
+// wymaga realnych danych o prawach/splitach od twórcy.
+model RoyaltyRegistration {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workTitle    String
+  splits       Json
+  registeredAt DateTime @default(now())
+  notes        String?
+
+  @@index([userId])
+}
+
+// Model gotowy pod przyszłą logikę Agenta sync (TASK-5.3.3) - appka dziś nie tworzy tu wierszy.
+// rightsConfirmed to twardy blok już zapisany w planie: bez potwierdzonych 100% praw żaden przyszły
+// kod nie może pitchować tego utworu dalej.
+model SyncPitch {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workTitle       String
+  pitchedTo       String
+  rightsConfirmed Boolean  @default(false)
+  status          String   @default("DRAFT")
+  createdAt       DateTime @default(now())
+
+  @@index([userId])
 }
 
 model StripeEvent {

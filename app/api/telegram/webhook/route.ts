@@ -24,6 +24,7 @@ import {
 import { generateContentIdeas, type ContentIdea } from '@/lib/server/telegram-content-ideas';
 import { runMentorTurn } from '@/lib/server/telegram-mentor-agent';
 import type { ScheduleSlot } from '@/lib/server/smart-autopilot/types';
+import { addFan, getFanCount, getRecentFans, getRevenueSummary, isValidEmail, parseAmountToCents, recordSale } from '@/lib/server/monetization';
 import { prisma } from '@/lib/server/prisma';
 import { unauthorized } from '@/lib/server/http';
 import { logError, logEvent } from '@/lib/server/observability';
@@ -647,15 +648,75 @@ async function handleTextCommand(chatIdStr: string, userId: string, text: string
     return true;
   }
 
-  if (trimmed === '/revenue') {
-    // Uczciwie: appka dziś nie zbiera żadnych danych o przychodach z treści (EPIC 5
-    // Monetyzacja - Fan/Sale/FanSubscription - jeszcze nie istnieje w schemacie). Pokazanie
-    // tu danych o subskrypcji Postfly (koszt appki, nie przychód z treści) byłoby mylące pod
-    // tą nazwą komendy, więc zamiast tego jawna informacja, że tej funkcji jeszcze nie ma.
+  // EPIC 5 (Monetyzacja, zakres tej sesji - patrz komentarz przy modelu Fan w schema.prisma):
+  // /fan i /sale to RĘCZNA rejestracja przez twórcę, nie automatyczny checkout - appka nie ma
+  // (i nie może sama założyć) konta procesora płatności należącego do twórcy.
+  const fanMatch = trimmed.match(/^\/fan\s+(\S+)(?:\s+(.+))?$/i);
+  if (fanMatch) {
+    const [, email, name] = fanMatch;
+    if (!isValidEmail(email)) {
+      await sendTelegramMessage(chatIdStr, 'Nieprawidłowy adres email. Użycie: /fan email@przyklad.com [Imię]').catch(
+        (error) => logError('telegram', 'send-fan-invalid-email-failed', error, { chatId: chatIdStr }),
+      );
+      return true;
+    }
+
+    const fan = await addFan(userId, email, name);
+    await sendTelegramMessage(chatIdStr, `✅ Dodano fana: ${fan.email}${fan.name ? ` (${fan.name})` : ''}.`).catch(
+      (error) => logError('telegram', 'send-fan-added-failed', error, { chatId: chatIdStr }),
+    );
+    return true;
+  }
+
+  if (trimmed === '/fans') {
+    const [count, recent] = await Promise.all([getFanCount(userId), getRecentFans(userId)]);
+    const lines = [`👥 Fani: ${count}`];
+
+    if (recent.length > 0) {
+      lines.push('', 'Ostatnio dodani:');
+      recent.forEach((fan) => lines.push(`- ${fan.email}${fan.name ? ` (${fan.name})` : ''}`));
+    }
+
+    await sendTelegramMessage(chatIdStr, lines.join('\n')).catch((error) =>
+      logError('telegram', 'send-fans-failed', error, { chatId: chatIdStr }),
+    );
+    return true;
+  }
+
+  const saleMatch = trimmed.match(/^\/sale\s+(\S+)\s+(.+)$/i);
+  if (saleMatch) {
+    const [, rawAmount, product] = saleMatch;
+    const amountCents = parseAmountToCents(rawAmount);
+
+    if (amountCents === null) {
+      await sendTelegramMessage(chatIdStr, 'Nieprawidłowa kwota. Użycie: /sale 80 Koszulka czarna M').catch((error) =>
+        logError('telegram', 'send-sale-invalid-amount-failed', error, { chatId: chatIdStr }),
+      );
+      return true;
+    }
+
+    const sale = await recordSale(userId, product, amountCents);
     await sendTelegramMessage(
       chatIdStr,
-      '💰 Śledzenie przychodów z treści jeszcze nie istnieje w Postfly (moduł Monetyzacji jest w planach, ale niezaimplementowany). Ta komenda zacznie zwracać realne dane, gdy ten moduł powstanie.',
-    ).catch((error) => logError('telegram', 'send-revenue-failed', error, { chatId: chatIdStr }));
+      `💰 Zapisano sprzedaż: ${sale.product} — ${(amountCents / 100).toFixed(2)} ${sale.currency}.`,
+    ).catch((error) => logError('telegram', 'send-sale-recorded-failed', error, { chatId: chatIdStr }));
+    return true;
+  }
+
+  if (trimmed === '/revenue') {
+    const summary = await getRevenueSummary(userId);
+    const lines = [
+      '💰 Przychód (dane rejestrowane ręcznie przez /sale - jeszcze bez automatycznego checkoutu):',
+      '',
+      `Fani: ${summary.fanCount}`,
+      `Sprzedaże w tym miesiącu: ${summary.thisMonthSalesCount} (${(summary.thisMonthRevenueCents / 100).toFixed(2)} PLN)`,
+      `Sprzedaże łącznie: ${summary.allTimeSalesCount} (${(summary.allTimeRevenueCents / 100).toFixed(2)} PLN)`,
+      '',
+      'Dodaj fana: /fan email@przyklad.com [Imię]  •  Zapisz sprzedaż: /sale 80 Koszulka czarna M',
+    ];
+    await sendTelegramMessage(chatIdStr, lines.join('\n')).catch((error) =>
+      logError('telegram', 'send-revenue-failed', error, { chatId: chatIdStr }),
+    );
     return true;
   }
 
@@ -1051,7 +1112,8 @@ async function handlePost(request: NextRequest) {
 
   // TASK-3.2.1: wszystkie komendy z sekcji 5 głównego planu - /status /pause /resume
   // /approve <id> /reject <id> /retry <id> /cancel <id> /logs /revenue, plus /pomysl (pomysły
-  // na kolejne nagrania na podstawie własnej historii postów).
+  // na kolejne nagrania na podstawie własnej historii postów) i EPIC 5 /fan /fans /sale
+  // (ręczna rejestracja fanów/sprzedaży).
   const handled = await handleTextCommand(chatIdStr, linkedUser.id, text);
 
   // Agent-mentor (decyzja PO 2026-09-13): dowolny tekst, który nie pasował do żadnej znanej

@@ -67,6 +67,8 @@ describe('GET /api/cron/telegram-digest (TASK-3.2.2)', () => {
     expect(body.ok).toBe(true);
     expect(body.usersNotified).toBe(1);
     expect(body.jobsNotified).toBe(1);
+    // No growth history yet for this user - the sponsorship signal (TASK-5.4.3) never fires here.
+    expect(body.sponsorshipSignalsSent).toBe(0);
     expect(mockSendTelegramMessage).toHaveBeenCalledTimes(1);
   });
 });

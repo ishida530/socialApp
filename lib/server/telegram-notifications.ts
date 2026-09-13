@@ -9,6 +9,7 @@
 import { prisma } from './prisma';
 import { sendTelegramMessage } from './telegram';
 import { logError, logEvent } from './observability';
+import { checkSponsorshipGrowth } from './monetization';
 
 export async function notifyJobFailedImmediately(jobId: string): Promise<void> {
   const job = await prisma.publishJob.findUnique({
@@ -159,6 +160,52 @@ export async function sendInactivityNudges(): Promise<{ usersNotified: number }>
   }
 
   logEvent('telegram-notifications', 'inactivity-nudges-sent', { usersNotified });
+
+  return { usersNotified };
+}
+
+// TASK-5.4.3 (Agent sponsoringu, EPIC 5 - zakres tej sesji): rzadki, jednorazowy-na-okres sygnał
+// gdy zasięg realnie rośnie (PostMetric, ten sam mechanizm co EPIC 4), nie pełny agent
+// przygotowujący wycenę współpracy - appka nie ma danych o realnych stawkach rynkowych.
+// Cooldown przez User.lastSponsorshipSignalSentAt, ten sam wzorzec co sendInactivityNudges.
+const SPONSORSHIP_SIGNAL_COOLDOWN_DAYS = 30;
+
+function formatSponsorshipSignalMessage(currentViews: number, priorViews: number): string {
+  return `📈 Twój zasięg mocno rośnie: ${currentViews} wyświetleń w ostatnich 30 dniach (wcześniej ${priorViews}) — to może być dobry moment, żeby rozważyć płatne współprace. /revenue pokaże pełny obraz.`;
+}
+
+export async function sendSponsorshipSignals(): Promise<{ usersNotified: number }> {
+  const now = new Date();
+  const cutoff = new Date(now.getTime() - SPONSORSHIP_SIGNAL_COOLDOWN_DAYS * 24 * 60 * 60 * 1000);
+
+  const candidates = await prisma.user.findMany({
+    where: {
+      telegramChatId: { not: null },
+      OR: [{ lastSponsorshipSignalSentAt: null }, { lastSponsorshipSignalSentAt: { lte: cutoff } }],
+    },
+    select: { id: true, telegramChatId: true },
+  });
+
+  let usersNotified = 0;
+
+  for (const user of candidates) {
+    const signal = await checkSponsorshipGrowth(user.id);
+    if (!signal.triggered) {
+      continue;
+    }
+
+    try {
+      await sendTelegramMessage(user.telegramChatId as string, formatSponsorshipSignalMessage(signal.currentViews, signal.priorViews));
+      usersNotified += 1;
+    } catch (error) {
+      logError('telegram-notifications', 'sponsorship-signal-send-error', error, { userId: user.id });
+      continue;
+    }
+
+    await prisma.user.update({ where: { id: user.id }, data: { lastSponsorshipSignalSentAt: now } });
+  }
+
+  logEvent('telegram-notifications', 'sponsorship-signals-sent', { usersNotified });
 
   return { usersNotified };
 }

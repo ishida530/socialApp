@@ -309,7 +309,7 @@ describe('Telegram text commands (TASK-3.2.1)', () => {
     expect(mockSendTelegramMessage.mock.calls.at(-1)?.[1]).toMatch(/Brak zakończonych zadań/);
   });
 
-  it('/revenue honestly reports the feature does not exist yet, rather than fabricating a number', async () => {
+  it('/revenue reports real, honestly-zero aggregates for a fresh account (EPIC 5)', async () => {
     const { user } = await createTestUser();
     cleanupUserIds.push(user.id);
     const chatId = '1000000011';
@@ -317,6 +317,61 @@ describe('Telegram text commands (TASK-3.2.1)', () => {
 
     await POST(webhookRequest(chatId, '/revenue'));
 
-    expect(mockSendTelegramMessage.mock.calls.at(-1)?.[1]).toMatch(/jeszcze nie istnieje/);
+    const message = mockSendTelegramMessage.mock.calls.at(-1)?.[1] as string;
+    expect(message).toMatch(/Fani: 0/);
+    expect(message).toMatch(/Sprzedaże łącznie: 0/);
+  });
+
+  it('/fan adds a fan by email, rejecting an invalid email instead of saving garbage', async () => {
+    const { user } = await createTestUser();
+    cleanupUserIds.push(user.id);
+    const chatId = '1000000012';
+    await linkChat(user.id, chatId);
+
+    const badResponse = await POST(webhookRequest(chatId, '/fan not-an-email'));
+    expect(badResponse.status).toBe(200);
+    expect(mockSendTelegramMessage.mock.calls.at(-1)?.[1]).toMatch(/Nieprawidłowy adres email/);
+
+    const goodResponse = await POST(webhookRequest(chatId, '/fan jan@example.com Jan Kowalski'));
+    expect(goodResponse.status).toBe(200);
+    expect(mockSendTelegramMessage.mock.calls.at(-1)?.[1]).toMatch(/Dodano fana: jan@example\.com \(Jan Kowalski\)/);
+
+    const fan = await prisma.fan.findFirst({ where: { userId: user.id, email: 'jan@example.com' } });
+    expect(fan?.name).toBe('Jan Kowalski');
+  });
+
+  it('/fans reports the real count and recent fans, not a placeholder', async () => {
+    const { user } = await createTestUser();
+    cleanupUserIds.push(user.id);
+    const chatId = '1000000013';
+    await linkChat(user.id, chatId);
+
+    await POST(webhookRequest(chatId, '/fan ala@example.com Ala'));
+    await POST(webhookRequest(chatId, '/fans'));
+
+    const message = mockSendTelegramMessage.mock.calls.at(-1)?.[1] as string;
+    expect(message).toMatch(/Fani: 1/);
+    expect(message).toContain('ala@example.com (Ala)');
+  });
+
+  it('/sale records a manual sale, rejecting an invalid amount instead of saving garbage', async () => {
+    const { user } = await createTestUser();
+    cleanupUserIds.push(user.id);
+    const chatId = '1000000014';
+    await linkChat(user.id, chatId);
+
+    const badResponse = await POST(webhookRequest(chatId, '/sale abc Koszulka'));
+    expect(badResponse.status).toBe(200);
+    expect(mockSendTelegramMessage.mock.calls.at(-1)?.[1]).toMatch(/Nieprawidłowa kwota/);
+
+    const goodResponse = await POST(webhookRequest(chatId, '/sale 80,50 Koszulka czarna M'));
+    expect(goodResponse.status).toBe(200);
+    expect(mockSendTelegramMessage.mock.calls.at(-1)?.[1]).toMatch(/Zapisano sprzedaż: Koszulka czarna M — 80\.50 PLN/);
+
+    const sale = await prisma.sale.findFirst({ where: { userId: user.id } });
+    expect(sale?.amountCents).toBe(8050);
+
+    await POST(webhookRequest(chatId, '/revenue'));
+    expect(mockSendTelegramMessage.mock.calls.at(-1)?.[1]).toMatch(/Sprzedaże łącznie: 1 \(80\.50 PLN\)/);
   });
 });
