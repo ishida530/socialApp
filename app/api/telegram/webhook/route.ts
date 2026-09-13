@@ -60,17 +60,37 @@ type PreviewJob = {
 // caption editing). This is the Telegram equivalent, built entirely as inline-keyboard/free-text
 // turns that edit the same preview message in place where possible - see
 // postfly-plan-projektu.md's discussion of Telegram as "pełny punkt kontroli".
+// Reels vs Feed is only a two-way choice (unlike TikTok's privacy_level + duet/stitch/comment
+// combo, which genuinely doesn't fit inline buttons) - no reason to make this web-only. Toggling
+// here also updates SocialAccount.lastMetaPostFormat, the same "sticky default" write-through
+// PATCH .../drafts/:id already does, so a choice made here sticks for future posts on either
+// channel too.
+function canToggleMetaFormat(job: PreviewJob) {
+  return (job.socialAccount.platform === 'FACEBOOK' || job.socialAccount.platform === 'INSTAGRAM') && job.video.mediaType === 'VIDEO';
+}
+
 function buildPreviewButtons(postGroupId: string, jobs: PreviewJob[]) {
-  const platformRows = jobs.map((job) => [
-    {
-      text: `${job.excludedFromPublish ? '☐' : '✅'} ${job.socialAccount.platform}`,
-      callback_data: `toggle:${postGroupId}:${job.socialAccount.platform}`,
-    },
-    {
-      text: '✏️ Edytuj',
-      callback_data: `editstart:${postGroupId}:${job.socialAccount.platform}`,
-    },
-  ]);
+  const platformRows = jobs.map((job) => {
+    const row = [
+      {
+        text: `${job.excludedFromPublish ? '☐' : '✅'} ${job.socialAccount.platform}`,
+        callback_data: `toggle:${postGroupId}:${job.socialAccount.platform}`,
+      },
+      {
+        text: '✏️ Edytuj',
+        callback_data: `editstart:${postGroupId}:${job.socialAccount.platform}`,
+      },
+    ];
+
+    if (canToggleMetaFormat(job)) {
+      row.push({
+        text: job.metaPostFormat === 'FEED' ? '📋 Zwykły post' : '🎬 Reels',
+        callback_data: `formattoggle:${postGroupId}:${job.socialAccount.platform}`,
+      });
+    }
+
+    return row;
+  });
 
   return [
     ...platformRows,
@@ -122,7 +142,7 @@ function buildPreviewMessage(jobs: PreviewJob[]) {
     '',
     ...lines,
     '',
-    'Odznacz platformę żeby ją pominąć, ✏️ Edytuj żeby poprawić opis/hashtagi/tytuł, potem zatwierdź albo anuluj.',
+    'Odznacz platformę żeby ją pominąć, ✏️ Edytuj żeby poprawić opis/hashtagi/tytuł, 🎬/📋 żeby przełączyć Reels/zwykły post (Facebook/Instagram), potem zatwierdź albo anuluj.',
   ].join('\n');
 }
 
@@ -427,6 +447,56 @@ async function handleCallbackQuery(update: NonNullable<TelegramUpdate['callback_
       buildPreviewMessage(allJobs),
       buildPreviewButtons(postGroupId, allJobs),
     ).catch((error) => logError('telegram', 'edit-message-toggle-failed', error, { chatId: chatIdStr }));
+    return;
+  }
+
+  if (action === 'formattoggle') {
+    if (!toggleTarget || (toggleTarget !== 'FACEBOOK' && toggleTarget !== 'INSTAGRAM')) {
+      await answerTelegramCallbackQuery(update.id, 'Nieprawidłowa platforma.').catch(() => {});
+      return;
+    }
+
+    const targetJob = await prisma.publishJob.findFirst({
+      where: { postGroupId, status: 'DRAFT', video: { userId: linkedUser.id }, socialAccount: { platform: toggleTarget } },
+      include: { video: true },
+    });
+
+    if (!targetJob) {
+      await answerTelegramCallbackQuery(update.id, 'Nie znaleziono tej platformy dla tego posta.').catch(() => {});
+      return;
+    }
+
+    if (targetJob.video.mediaType !== 'VIDEO') {
+      await answerTelegramCallbackQuery(update.id, 'Format Reels/post dotyczy tylko wideo.').catch(() => {});
+      return;
+    }
+
+    const nextFormat = targetJob.metaPostFormat === 'FEED' ? 'REELS' : 'FEED';
+
+    await prisma.publishJob.update({ where: { id: targetJob.id }, data: { metaPostFormat: nextFormat } });
+    // Same sticky-default write-through PATCH .../drafts/:id already does for the web composer -
+    // a choice made here should stick for the next post on this account too, on either channel.
+    await prisma.socialAccount
+      .update({ where: { id: targetJob.socialAccountId }, data: { lastMetaPostFormat: nextFormat } })
+      .catch((error) => logError('telegram', 'persist-sticky-meta-format-failed', error, { chatId: chatIdStr }));
+
+    const allJobs = await prisma.publishJob.findMany({
+      where: { postGroupId, status: 'DRAFT', video: { userId: linkedUser.id } },
+      include: { socialAccount: true, video: true },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    await answerTelegramCallbackQuery(
+      update.id,
+      nextFormat === 'FEED' ? `${toggleTarget}: zwykły post.` : `${toggleTarget}: Reels.`,
+    ).catch(() => {});
+
+    await editTelegramMessage(
+      chatIdStr,
+      messageId,
+      buildPreviewMessage(allJobs),
+      buildPreviewButtons(postGroupId, allJobs),
+    ).catch((error) => logError('telegram', 'edit-message-formattoggle-failed', error, { chatId: chatIdStr }));
     return;
   }
 

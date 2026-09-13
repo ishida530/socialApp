@@ -443,6 +443,10 @@ To domyka drugą (obok braku wyboru platform, już zamkniętej wyżej) część 
 
 Status: [x] zaimplementowane → [x] testy napisane i zielone (`tests/unit/telegram-edit-parser.test.ts`, `tests/api/telegram-caption-edit.test.ts`, zaktualizowany `tests/api/telegram-media-upload.test.ts`) → [ ] zweryfikowane realnie przez prawdziwego bota → [ ] zamknięte (PR #...)
 
+**Korekta w tej samej sesji — Reels/Feed jednak dostaje przycisk w Telegramie.** Powyższy projekt świadomie zostawił format Reels/zwykły post jako "tylko podgląd, edycja przez web", argumentując że to "ustawienie wielowartościowe" nie pasujące do przycisków czatu (analogicznie do prywatności TikToka). Użytkownik słusznie to zakwestionował po realnym teście: Reels/Feed to w rzeczywistości **wybór dwuwartościowy** (nie wielowartościowy jak prywatność TikToka + duet/stitch/komentarze razem) — dokładnie tak prosty jak już istniejący przełącznik platform. Dodano trzeci przycisk w rzędzie platformy (tylko Facebook/Instagram, tylko wideo — `canToggleMetaFormat`): 🎬 Reels / 📋 Zwykły post, akcja `formattoggle`, ten sam wzorzec edycji wiadomości w miejscu co `toggle`. Toggle w Telegramie **też** zapisuje się jako `SocialAccount.lastMetaPostFormat` (to samo write-through co PATCH w web) — wybór trzyma się dla kolejnych postów na obu kanałach.
+
+Status: [x] zaimplementowane → [x] testy napisane i zielone (`tests/api/telegram-platform-toggle.test.ts` — trzy nowe testy) → [ ] zweryfikowane realnie → [ ] zamknięte (PR #...)
+
 ---
 
 **Definicja "gotowy projekt w 100%":** każdy checkbox w sekcjach 6 i 7 odhaczony, każdy z jawnym DoD spełnionym i potwierdzonym testem (nie deklaracją), **QA niezależnie zweryfikowało, nie tylko Inżynier**, Architekt podpisał się pod skalowalnością w sekcji 9 dla każdej nowej warstwy, i sekcja 8 (Review końcowy) przeszła bez zastrzeżeń blokujących.
