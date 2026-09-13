@@ -4,6 +4,12 @@ import { badRequest, serverError, tooManyRequests, unauthorized } from '@/lib/se
 import { consumeRateLimit } from '@/lib/server/rate-limit';
 import { triggerPublishJob } from '@/lib/server/publish-jobs';
 
+// TASK-3.1.2 (decyzja PO 2026-09-13, "zostaw jak jest"): triggerPublishJob publikuje
+// synchronicznie w tym samym request/response, co dla wolnego protokołu (np. 3-etapowy upload
+// Facebook Reels) może zbliżyć się do domyślnego limitu czasu funkcji Vercela - tani margines
+// bezpieczeństwa bez przebudowy na kolejkę, ten sam wzorzec co app/api/videos/upload/route.ts.
+export const maxDuration = 60;
+
 export async function POST(
   request: NextRequest,
   context: { params: Promise<{ id: string }> },

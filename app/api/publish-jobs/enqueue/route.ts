@@ -4,6 +4,10 @@ import { badRequest, serverError, tooManyRequests, unauthorized } from '@/lib/se
 import { consumeRateLimit } from '@/lib/server/rate-limit';
 import { enqueueDraftGroup } from '@/lib/server/publish-jobs';
 
+// TASK-3.1.2 (decyzja PO 2026-09-13, "zostaw jak jest"): publishNow=true publikuje
+// synchronicznie w tym samym request/response - patrz [id]/trigger/route.ts dla pełne uzasadnienie.
+export const maxDuration = 60;
+
 /**
  * Krok 4 ("Gdzie i kiedy") finalizuje istniejące DRAFT-y utworzone przez
  * POST /api/publish-jobs/drafts (Krok 1→2). Nie tworzy nowych PublishJob-ów

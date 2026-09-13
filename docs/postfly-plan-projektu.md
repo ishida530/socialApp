@@ -693,7 +693,25 @@ Status: [x] zaimplementowane → [x] testy napisane i zielone → [x] zweryfikow
 
 ## Etap 2 — zamknięcie (2026-09-13)
 
-Pełny backlog EPIC 1-3 (sekcje 6-7 głównego planu) zamknięty w zakresie możliwym do odpowiedzialnego wykonania bez blokujących decyzji finansowych. Zrobione w tej sesji: EPIC 2 (cały), EPIC 1 P0+P1/P2 możliwe bez decyzji produktowych, EPIC 3 P0 + `TASK-3.2.1`/`3.2.2`/`3.2.3`/`3.3.2`, plus dwie funkcje wykraczające poza pierwotny backlog na prośbę użytkownika w trakcie sesji: persona konta (dopasowanie tonu AI do typu biznesu) i pierwszy krok w stronę realnej analityki (`PostMetric` + `/pomysl`). Świadomie odłożone, z uzasadnieniem: `TASK-1.1.3` (czeka na stabilny Prisma 8), `TASK-1.3.2` staging (odrzucone — koszt pieniężny, appka ma bazować wyłącznie na darmowych subskrypcjach), `TASK-1.5.3`/`1.5.4` (czekają na pierwszego faktycznego agenta z EPIC 4/5/8), `TASK-3.1.2` (trzy konkretne warianty do wyboru przez użytkownika, żaden nie wdrożony). Pełny "agent-mentor" konwersacyjny (idea zgłoszona przez użytkownika w trakcie sesji) świadomie NIE zbudowany jako osobna funkcja — to zakres EPIC 4 ("pełna pętla rozumowania agenta planującego"), już zsekwencjonowany jako późniejsza, większa praca; `/pomysl` jest tym, co dało się odpowiedzialnie zbudować teraz w tym samym duchu (pomoc twórcza na żądanie) bez kolizji z kosztowym/ryzykownym zakresem pełnego agenta.
+Pełny backlog EPIC 1-3 (sekcje 6-7 głównego planu) zamknięty w zakresie możliwym do odpowiedzialnego wykonania bez blokujących decyzji finansowych. Zrobione w tej sesji: EPIC 2 (cały), EPIC 1 P0+P1/P2 możliwe bez decyzji produktowych, EPIC 3 P0 + `TASK-3.2.1`/`3.2.2`/`3.2.3`/`3.3.2`, plus dwie funkcje wykraczające poza pierwotny backlog na prośbę użytkownika w trakcie sesji: persona konta (dopasowanie tonu AI do typu biznesu) i pierwszy krok w stronę realnej analityki (`PostMetric` + `/pomysl`). Świadomie odłożone, z uzasadnieniem: `TASK-1.1.3` (czeka na stabilny Prisma 8), `TASK-1.3.2` staging (odrzucone — koszt pieniężny, appka ma bazować wyłącznie na darmowych subskrypcjach), `TASK-1.5.3`/`1.5.4` (czekają na pierwszego faktycznego agenta z EPIC 4/5/8), `TASK-3.1.2` (trzy konkretne warianty do wyboru przez użytkownika, żaden nie wdrożony w tym momencie — zamknięte poniżej). Pełny "agent-mentor" konwersacyjny (idea zgłoszona przez użytkownika w trakcie sesji) świadomie NIE zbudowany jako osobna funkcja — to zakres EPIC 4 ("pełna pętla rozumowania agenta planującego"), już zsekwencjonowany jako późniejsza, większa praca; `/pomysl` jest tym, co dało się odpowiedzialnie zbudować teraz w tym samym duchu (pomoc twórcza na żądanie) bez kolizji z kosztowym/ryzykownym zakresem pełnego agenta.
+
+---
+
+### TASK-3.1.2 — decyzja i zamknięcie EPIC 3 (2026-09-13)
+
+Użytkownik poprosił o zamknięcie EPIC 3 i wybrał spośród trzech wariantów opisanych w sekcji "Etap 2 — podsumowanie sesji" (zostaw jak jest / przenieś na kolejkę z opóźnionym sukcesem / przenieś na kolejkę z wyjątkiem na natychmiastowy sukces).
+
+**[PO]:** decyzja właściciela produktu — **wariant (a), "zostaw jak jest"**, z dodatkowym tanim marginesem bezpieczeństwa (nie w oryginalnych trzech opcjach, zaproponowane jako uzupełnienie): ustawić `maxDuration` na routach, które publikują synchronicznie, zamiast przebudowy na kolejkę. Uzasadnienie niezmienione względem pierwszej analizy: brak dowodu na realny problem w produkcji, a przebudowa na kolejkę skasowałaby dzisiejszy natychmiastowy wynik w czacie.
+
+**[Architekt]:** `maxDuration = 60` to already-sprawdzona wartość w tym repo (`app/api/videos/upload/route.ts` używa dokładnie tego samego limitu dla też-potencjalnie-wolnej operacji) — nie nowy, niesprawdzony parametr. Zidentyfikowane WSZYSTKIE routy z tym samym ryzykownym wzorcem (synchroniczne wywołanie `processPublishJobImmediately`/`triggerPublishJob`/`enqueueDraftGroup` z `publishNow`), nie tylko webhook Telegrama — panel web ma dokładnie tę samą ścieżkę przez `POST /api/publish-jobs/[id]/trigger` i `POST /api/publish-jobs/enqueue`.
+
+**[Inżynier]:** `export const maxDuration = 60;` dodane w `app/api/telegram/webhook/route.ts`, `app/api/publish-jobs/[id]/trigger/route.ts`, `app/api/publish-jobs/enqueue/route.ts` — zero zmian logiki, czysto konfiguracyjne. (`app/api/publish-jobs/[id]/retry/route.ts` świadomie pominięty — w przeciwieństwie do `/retry` na Telegramie, ten endpoint tylko przełącza status na PENDING i wraca, nie woła publikacji synchronicznie, więc nie ma tego ryzyka.)
+
+**[QA]:** tsc/build czyste, pełna suita 241/241 w obu trybach APP_MODE bez regresji (zmiana nie dotyka żadnej ścieżki testowanej logiki, tylko konfigurację limitu czasu funkcji).
+
+Status: [x] zaimplementowane → [x] zweryfikowane (tsc, build, testy czyste) → [x] zamknięte (PR w przygotowaniu)
+
+**EPIC 3 — zamknięty.** Wszystkie zadania P0 zrealizowane lub świadomie rozstrzygnięte decyzją PO; `TASK-3.2.4` pozostaje jedynym niezaznaczonym punktem, jawnie nie dotyczy dopóki nie powstanie Agent społeczności (EPIC 5/8).
 
 ---
 
