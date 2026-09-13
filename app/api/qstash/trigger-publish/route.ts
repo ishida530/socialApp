@@ -4,6 +4,7 @@ import { processPublishJobImmediately } from '@/lib/server/publish-processor';
 import { verifyQStashSignature } from '@/lib/server/qstash';
 import { logError, logEvent } from '@/lib/server/observability';
 import { runWithRequestId } from '@/lib/server/request-context';
+import { notifyJobFailedImmediately } from '@/lib/server/telegram-notifications';
 
 // Called by Upstash QStash at (or shortly after) a job's scheduledFor time - see
 // lib/server/qstash.ts / lib/server/publish-jobs.ts (enqueueDraftGroup schedules this for every
@@ -44,6 +45,18 @@ async function handlePost(request: NextRequest) {
     // in the meantime is a harmless no-op ('skipped'), not an error.
     const outcome = await processPublishJobImmediately(jobId);
     logEvent('qstash', 'trigger-publish-handled', { jobId, outcome });
+
+    // TASK-3.2.2: same reasoning as processDuePublishJobs (cron) - QStash firing this route is
+    // never a direct reply to something the user just typed, so a terminal failure needs a
+    // push, not just a log line. Not wired into processPublishJobImmediately itself because
+    // that function is ALSO called by /approve and /retry on Telegram, which already send a
+    // direct reply in the same chat - notifying there too would just double up the message.
+    if (outcome === 'failed') {
+      await notifyJobFailedImmediately(jobId).catch((error) =>
+        logError('qstash', 'notify-failure-error', error, { jobId }),
+      );
+    }
+
     return NextResponse.json({ ok: true, jobId, outcome });
   } catch (error) {
     logError('qstash', 'trigger-publish-failed', error, { jobId });

@@ -4,6 +4,7 @@ import { decryptToken, refreshSocialAccessToken } from './social-oauth';
 import { readFile } from 'fs/promises';
 import { buildSignedVideoSourceUrl } from './video-source-signature';
 import { cleanupMediaAfterFullPublish } from './media-lifecycle';
+import { notifyJobFailedImmediately } from './telegram-notifications';
 
 type ClaimedJobRow = {
   id: string;
@@ -1560,6 +1561,12 @@ export async function processDuePublishJobs(batchSizeRaw: number) {
 
     if (outcome === 'failed') {
       summary.failed += 1;
+      // TASK-3.2.2: this cron sweep is the only proactive trigger here - nobody is waiting in
+      // a chat for a direct reply, so a terminal failure has to be pushed, not just logged.
+      // Best-effort: notifyJobFailedImmediately already catches its own send errors.
+      await notifyJobFailedImmediately(jobId).catch((error) =>
+        logError('publish-processor', 'notify-failure-error', error, { jobId }),
+      );
       continue;
     }
 
