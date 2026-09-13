@@ -26,6 +26,10 @@ export default function AccountPage() {
   const [telegramLinkCode, setTelegramLinkCode] = useState<TelegramLinkCodeResponse | null>(null);
   const [isGeneratingCode, setIsGeneratingCode] = useState(false);
 
+  const [businessDescription, setBusinessDescription] = useState('');
+  const [isSavingBusinessDescription, setIsSavingBusinessDescription] = useState(false);
+  const BUSINESS_DESCRIPTION_MAX_LENGTH = 500;
+
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.replace('/login');
@@ -42,6 +46,29 @@ export default function AccountPage() {
       .then((response) => setTelegramLinked(response.data.linked))
       .catch(() => setTelegramLinked(null));
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    }
+
+    apiClient
+      .get<{ businessDescription: string | null }>('/auth/me')
+      .then((response) => setBusinessDescription(response.data.businessDescription ?? ''))
+      .catch(() => {});
+  }, [isAuthenticated]);
+
+  const handleSaveBusinessDescription = async () => {
+    try {
+      setIsSavingBusinessDescription(true);
+      await apiClient.patch('/auth/me', { businessDescription });
+      toast.success('Zapisano.');
+    } catch {
+      toast.error('Nie udało się zapisać. Spróbuj ponownie.');
+    } finally {
+      setIsSavingBusinessDescription(false);
+    }
+  };
 
   const handleGenerateTelegramCode = async () => {
     try {
@@ -137,6 +164,40 @@ export default function AccountPage() {
             </p>
           </div>
         )}
+      </section>
+
+      <section className="bg-card border border-border rounded-xl p-6 space-y-4 max-w-2xl">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">Profil konta</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Opisz w 1-2 zdaniach czym zajmuje się to konto (np. &quot;Jestem raperem, publikuję freestyle&quot;
+            albo &quot;Prowadzę salon kosmetyczny, oferujemy paznokcie i rzęsy&quot;) - AI dopasuje ton i styl
+            generowanych opisów/hashtagów do tego kontekstu, zamiast pisać neutralnie.
+          </p>
+        </div>
+
+        <div>
+          <textarea
+            value={businessDescription}
+            onChange={(event) => setBusinessDescription(event.target.value.slice(0, BUSINESS_DESCRIPTION_MAX_LENGTH))}
+            rows={3}
+            maxLength={BUSINESS_DESCRIPTION_MAX_LENGTH}
+            className="w-full rounded-lg border border-border bg-secondary/30 px-3 py-2 text-sm text-foreground"
+            placeholder="Np. Prowadzę salon kosmetyczny w Warszawie, specjalizacja: paznokcie hybrydowe."
+          />
+          <p className="text-xs text-muted-foreground mt-1 text-right">
+            {businessDescription.length}/{BUSINESS_DESCRIPTION_MAX_LENGTH}
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleSaveBusinessDescription}
+          disabled={isSavingBusinessDescription}
+          className="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-secondary/40 transition-colors text-sm font-medium disabled:opacity-50"
+        >
+          {isSavingBusinessDescription ? 'Zapisywanie...' : 'Zapisz'}
+        </button>
       </section>
 
       <section className="bg-card border border-destructive/40 rounded-xl p-6 space-y-4 max-w-2xl">

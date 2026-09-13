@@ -54,8 +54,18 @@ model User {
   name           String
   passwordHash   String?
   defaultExplicitContent Boolean?
+  // One free-text sentence or two describing what this account is FOR (e.g. "Jestem raperem,
+  // publikuję freestyle", "Prowadzę salon kosmetyczny, paznokcie i rzęsy") - threaded into the
+  // Claude content-generation prompt (lib/server/smart-autopilot/ai-content.ts) so tone/style
+  // adapts to the actual account instead of assuming every user is a musician. Asked once at
+  // onboarding (web account settings, or Telegram after /start if still empty), editable anytime.
+  businessDescription String?
   telegramChatId String?         @unique
   publishingPaused Boolean       @default(false)
+  // Set while the bot is waiting for a free-text reply answering the onboarding
+  // businessDescription question (see handleStartCommand) - same free-text-turn pattern as
+  // telegramEditingJobId below.
+  telegramAwaitingBusinessDescription Boolean @default(false)
   // Set while the bot is waiting for a free-text reply to edit one DRAFT job's title/caption/
   // hashtags (see handleEditReply in the Telegram webhook) - not a hard FK, the job may be
   // published/canceled/deleted before the reply arrives, checked defensively at lookup time.

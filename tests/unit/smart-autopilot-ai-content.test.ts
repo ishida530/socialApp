@@ -110,6 +110,47 @@ describe('generateBundlesWithClaude', () => {
     expect(result).toBeNull();
   });
 
+  it('threads businessDescription into the Claude request as accountContext, redacted for PII', async () => {
+    let capturedBody: { messages: Array<{ content: string }> } | null = null;
+    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
+      capturedBody = JSON.parse(init!.body as string);
+      return {
+        ok: true,
+        json: async () => ({
+          content: [
+            {
+              type: 'tool_use',
+              name: 'generate_platform_bundles',
+              input: { bundles: [{ platform: 'TIKTOK', caption: 'x', hashtags: ['a'] }] },
+            },
+          ],
+        }),
+      };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await generateBundlesWithClaude(
+      analysis,
+      baseInput,
+      ['TIKTOK'],
+      'Prowadzę salon kosmetyczny, kontakt: jan.kowalski@example.com',
+    );
+
+    const sentText = capturedBody!.messages[0].content;
+    expect(sentText).toContain('Prowadzę salon kosmetyczny');
+    expect(sentText).not.toContain('jan.kowalski@example.com');
+  });
+
+  it('sends an empty accountContext when no businessDescription is provided, without erroring', async () => {
+    vi.stubGlobal(
+      'fetch',
+      mockClaudeToolResponse([{ platform: 'TIKTOK', caption: 'x', hashtags: ['a'] }]),
+    );
+
+    const result = await generateBundlesWithClaude(analysis, baseInput, ['TIKTOK'], null);
+    expect(result).not.toBeNull();
+  });
+
   it('returns null when Claude is not configured (no API key)', async () => {
     delete process.env.ANTHROPIC_API_KEY;
     const fetchMock = vi.fn();

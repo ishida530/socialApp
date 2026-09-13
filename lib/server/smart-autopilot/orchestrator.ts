@@ -157,10 +157,10 @@ export async function orchestrateContent(userId: string, input: OrchestrateConte
 
   dedupMap.set(payloadHash, Date.now());
 
-  const subscription = await prisma.subscription.findUnique({
-    where: { userId },
-    select: { plan: true },
-  });
+  const [subscription, user] = await Promise.all([
+    prisma.subscription.findUnique({ where: { userId }, select: { plan: true } }),
+    prisma.user.findUnique({ where: { id: userId }, select: { businessDescription: true } }),
+  ]);
 
   const tier = normalizeSubscriptionTier(subscription?.plan ?? 'FREE');
 
@@ -200,7 +200,9 @@ export async function orchestrateContent(userId: string, input: OrchestrateConte
     // Real, tailored copy from Claude when configured; the pre-existing persona templates
     // remain the fallback (no ANTHROPIC_API_KEY, timeout, or a malformed/incomplete response) -
     // same "AI enhances, heuristic is the safety net" pattern as the classification step above.
-    let bundles = (await generateBundlesWithClaude(analysis, input, [...requestedPlatforms])) ?? transformByPersona(analysis, input);
+    let bundles =
+      (await generateBundlesWithClaude(analysis, input, [...requestedPlatforms], user?.businessDescription)) ??
+      transformByPersona(analysis, input);
 
     if (input.targetPlatforms && input.targetPlatforms.length > 0) {
       const allowedPlatforms = new Set(input.targetPlatforms);
