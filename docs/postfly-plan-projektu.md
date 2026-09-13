@@ -572,6 +572,24 @@ Przy okazji aktywny: `.github/dependabot.yml` już otworzył 12 PR-ów (npm + gi
 
 ---
 
+### EPIC 3 — pozostałe komendy Telegram + test izolacji (2026-09-13)
+
+Kontynuacja "Etap 2 — powrót do pełnego backlogu": po EPIC 1 P0, ruch na EPIC 3 (P0 tego epiku były już zamknięte, P1/P2 nie blokują kolejności).
+
+**[PO]:** audyt (agent Explore) pokazał, że TASK-3.1.1 (powiązanie konta) i TASK-3.3.1 (pełny cykl przez Telegram) były już dawno zrobione, tylko nieodhaczone w backlogu — odhaczone z dowodem. Prawdziwe braki: TASK-3.2.1 brakowało `/retry /cancel /logs /revenue`, TASK-3.3.2 (izolacja multi-user) nie miało dedykowanego testu (mimo że ownership-checki już istniały w kodzie).
+
+**[Architekt]:** `/cancel` zaprojektowany jako alias `/reject`, nie osobna ścieżka — `cancelPublishJob` już obsługiwał każdy nieterminalny status (DRAFT/PENDING/RUNNING), więc "odrzuć szkic" i "anuluj zaplanowany post" to ta sama operacja pod inną nazwą pasującą do intencji użytkownika. `/revenue`: świadoma decyzja, żeby NIE pokazywać danych o subskrypcji Postfly (koszt appki) pod nazwą sugerującą przychód z treści (EPIC 5 Monetyzacja nieistniejący) — uczciwa informacja "tej funkcji jeszcze nie ma" zamiast mylącego zamiennika.
+
+**[Inżynier]:** `lib/server/publish-jobs.ts`: `retryPublishJob` (FAILED/CANCELED → PENDING + natychmiastowa próba publikacji, ten sam wzorzec co `triggerPublishJob`), `getRecentActivityForUser` (ostatnie zakończone zadania, wyłącznie odczyt). Webhook: `formatActivityMessage`, cztery nowe gałęzie w `handleTextCommand`.
+
+**[QA]:** `tests/api/telegram-commands.test.ts` (+7: cancel-jako-alias, retry-sukces, retry-odrzucony-dla-złego-statusu, logs-z-danymi, logs-puste, revenue-uczciwa-odpowiedź). Nowy `tests/api/telegram-multi-user-isolation.test.ts` (TASK-3.3.2) — dowodzi, nie zakłada: `/status`/`/logs` nigdy nie przeciekają danych drugiego użytkownika (osobne liczniki, brak markera z cudzego błędu w treści), `/reject`/`/cancel`/`/retry` na cudzym zadaniu = jawna odmowa + zero efektu w bazie, callback_query (przycisk) na cudzym `postGroupId` też odrzucony. Pełna suita: 190/190 w obu trybach APP_MODE, tsc/build czyste.
+
+**Uczciwie nieodhaczone:** DoD TASK-3.2.1 dosłownie wymaga testu ręcznego przez prawdziwego bota — mam tylko automatyczne testy. TASK-3.1.2 (webhook → kolejka, nie synchronicznie) i TASK-3.2.4 (community agent hardening) świadomie odłożone z uzasadnieniem w `postfly-backlog-sprinty.md`.
+
+Status: [x] zaimplementowane → [x] testy napisane i zielone (190/190 × 2 tryby) → [x] zweryfikowane (tsc, build czyste) → [ ] zamknięte (PR w przygotowaniu), [ ] zweryfikowane realnie przez bota
+
+---
+
 **Definicja "gotowy projekt w 100%":** każdy checkbox w sekcjach 6 i 7 odhaczony, każdy z jawnym DoD spełnionym i potwierdzonym testem (nie deklaracją), **QA niezależnie zweryfikowało, nie tylko Inżynier**, Architekt podpisał się pod skalowalnością w sekcji 9 dla każdej nowej warstwy, i sekcja 8 (Review końcowy) przeszła bez zastrzeżeń blokujących.
 
 ## 0.1 Zespół UX/UI — równoległy tor pracy

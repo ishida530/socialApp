@@ -168,4 +168,155 @@ describe('Telegram text commands (TASK-3.2.1)', () => {
     expect((await prisma.publishJob.findUnique({ where: { id: job.id } }))?.status).toBe('CANCELED');
     expect(mockSendTelegramMessage.mock.calls.at(-1)?.[1]).toMatch(/Odrzucono/);
   });
+
+  it('/cancel <id> is an alias for /reject - cancels a PENDING (already scheduled) job', async () => {
+    const { user } = await createTestUser();
+    cleanupUserIds.push(user.id);
+    const chatId = '1000000006';
+    await linkChat(user.id, chatId);
+
+    const account = await createSocialAccount(user.id, 'FACEBOOK');
+    const video = await createVideo(user.id);
+    const job = await prisma.publishJob.create({
+      data: {
+        status: 'PENDING',
+        postGroupId: 'g5',
+        caption: 'x',
+        hashtags: [],
+        scheduledFor: new Date(Date.now() + 60 * 60 * 1000),
+        videoId: video.id,
+        socialAccountId: account.id,
+      },
+    });
+
+    await POST(webhookRequest(chatId, `/cancel ${job.id}`));
+
+    expect((await prisma.publishJob.findUnique({ where: { id: job.id } }))?.status).toBe('CANCELED');
+    expect(mockSendTelegramMessage.mock.calls.at(-1)?.[1]).toMatch(/Odrzucono\/anulowano/);
+  });
+
+  it('/retry <id> resets a FAILED job to PENDING and retries publishing immediately', async () => {
+    const { user } = await createTestUser();
+    cleanupUserIds.push(user.id);
+    const chatId = '1000000007';
+    await linkChat(user.id, chatId);
+
+    const { encrypt } = await import('@/lib/server/crypto');
+    const account = await createSocialAccount(user.id, 'FACEBOOK', { accessToken: encrypt('token') });
+    const video = await createVideo(user.id);
+    const job = await prisma.publishJob.create({
+      data: {
+        status: 'FAILED',
+        postGroupId: 'g6',
+        caption: 'x',
+        hashtags: [],
+        scheduledFor: new Date(Date.now() - 60 * 60 * 1000),
+        videoId: video.id,
+        socialAccountId: account.id,
+        errorMessage: 'previous attempt failed',
+        metaPostFormat: 'FEED',
+      },
+    });
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ id: 'r2', post_id: 'r2' }), text: async () => '' }),
+    );
+
+    await POST(webhookRequest(chatId, `/retry ${job.id}`));
+    vi.unstubAllGlobals();
+
+    const refreshed = await prisma.publishJob.findUnique({ where: { id: job.id } });
+    expect(refreshed?.status).toBe('SUCCESS');
+    expect(refreshed?.errorMessage).toBeNull();
+    expect(mockSendTelegramMessage.mock.calls.at(-1)?.[1]).toMatch(/Ponowiono/);
+  });
+
+  it('/retry <id> for a job that is not FAILED/CANCELED is rejected', async () => {
+    const { user } = await createTestUser();
+    cleanupUserIds.push(user.id);
+    const chatId = '1000000008';
+    await linkChat(user.id, chatId);
+
+    const account = await createSocialAccount(user.id, 'FACEBOOK');
+    const video = await createVideo(user.id);
+    const job = await prisma.publishJob.create({
+      data: {
+        status: 'SUCCESS',
+        postGroupId: 'g7',
+        caption: 'x',
+        hashtags: [],
+        scheduledFor: new Date(),
+        videoId: video.id,
+        socialAccountId: account.id,
+      },
+    });
+
+    await POST(webhookRequest(chatId, `/retry ${job.id}`));
+
+    expect((await prisma.publishJob.findUnique({ where: { id: job.id } }))?.status).toBe('SUCCESS');
+    expect(mockSendTelegramMessage.mock.calls.at(-1)?.[1]).toMatch(/Nie udało się ponowić/);
+  });
+
+  it('/logs lists recent completed jobs (success/failed/canceled), newest first', async () => {
+    const { user } = await createTestUser();
+    cleanupUserIds.push(user.id);
+    const chatId = '1000000009';
+    await linkChat(user.id, chatId);
+
+    const account = await createSocialAccount(user.id, 'INSTAGRAM');
+    const video = await createVideo(user.id);
+    await prisma.publishJob.create({
+      data: {
+        status: 'SUCCESS',
+        postGroupId: 'g8',
+        caption: 'x',
+        hashtags: [],
+        scheduledFor: new Date(),
+        videoId: video.id,
+        socialAccountId: account.id,
+        remotePostUrl: 'https://instagram.com/p/abc',
+      },
+    });
+    await prisma.publishJob.create({
+      data: {
+        status: 'FAILED',
+        postGroupId: 'g9',
+        caption: 'x',
+        hashtags: [],
+        scheduledFor: new Date(),
+        videoId: video.id,
+        socialAccountId: account.id,
+        errorMessage: 'token expired',
+      },
+    });
+
+    await POST(webhookRequest(chatId, '/logs'));
+
+    const message = mockSendTelegramMessage.mock.calls.at(-1)?.[1] as string;
+    expect(message).toMatch(/instagram\.com\/p\/abc/);
+    expect(message).toMatch(/token expired/);
+  });
+
+  it('/logs reports no history when there are no completed jobs yet', async () => {
+    const { user } = await createTestUser();
+    cleanupUserIds.push(user.id);
+    const chatId = '1000000010';
+    await linkChat(user.id, chatId);
+
+    await POST(webhookRequest(chatId, '/logs'));
+
+    expect(mockSendTelegramMessage.mock.calls.at(-1)?.[1]).toMatch(/Brak zakończonych zadań/);
+  });
+
+  it('/revenue honestly reports the feature does not exist yet, rather than fabricating a number', async () => {
+    const { user } = await createTestUser();
+    cleanupUserIds.push(user.id);
+    const chatId = '1000000011';
+    await linkChat(user.id, chatId);
+
+    await POST(webhookRequest(chatId, '/revenue'));
+
+    expect(mockSendTelegramMessage.mock.calls.at(-1)?.[1]).toMatch(/jeszcze nie istnieje/);
+  });
 });

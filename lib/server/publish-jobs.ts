@@ -435,6 +435,76 @@ export async function cancelPublishJob(userId: string, jobId: string): Promise<C
   return { ok: true, publishJob: updated };
 }
 
+// TASK-3.2.1: rdzeń app/api/publish-jobs/[id]/retry (POST) i /retry <id> na Telegramie - ten
+// sam efekt (FAILED/CANCELED -> PENDING, czyszczenie errorMessage), plus natychmiastowa próba
+// publikacji (jak triggerPublishJob) zamiast czekania na najbliższy przebieg crona/QStash, bo
+// użytkownik w tym momencie aktywnie czeka na wynik w czacie.
+export type RetryPublishJobResult =
+  | {
+      ok: true;
+      publishJob: PublishJobWithRelations;
+      immediateOutcome: Awaited<ReturnType<typeof processPublishJobImmediately>>;
+    }
+  | { ok: false; error: string };
+
+export async function retryPublishJob(userId: string, jobId: string): Promise<RetryPublishJobResult> {
+  const job = await prisma.publishJob.findFirst({
+    where: { id: jobId, video: { userId } },
+    select: { id: true, status: true },
+  });
+
+  if (!job) {
+    return { ok: false, error: 'Nie znaleziono zadania publikacji dla użytkownika' };
+  }
+
+  if (job.status !== 'FAILED' && job.status !== 'CANCELED') {
+    return { ok: false, error: 'Retry jest dostępny tylko dla statusu FAILED lub CANCELED' };
+  }
+
+  await prisma.publishJob.update({
+    where: { id: job.id },
+    data: { status: 'PENDING', scheduledFor: new Date(), errorMessage: null },
+  });
+
+  const immediateOutcome = await processPublishJobImmediately(job.id);
+
+  const refreshed = await prisma.publishJob.findUniqueOrThrow({
+    where: { id: job.id },
+    include: PUBLISH_JOB_INCLUDE,
+  });
+
+  return { ok: true, publishJob: refreshed, immediateOutcome };
+}
+
+// TASK-3.2.1: rdzeń komendy /logs - ostatnie zakończone zadania (sukces/błąd/anulowane) danego
+// użytkownika, wyłącznie odczyt. Celowo pomija PENDING/DRAFT/RUNNING - te pokazuje już /status.
+export type RecentActivityEntry = {
+  id: string;
+  platform: string;
+  status: string;
+  updatedAt: Date;
+  remotePostUrl: string | null;
+  errorMessage: string | null;
+};
+
+export async function getRecentActivityForUser(userId: string, limit = 5): Promise<RecentActivityEntry[]> {
+  const jobs = await prisma.publishJob.findMany({
+    where: { video: { userId }, status: { in: ['SUCCESS', 'FAILED', 'CANCELED'] } },
+    orderBy: { updatedAt: 'desc' },
+    take: limit,
+    include: { socialAccount: { select: { platform: true } } },
+  });
+
+  return jobs.map((job) => ({
+    id: job.id,
+    platform: job.socialAccount.platform,
+    status: job.status,
+    updatedAt: job.updatedAt,
+    remotePostUrl: job.remotePostUrl,
+    errorMessage: job.errorMessage,
+  }));
+}
+
 export type TelegramStatusSnapshot = {
   publishingPaused: boolean;
   pendingCount: number;
