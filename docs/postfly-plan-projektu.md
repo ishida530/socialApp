@@ -425,7 +425,23 @@ Status: [x] zaimplementowane → [x] testy napisane i zielone (`tests/api/telegr
 
 **Architektura:** nowy współdzielony klient `lib/server/anthropic-client.ts` (`callClaudeTool` — Anthropic Messages API, wymuszony tool-use zamiast prompt-owego JSON mode jak w OpenAI, bo tool-use daje gwarantowaną strukturę bez ręcznego `JSON.parse`/walidacji błędów parsowania). Ten sam kontrakt co poprzednia integracja OpenAI i co reszta appki: **brak klucza albo błąd → `null` → wywołujący spada na deterministyczny fallback** (heurystyka dla klasyfikacji, szablon dla treści) — appka nigdy nie wymaga twardo klucza Anthropic do działania, tylko go wykorzystuje gdy jest dostępny. PII redagowane (`redactPotentialPii`) PRZED wysłaniem opisu do Claude, ta sama polityka co już istniała dla szablonu.
 
-Status: [x] zaimplementowane → [x] testy napisane i zielone (`tests/unit/anthropic-client.test.ts`, `tests/unit/smart-autopilot-ai-content.test.ts`, `tests/unit/smart-autopilot-llm.test.ts`) → [ ] zweryfikowane realnie z prawdziwym kluczem `ANTHROPIC_API_KEY` (trzeba dodać go w Vercelu — `OPENAI_API_KEY` był tam ustawiony, ale po tej migracji nie jest już czytany przez żaden kod, można go usunąć) → [ ] zamknięte (PR #...)
+Status: [x] zaimplementowane → [x] testy napisane i zielone (`tests/unit/anthropic-client.test.ts`, `tests/unit/smart-autopilot-ai-content.test.ts`, `tests/unit/smart-autopilot-llm.test.ts`) → [x] zweryfikowane realnie z prawdziwym kluczem `ANTHROPIC_API_KEY` na produkcji (potwierdzone przez użytkownika: caption/hashtagi realnie generowane przez Claude, nie szablon) → [x] zamknięte (PR #24)
+
+---
+
+**Edycja treści + widoczność formatu przez Telegram (2026-09-13)** — bezpośrednio po potwierdzeniu, że Claude realnie generuje treść, użytkownik zgłosił dwie rzeczy naraz: (1) chce móc przejrzeć i poprawić wygenerowany tytuł/opis/hashtagi bezpośrednio w Telegramie, PRZED zatwierdzeniem — dopiero po akceptacji ma ruszać proces publikacji; (2) Telegram powinien pokazywać, jaki to będzie typ publikacji (post czy Shorts/Reels), dopasowany do platformy.
+
+To domyka drugą (obok braku wyboru platform, już zamkniętej wyżej) część luki między "Telegram to pełny punkt kontroli" a rzeczywistością — poprzednio jedyną drogą poprawienia AI-wygenerowanej treści był web.
+
+**Projekt:** przycisk "✏️ Edytuj" per platforma na wiadomości-podglądzie (obok istniejącego przełącznika platformy), otwierający turę swobodnego tekstu — bot pyta o nową treść, user odpowiada zwykłą wiadomością, bot ją parsuje i aktualizuje draft, potem wysyła świeży podgląd. Konwencja parsowania naśladuje to, jak ludzie już naturalnie piszą posty (tekst, potem hashtagi na końcu zaczynające się od #) — zero nowej składni do nauczenia. Dla YouTube: wiadomość wieloliniowa = pierwsza linia to tytuł, reszta to opis; jednoliniowa = tylko opis, tytuł bez zmian. Pole, którego user nie dotknął (nie ma w odpowiedzi żadnych `#hashtag`, albo wiadomość jednoliniowa na YouTube) zostaje bez zmian — wysłanie samych nowych hashtagów nie kasuje istniejącego opisu i odwrotnie.
+
+**Stan (state) między turami**: `User.telegramEditingJobId` — jedyny kawałek stanu potrzebny, bo każde żądanie webhooka jest bezstanowe. Ustawiany przez `editstart`, zawsze czyszczony na starcie `handleEditReply` (nie "przy sukcesie") — błędna/porzucona edycja nigdy nie może zablokować czatu w tłumaczeniu każdej przyszłej wiadomości jako treści edycji. Ukośnikowa komenda (np. `/status`) zawsze wygrywa nawet w trakcie edycji, żeby user nie był uwięziony.
+
+**Widoczność formatu**: wiadomość-podgląd (`buildPreviewMessage`) pokazuje teraz per platforma jaki to typ publikacji — `describePlatformFormat`: TikTok zawsze "wideo", Facebook/Instagram "Reels" albo "zwykły post" (czyta `metaPostFormat`, ten sam mechanizm co panel web), YouTube — best-effort na podstawie `durationSec` (appka nie śledzi proporcji obrazu, więc to szacunek, nie pewność, ta sama uczciwość co ostrzeżenie o limicie długości TikToka w `MediaStep` po stronie web).
+
+**Wdrożenie:** `prisma/schema.prisma` (`User.telegramEditingJobId`), `lib/server/telegram-edit-parser.ts` (czysta funkcja parsująca, testowalna w izolacji), `app/api/telegram/webhook/route.ts` (`buildPreviewButtons`/`buildPreviewMessage` przebudowane o przycisk edycji i opis formatu, nowa gałąź `action === 'editstart'`, nowa funkcja `handleEditReply`, routing wiadomości tekstowych sprawdza `telegramEditingJobId` przed komendami).
+
+Status: [x] zaimplementowane → [x] testy napisane i zielone (`tests/unit/telegram-edit-parser.test.ts`, `tests/api/telegram-caption-edit.test.ts`, zaktualizowany `tests/api/telegram-media-upload.test.ts`) → [ ] zweryfikowane realnie przez prawdziwego bota → [ ] zamknięte (PR #...)
 
 ---
 

@@ -56,6 +56,10 @@ model User {
   defaultExplicitContent Boolean?
   telegramChatId String?         @unique
   publishingPaused Boolean       @default(false)
+  // Set while the bot is waiting for a free-text reply to edit one DRAFT job's title/caption/
+  // hashtags (see handleEditReply in the Telegram webhook) - not a hard FK, the job may be
+  // published/canceled/deleted before the reply arrives, checked defensively at lookup time.
+  telegramEditingJobId String?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   socialAccounts SocialAccount[]

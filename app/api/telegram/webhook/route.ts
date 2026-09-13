@@ -21,6 +21,7 @@ import {
 import { prisma } from '@/lib/server/prisma';
 import { unauthorized } from '@/lib/server/http';
 import { logError, logEvent } from '@/lib/server/observability';
+import { parseTelegramEditReply } from '@/lib/server/telegram-edit-parser';
 
 type TelegramPhotoSize = { file_id: string; file_size?: number };
 type TelegramVideo = { file_id: string; file_size?: number; mime_type?: string };
@@ -45,24 +46,31 @@ type TelegramUpdate = {
 const START_COMMAND_PATTERN = /^\/start(?:@\w+)?\s+(\S+)/i;
 const VALID_TOGGLE_PLATFORMS = ['YOUTUBE', 'TIKTOK', 'INSTAGRAM', 'FACEBOOK'];
 
+type PreviewJob = {
+  socialAccount: { platform: string };
+  excludedFromPublish: boolean;
+  metaPostFormat: string | null;
+  video: { mediaType: string; durationSec: number | null };
+};
+
 // One row of Publikuj/Anuluj was the whole control surface Telegram had - no way to skip a
-// single platform for one post (the web composer's ScheduleStep has this via checkboxes; this
-// is the Telegram equivalent, built as a keyboard the toggle callback edits in place, same
-// message, same "1 wiadomość = 1 decyzja" pattern - see postfly-plan-projektu.md's discussion
-// of Telegram as "pełny punkt kontroli").
-function buildPreviewButtons(
-  postGroupId: string,
-  jobs: Array<{ socialAccount: { platform: string }; excludedFromPublish: boolean }>,
-) {
-  const platformRows: { text: string; callback_data: string }[][] = [];
-  for (let i = 0; i < jobs.length; i += 2) {
-    platformRows.push(
-      jobs.slice(i, i + 2).map((job) => ({
-        text: `${job.excludedFromPublish ? '☐' : '✅'} ${job.socialAccount.platform}`,
-        callback_data: `toggle:${postGroupId}:${job.socialAccount.platform}`,
-      })),
-    );
-  }
+// single platform for one post, no visibility into which format (Reels vs Feed vs Shorts) it
+// would go out as, and no way to fix the AI-generated caption without leaving the chat (the web
+// composer has all of this via ScheduleStep checkboxes, MetaFormatPanel, and per-platform
+// caption editing). This is the Telegram equivalent, built entirely as inline-keyboard/free-text
+// turns that edit the same preview message in place where possible - see
+// postfly-plan-projektu.md's discussion of Telegram as "pełny punkt kontroli".
+function buildPreviewButtons(postGroupId: string, jobs: PreviewJob[]) {
+  const platformRows = jobs.map((job) => [
+    {
+      text: `${job.excludedFromPublish ? '☐' : '✅'} ${job.socialAccount.platform}`,
+      callback_data: `toggle:${postGroupId}:${job.socialAccount.platform}`,
+    },
+    {
+      text: '✏️ Edytuj',
+      callback_data: `editstart:${postGroupId}:${job.socialAccount.platform}`,
+    },
+  ]);
 
   return [
     ...platformRows,
@@ -73,14 +81,49 @@ function buildPreviewButtons(
   ];
 }
 
-function buildPreviewMessage(jobs: Array<{ socialAccount: { platform: string }; excludedFromPublish: boolean }>) {
-  const included = jobs.filter((job) => !job.excludedFromPublish).map((job) => job.socialAccount.platform);
-  const targetLine =
-    included.length > 0
-      ? `Publikacja pójdzie na: ${included.join(', ')}.`
-      : 'Wszystkie platformy odznaczone - nie ma czego opublikować.';
+// YouTube's Shorts-vs-regular-video split isn't a parameter we control (YouTube classifies it
+// from duration + aspect ratio, and we only track duration) - shown as a best-effort estimate,
+// not a promise, same honesty the MediaStep duration warning already uses on the web side.
+const YOUTUBE_SHORTS_MAX_SEC = 180;
 
-  return `Materiał odebrany! ${targetLine}\n\nOdznacz platformę, żeby ją pominąć dla tego posta, potem zatwierdź albo anuluj — treść możesz doprecyzować w panelu Postfly przed zatwierdzeniem.`;
+function describePlatformFormat(job: PreviewJob) {
+  const platform = job.socialAccount.platform;
+
+  if (job.video.mediaType === 'IMAGE') {
+    return 'zdjęcie';
+  }
+
+  if (platform === 'TIKTOK') {
+    return 'wideo';
+  }
+
+  if (platform === 'INSTAGRAM' || platform === 'FACEBOOK') {
+    return job.metaPostFormat === 'FEED' ? 'zwykły post' : 'Reels';
+  }
+
+  if (platform === 'YOUTUBE') {
+    const duration = job.video.durationSec;
+    if (typeof duration === 'number' && duration > 0) {
+      return duration <= YOUTUBE_SHORTS_MAX_SEC ? 'prawdopodobnie Shorts (≤3 min)' : 'zwykłe wideo (>3 min)';
+    }
+    return 'wideo (Shorts czy zwykłe - zależy od długości/proporcji)';
+  }
+
+  return 'post';
+}
+
+function buildPreviewMessage(jobs: PreviewJob[]) {
+  const lines = jobs.map(
+    (job) => `${job.excludedFromPublish ? '☐' : '✅'} ${job.socialAccount.platform} — ${describePlatformFormat(job)}`,
+  );
+
+  return [
+    'Materiał odebrany! Oto co przygotowałem:',
+    '',
+    ...lines,
+    '',
+    'Odznacz platformę żeby ją pominąć, ✏️ Edytuj żeby poprawić opis/hashtagi/tytuł, potem zatwierdź albo anuluj.',
+  ].join('\n');
 }
 
 async function handleStartCommand(chatIdStr: string, code: string) {
@@ -156,6 +199,62 @@ async function handleIncomingMedia(
       'Coś poszło nie tak przy przetwarzaniu materiału. Spróbuj ponownie albo dodaj go przez panel Postfly.',
     ).catch(() => {});
   }
+}
+
+// Consumes the free-text reply started by the "✏️ Edytuj" button (see the `editstart` callback
+// below). User.telegramEditingJobId is the only piece of server-side state needed to make an
+// ordinary text message mean "this is the new caption for that job", since each webhook request
+// is otherwise stateless. Always clears the session first (not "on success") so a malformed or
+// abandoned edit can never wedge the chat into treating every future message as edit content.
+async function handleEditReply(chatIdStr: string, userId: string, jobId: string, rawText: string) {
+  const job = await prisma.publishJob.findFirst({
+    where: { id: jobId, status: 'DRAFT', video: { userId } },
+    include: { socialAccount: true },
+  });
+
+  await prisma.user.update({ where: { id: userId }, data: { telegramEditingJobId: null } });
+
+  if (!job) {
+    await sendTelegramMessage(
+      chatIdStr,
+      'Ten post nie jest już dostępny do edycji (opublikowany albo anulowany w międzyczasie).',
+    ).catch((error) => logError('telegram', 'send-edit-stale-job-failed', error, { chatId: chatIdStr }));
+    return;
+  }
+
+  const parsed = parseTelegramEditReply(rawText, job.socialAccount.platform === 'YOUTUBE');
+
+  if (!parsed) {
+    await prisma.user.update({ where: { id: userId }, data: { telegramEditingJobId: jobId } });
+    await sendTelegramMessage(
+      chatIdStr,
+      'Nie rozpoznałem treści. Wyślij opis (opcjonalnie z hashtagami na końcu, zaczynającymi się od #).',
+    ).catch((error) => logError('telegram', 'send-edit-unparseable-failed', error, { chatId: chatIdStr }));
+    return;
+  }
+
+  await prisma.publishJob.update({
+    where: { id: job.id },
+    data: {
+      ...(parsed.caption !== undefined ? { caption: parsed.caption } : {}),
+      ...(parsed.hashtags !== undefined ? { hashtags: parsed.hashtags } : {}),
+      ...(parsed.title !== undefined ? { title: parsed.title } : {}),
+    },
+  });
+
+  const allJobs = await prisma.publishJob.findMany({
+    where: { postGroupId: job.postGroupId, status: 'DRAFT', video: { userId } },
+    include: { socialAccount: true, video: true },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  await sendTelegramMessage(chatIdStr, `Zaktualizowano ${job.socialAccount.platform}.`).catch((error) =>
+    logError('telegram', 'send-edit-confirmation-failed', error, { chatId: chatIdStr }),
+  );
+
+  await sendTelegramMessageWithButtons(chatIdStr, buildPreviewMessage(allJobs), buildPreviewButtons(job.postGroupId, allJobs)).catch(
+    (error) => logError('telegram', 'send-preview-after-edit-failed', error, { chatId: chatIdStr }),
+  );
 }
 
 function formatStatusMessage(snapshot: Awaited<ReturnType<typeof getTelegramStatusSnapshot>>): string {
@@ -313,7 +412,7 @@ async function handleCallbackQuery(update: NonNullable<TelegramUpdate['callback_
 
     const allJobs = await prisma.publishJob.findMany({
       where: { postGroupId, status: 'DRAFT', video: { userId: linkedUser.id } },
-      include: { socialAccount: true },
+      include: { socialAccount: true, video: true },
       orderBy: { createdAt: 'asc' },
     });
 
@@ -328,6 +427,37 @@ async function handleCallbackQuery(update: NonNullable<TelegramUpdate['callback_
       buildPreviewMessage(allJobs),
       buildPreviewButtons(postGroupId, allJobs),
     ).catch((error) => logError('telegram', 'edit-message-toggle-failed', error, { chatId: chatIdStr }));
+    return;
+  }
+
+  if (action === 'editstart') {
+    if (!toggleTarget || !VALID_TOGGLE_PLATFORMS.includes(toggleTarget)) {
+      await answerTelegramCallbackQuery(update.id, 'Nieprawidłowa platforma.').catch(() => {});
+      return;
+    }
+
+    const targetJob = await prisma.publishJob.findFirst({
+      where: { postGroupId, status: 'DRAFT', video: { userId: linkedUser.id }, socialAccount: { platform: toggleTarget as never } },
+    });
+
+    if (!targetJob) {
+      await answerTelegramCallbackQuery(update.id, 'Nie znaleziono tej platformy dla tego posta.').catch(() => {});
+      return;
+    }
+
+    await prisma.user.update({ where: { id: linkedUser.id }, data: { telegramEditingJobId: targetJob.id } });
+    await answerTelegramCallbackQuery(update.id).catch(() => {});
+
+    const isYoutube = toggleTarget === 'YOUTUBE';
+    const currentHashtags = targetJob.hashtags.length > 0 ? targetJob.hashtags.map((tag) => `#${tag}`).join(' ') : '(brak)';
+    const currentTitleLine = isYoutube ? `Tytuł: ${targetJob.title ?? '(brak)'}\n` : '';
+
+    await sendTelegramMessage(
+      chatIdStr,
+      `Edytujesz ${toggleTarget}.\n\nAktualnie:\n${currentTitleLine}Opis: ${targetJob.caption}\nHashtagi: ${currentHashtags}\n\n` +
+        `Wyślij nową treść jedną wiadomością${isYoutube ? ' (pierwsza linia = tytuł, jeśli go zmieniasz, potem opis)' : ''}. ` +
+        'Hashtagi dopisz na końcu, zaczynając od #. Możesz zostawić coś bez zmian - po prostu tego nie pisz.',
+    ).catch((error) => logError('telegram', 'send-edit-prompt-failed', error, { chatId: chatIdStr }));
     return;
   }
 
@@ -446,6 +576,14 @@ export async function POST(request: NextRequest) {
       chatIdStr,
       'To konto Telegram nie jest jeszcze połączone z żadnym kontem Postfly. Wygeneruj kod w panelu (Ustawienia konta) i wyślij /start <kod>.',
     ).catch((error) => logError('telegram', 'send-not-linked-failed', error, { chatId: chatIdStr }));
+    return NextResponse.json({ ok: true });
+  }
+
+  // Free-text reply to an in-progress "✏️ Edytuj" prompt (see editstart/handleEditReply) takes
+  // priority over the fixed command set - but a slash command always wins even mid-edit, so a
+  // user isn't trapped needing to finish or abandon an edit before e.g. checking /status.
+  if (linkedUser.telegramEditingJobId && !text.trim().startsWith('/')) {
+    await handleEditReply(chatIdStr, linkedUser.id, linkedUser.telegramEditingJobId, text);
     return NextResponse.json({ ok: true });
   }
 
