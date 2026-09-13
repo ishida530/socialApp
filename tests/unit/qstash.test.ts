@@ -14,6 +14,7 @@ vi.mock('@upstash/qstash', () => ({
 }));
 
 const { scheduleQStashPublish, cancelQStashMessage, verifyQStashSignature } = await import('@/lib/server/qstash');
+const { Client: MockedClient } = await import('@upstash/qstash');
 
 const ORIGINAL_ENV = { ...process.env };
 
@@ -71,6 +72,31 @@ describe('scheduleQStashPublish', () => {
 
     const result = await scheduleQStashPublish('job-1', new Date());
     expect(result).toBeNull();
+  });
+
+  it('passes QSTASH_URL as baseUrl when set (region-pinned instances)', async () => {
+    process.env.QSTASH_TOKEN = 'token';
+    process.env.FRONTEND_URL = 'https://postfly.pl';
+    process.env.QSTASH_URL = 'https://qstash-eu-central-1.upstash.io';
+    mockPublishJSON.mockResolvedValue({ messageId: 'msg-1' });
+
+    await scheduleQStashPublish('job-1', new Date());
+
+    expect(vi.mocked(MockedClient)).toHaveBeenCalledWith({
+      token: 'token',
+      baseUrl: 'https://qstash-eu-central-1.upstash.io',
+    });
+  });
+
+  it('omits baseUrl (SDK default) when QSTASH_URL is not set', async () => {
+    process.env.QSTASH_TOKEN = 'token';
+    process.env.FRONTEND_URL = 'https://postfly.pl';
+    delete process.env.QSTASH_URL;
+    mockPublishJSON.mockResolvedValue({ messageId: 'msg-1' });
+
+    await scheduleQStashPublish('job-1', new Date());
+
+    expect(vi.mocked(MockedClient)).toHaveBeenCalledWith({ token: 'token' });
   });
 });
 
