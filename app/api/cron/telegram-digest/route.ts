@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sendInactivityNudges, sendMorningDigest } from '@/lib/server/telegram-notifications';
+import { collectMetricsForRecentJobs } from '@/lib/server/post-metrics';
 import { serverError, unauthorized } from '@/lib/server/http';
 import { runWithRequestId } from '@/lib/server/request-context';
 
@@ -16,10 +17,10 @@ function isAuthorizedCronRequest(request: NextRequest) {
   return authorization === `Bearer ${secret}`;
 }
 
-// One daily sweep covering two related, non-urgent Telegram notifications - the morning digest
-// (TASK-3.2.2) and the long-inactivity nudge (TASK-3.2.3). Kept on one route/cron entry
-// deliberately: free-tier Vercel cron slots are limited, and both are "check once a day,
-// nothing urgent" concerns that don't need separate schedules.
+// One daily sweep covering three related, non-urgent background jobs - the morning digest
+// (TASK-3.2.2), the long-inactivity nudge (TASK-3.2.3), and post-performance metrics collection.
+// Kept on one route/cron entry deliberately: free-tier Vercel cron slots are limited, and none of
+// these are urgent enough to need their own schedule.
 //
 // TASK-1.3.4: one requestId per sweep - see lib/server/request-context.ts.
 export async function GET(request: NextRequest) {
@@ -35,11 +36,14 @@ async function handleGet(request: NextRequest) {
     const digestSummary = await sendMorningDigest();
     // TASK-3.2.3: same daily sweep, not a separate cron entry - see lib/server/telegram-notifications.ts.
     const inactivitySummary = await sendInactivityNudges();
+    // Same daily sweep, not a separate cron entry - see lib/server/post-metrics.ts.
+    const metricsSummary = await collectMetricsForRecentJobs();
 
     return NextResponse.json({
       ok: true,
       ...digestSummary,
       inactivityNudgesSent: inactivitySummary.usersNotified,
+      metricsUpdated: metricsSummary.updated,
       processedAt: new Date().toISOString(),
     });
   } catch (error) {

@@ -505,6 +505,37 @@ export async function getRecentActivityForUser(userId: string, limit = 5): Promi
   }));
 }
 
+// /pomysl (content ideas): grounded in the user's own recently PUBLISHED posts, not drafts -
+// the point is "what have I actually been posting", not "what did I almost post". Deduped by
+// postGroupId (one post can have several PublishJob rows, one per platform) so the same post
+// doesn't get counted multiple times toward "recent style".
+export type RecentContentSample = { caption: string; hashtags: string[]; title: string | null };
+
+export async function getRecentContentForIdeas(userId: string, limit = 12): Promise<RecentContentSample[]> {
+  const jobs = await prisma.publishJob.findMany({
+    where: { status: 'SUCCESS', video: { userId } },
+    orderBy: { publishedAt: 'desc' },
+    take: limit * 3, // over-fetch before dedup by postGroupId, cheap enough at this scale
+    select: { postGroupId: true, caption: true, hashtags: true, title: true },
+  });
+
+  const seenGroups = new Set<string>();
+  const samples: RecentContentSample[] = [];
+
+  for (const job of jobs) {
+    if (seenGroups.has(job.postGroupId)) {
+      continue;
+    }
+    seenGroups.add(job.postGroupId);
+    samples.push({ caption: job.caption, hashtags: job.hashtags, title: job.title });
+    if (samples.length >= limit) {
+      break;
+    }
+  }
+
+  return samples;
+}
+
 export type TelegramStatusSnapshot = {
   publishingPaused: boolean;
   pendingCount: number;
