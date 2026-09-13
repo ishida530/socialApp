@@ -18,7 +18,11 @@ function getClient() {
   if (!token) {
     return null;
   }
-  return new Client({ token });
+  // Some Upstash QStash instances are region-pinned (e.g. eu-central-1) and only accept
+  // requests at their own regional endpoint, not the SDK's global default - QSTASH_URL lets
+  // that be configured explicitly instead of assuming the default always works.
+  const baseUrl = process.env.QSTASH_URL;
+  return new Client(baseUrl ? { token, baseUrl } : { token });
 }
 
 function getTriggerUrl() {
