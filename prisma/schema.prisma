@@ -201,12 +201,30 @@ model PublishJob {
   socialAccountId String
   video           Video         @relation(fields: [videoId], references: [id], onDelete: Cascade)
   socialAccount   SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+  postMetric      PostMetric?
 
   @@index([videoId])
   @@index([socialAccountId])
   @@index([status, scheduledFor])
   @@index([postGroupId])
   @@index([status, notifiedAt])
+}
+
+// Latest known engagement snapshot for one published post, fetched read-only from each
+// platform's own API (lib/server/post-metrics.ts) - a real metrics prerequisite before any
+// AI-driven "what to improve" suggestion can honestly claim to know what performs well. One row
+// per PublishJob (upserted on every sweep), not a time series - a trend history can be added
+// later if a feature actually needs it, YAGNI for now.
+model PostMetric {
+  id           String     @id @default(cuid())
+  publishJobId String     @unique
+  publishJob   PublishJob @relation(fields: [publishJobId], references: [id], onDelete: Cascade)
+  views        Int?
+  likes        Int?
+  comments     Int?
+  shares       Int?
+  fetchedAt    DateTime   @default(now())
+  createdAt    DateTime   @default(now())
 }
 
 model Subscription {

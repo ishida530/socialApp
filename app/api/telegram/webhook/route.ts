@@ -16,10 +16,12 @@ import {
   createDraftGroupForVideo,
   enqueueDraftGroup,
   getRecentActivityForUser,
+  getRecentContentForIdeas,
   getTelegramStatusSnapshot,
   retryPublishJob,
   triggerPublishJob,
 } from '@/lib/server/publish-jobs';
+import { generateContentIdeas, type ContentIdea } from '@/lib/server/telegram-content-ideas';
 import { prisma } from '@/lib/server/prisma';
 import { unauthorized } from '@/lib/server/http';
 import { logError, logEvent } from '@/lib/server/observability';
@@ -420,6 +422,16 @@ async function handleScheduleReply(chatIdStr: string, userId: string, postGroupI
   ).catch((error) => logError('telegram', 'send-schedule-confirmation-failed', error, { chatId: chatIdStr }));
 }
 
+function formatContentIdeasMessage(ideas: ContentIdea[]): string {
+  const lines = ['💡 Pomysły na kolejne nagrania:', ''];
+  ideas.forEach((idea, index) => {
+    lines.push(`${index + 1}. ${idea.title}`);
+    lines.push(idea.description);
+    lines.push('');
+  });
+  return lines.join('\n').trimEnd();
+}
+
 function formatActivityMessage(entries: Awaited<ReturnType<typeof getRecentActivityForUser>>): string {
   if (entries.length === 0) {
     return '📋 Brak zakończonych zadań publikacji w historii.';
@@ -549,6 +561,38 @@ async function handleTextCommand(chatIdStr: string, userId: string, text: string
     await sendTelegramMessage(chatIdStr, formatActivityMessage(entries)).catch((error) =>
       logError('telegram', 'send-logs-failed', error, { chatId: chatIdStr }),
     );
+    return true;
+  }
+
+  if (trimmed === '/pomysl') {
+    // On-demand only (never proactive/automatic) - grounded in the user's own recently
+    // PUBLISHED posts, not generic advice and not based on engagement metrics (we don't yet
+    // claim to know "what performed well", only "what was posted" - see lib/server/post-metrics.ts
+    // for the separate, still-early metrics-collection work).
+    const MIN_POSTS_FOR_IDEAS = 2;
+    const [recentPosts, dbUser] = await Promise.all([
+      getRecentContentForIdeas(userId),
+      prisma.user.findUnique({ where: { id: userId }, select: { businessDescription: true } }),
+    ]);
+
+    if (recentPosts.length < MIN_POSTS_FOR_IDEAS) {
+      await sendTelegramMessage(
+        chatIdStr,
+        'Za mało opublikowanych postów, żebym mógł rozpoznać Twój styl - wrzuć jeszcze kilka materiałów, a potem spróbuj /pomysl ponownie.',
+      ).catch((error) => logError('telegram', 'send-pomysl-too-few-failed', error, { chatId: chatIdStr }));
+      return true;
+    }
+
+    await sendTelegramMessage(chatIdStr, '💡 Analizuję Twoje ostatnie posty...').catch((error) =>
+      logError('telegram', 'send-pomysl-ack-failed', error, { chatId: chatIdStr }),
+    );
+
+    const ideas = await generateContentIdeas(dbUser?.businessDescription ?? null, recentPosts);
+
+    await sendTelegramMessage(
+      chatIdStr,
+      ideas ? formatContentIdeasMessage(ideas) : 'Nie udało się teraz wygenerować pomysłów - spróbuj ponownie za chwilę.',
+    ).catch((error) => logError('telegram', 'send-pomysl-result-failed', error, { chatId: chatIdStr }));
     return true;
   }
 
@@ -934,7 +978,8 @@ async function handlePost(request: NextRequest) {
   }
 
   // TASK-3.2.1: wszystkie komendy z sekcji 5 głównego planu - /status /pause /resume
-  // /approve <id> /reject <id> /retry <id> /cancel <id> /logs /revenue.
+  // /approve <id> /reject <id> /retry <id> /cancel <id> /logs /revenue, plus /pomysl (pomysły
+  // na kolejne nagrania na podstawie własnej historii postów).
   await handleTextCommand(chatIdStr, linkedUser.id, text);
 
   return NextResponse.json({ ok: true });
