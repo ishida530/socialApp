@@ -1,3 +1,5 @@
+import { redactSensitiveValue } from '@/lib/redact';
+
 type LogLevel = 'info' | 'error';
 
 type LogPayload = {
@@ -12,7 +14,8 @@ function emitLog(payload: LogPayload) {
     timestamp: new Date().toISOString(),
     scope: payload.scope,
     event: payload.event,
-    metadata: payload.metadata ?? {},
+    // TASK-1.5.2: scrub before it ever reaches console/Vercel's log stream - see lib/redact.ts.
+    metadata: redactSensitiveValue(payload.metadata ?? {}),
   };
 
   if (payload.level === 'error') {

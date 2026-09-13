@@ -552,7 +552,19 @@ Po domknięciu EPIC 2 użytkownik poprosił o kontynuację "do zamknięcia Etapu
 
 Pozostałe otwarte punkty EPIC 1 to P1/P2, nieblokujące dalszej pracy per zasada kolejności (TASK-1.3.2 świadomie odłożone, TASK-1.3.3/1.3.4/1.5.2/1.5.3/1.5.4 — patrz kolejny wpis).
 
-Status: [x] zaimplementowane → [x] testy napisane i zielone (`tests/api/stripe-webhook.test.ts` +1, `tests/api/tiktok-webhook.test.ts` nowy, 166/166 w obu trybach APP_MODE) → [x] zweryfikowane (tsc czyste poza znanymi `.mjs`, build czysty) → [ ] zamknięte (PR w przygotowaniu)
+Status: [x] zaimplementowane → [x] testy napisane i zielone (`tests/api/stripe-webhook.test.ts` +1, `tests/api/tiktok-webhook.test.ts` nowy, 166/166 w obu trybach APP_MODE) → [x] zweryfikowane (tsc czyste poza znanymi `.mjs`, build czysty) → [x] zamknięte (PR #34, wdrożone na produkcję, `postfly.pl/api/health` zielony)
+
+**Skutek uboczny włączenia ochrony brancha:** pierwszy PR pod nową regułą natychmiast pokazał, że CI było po cichu czerwone od dawna dla części testów — `.github/workflows/test.yml` generował `.env` ręcznym heredokiem, który rozjechał się z `.env.test.example` i brakowało w nim `ENCRYPTION_KEY` (i kilku innych zmiennych). Każdy test dotykający `lib/server/crypto.ts` (kilka fixture'ów `tests/api/telegram-*.test.ts` szyfrujących fałszywy token) failował w CI, przechodząc lokalnie — nikt tego nie widział, bo nic nigdy nie blokowało merge'a na czerwonym statusie. Naprawione: `.env` generowane teraz z `.env.test.example` (jedno źródło prawdy) zamiast osobnej, ręcznie synchronizowanej kopii.
+
+### TASK-1.5.2 (czyszczenie sekretów/PII z logów/Sentry) + TASK-1.3.3 (Dependabot) (2026-09-13)
+
+**[Architekt]:** appka nie ma osobnej tabeli `error_log` w Prisma — jedyny realny "error log" to `lib/server/observability.ts` (`logEvent`/`logError`, strukturalny JSON na `console.info`/`console.error`, przechwytywany przez log stream Vercela), używany w kilkudziesięciu miejscach w całym `lib/server/`. Sentry (server/edge/client) łapie nieobsłużone wyjątki automatycznie przez integrację Next.js plus jedno jawne wywołanie `Sentry.captureException` w `app/global-error.tsx`.
+
+**[Inżynier]:** `lib/redact.ts` (`redactSensitiveValue`) — dwuwarstwowe czyszczenie: (1) po nazwie klucza (regex na `token|secret|password|...`, wartość całkowicie zastąpiona `[REDACTED]` niezależnie od kształtu), (2) po kształcie wartości w dowolnym stringu niezależnie od nazwy klucza (JWT, `Bearer ...`, sekrety Stripe `sk_/whsec_`, długie ciągi base64/hex) — bo błąd może osadzić token w wolnym tekście (np. treść wyjątku z axiosa), gdzie nazwa klucza nic nie podpowiada. Wpięte w `emitLog` (cały `metadata`, w tym `errorMessage`). `lib/redact-sentry.ts` (`redactSentryEvent`) — ta sama logika zaaplikowana do `event.request`/`extra`/`contexts`/`exception.values[].message` — podpięte jako `beforeSend` we wszystkich trzech configach Sentry.
+
+**[QA]:** test dokładnie wg DoD — token w `accessToken` w metadata i token osadzony w treści złapanego błędu (`Bearer <token>`) nie pojawia się w tym, co faktycznie poszło do `console.info`/`console.error` (`tests/unit/observability-redaction.test.ts`, spy na `console`). Plus jednostkowe testy samej funkcji redagującej (`tests/unit/redact.test.ts`) i wersji dla Sentry (`tests/unit/redact-sentry.test.ts`). Przy okazji: `.github/dependabot.yml` (npm + github-actions, tygodniowo) — TASK-1.3.3, tani, bez ryzyka (każdy PR i tak przechodzi przez wymagany check `test`).
+
+Status: [x] zaimplementowane → [x] testy napisane i zielone (`tests/unit/redact.test.ts`, `tests/unit/redact-sentry.test.ts`, `tests/unit/observability-redaction.test.ts`, 180/180 w obu trybach APP_MODE) → [x] zweryfikowane (tsc czyste, build czysty) → [ ] zamknięte (PR w przygotowaniu)
 
 ---
 
