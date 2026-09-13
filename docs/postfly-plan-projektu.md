@@ -727,7 +727,7 @@ Użytkownik poprosił o rozpisanie EPIC 4 z ekspertami, a następnie — po poka
 
 **[QA]:** `tests/unit/anthropic-client.test.ts` (+4: `callClaudeAgentTurn` — brak klucza, wiele narzędzi bez wymuszonego `tool_choice`, kształt wiadomości z `tool_result`, błąd HTTP → null). `tests/unit/telegram-mentor-agent.test.ts` (6 testów: odpowiedź bez narzędzia, realne wywołanie `get_status` z faktycznym wynikiem z bazy, zapis i odtworzenie historii między turami — złapany i naprawiony realny bug: `createMany` nadawało obu wierszom identyczny `createdAt`, przez co kolejność odtwarzania historii była niedeterministyczna, naprawione przez dwa sekwencyjne `create` — brak zapisu gdy Claude nieskonfigurowany, model nigdy nie fabrykuje wykonania akcji, limit rund narzędzi kończy się bezpiecznym komunikatem zamiast zawieszenia). `tests/api/telegram-mentor-fallback.test.ts` (3 testy: nierozpoznany tekst trafia do agenta i jego odpowiedź wraca do użytkownika, rozpoznana komenda NIE woła agenta, aktywna sesja edycji/harmonogramu/onboardingu NIE woła agenta). Pełna suita: 254/254 w obu trybach APP_MODE, tsc/build czyste. Nie zweryfikowane: rzeczywista rozmowa przez prawdziwego bota (brak środowiska) — logika testowana z zamockowanym Claude, nie z żywym API.
 
-Status: [x] zaimplementowane → [x] testy napisane i zielone → [x] zweryfikowane (tsc, build czyste) → [ ] zamknięte (PR w przygotowaniu) → [ ] weryfikacja żywej rozmowy przez prawdziwego bota
+Status: [x] zaimplementowane → [x] testy napisane i zielone → [x] zweryfikowane (tsc, build czyste) → [x] zamknięte (PR #65, + poprawka porządkowania historii `seq` zamiast `createdAt` po realnym błędzie znalezionym przez CI, nie lokalnie) → [ ] weryfikacja żywej rozmowy przez prawdziwego bota
 
 ---
 
