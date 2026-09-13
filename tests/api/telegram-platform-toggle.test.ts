@@ -282,4 +282,71 @@ describe('Telegram preview Reels/Feed format toggle', () => {
     const unchangedJob = await prisma.publishJob.findUniqueOrThrow({ where: { id: tkJob.id } });
     expect(unchangedJob.metaPostFormat).toBeNull();
   });
+
+  it('Facebook cycles through all three states (REELS -> FEED -> BOTH -> REELS); Instagram never reaches BOTH', async () => {
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
+    const chatId = '5551008';
+    await linkChat(user.id, chatId);
+
+    const video = await createVideo(user.id);
+    const fbAccount = await createSocialAccount(user.id, 'FACEBOOK', { accessToken: encrypt('token') });
+    const igAccount = await createSocialAccount(user.id, 'INSTAGRAM', { accessToken: encrypt('token') });
+    const postGroupId = `group-fb-${user.id}`;
+    const fbJob = await prisma.publishJob.create({
+      data: {
+        status: 'DRAFT',
+        postGroupId,
+        caption: 'fb',
+        scheduledFor: new Date(),
+        videoId: video.id,
+        socialAccountId: fbAccount.id,
+        metaPostFormat: 'REELS',
+      },
+    });
+    const igJob = await prisma.publishJob.create({
+      data: {
+        status: 'DRAFT',
+        postGroupId,
+        caption: 'ig',
+        scheduledFor: new Date(),
+        videoId: video.id,
+        socialAccountId: igAccount.id,
+        metaPostFormat: 'REELS',
+      },
+    });
+
+    const toggleFb = () =>
+      POST(
+        webhookRequest({
+          callback_query: {
+            id: 'cbq-fb-cycle',
+            data: `formattoggle:${postGroupId}:FACEBOOK`,
+            message: { chat: { id: Number(chatId) }, message_id: 7 },
+          },
+        }),
+      );
+    const toggleIg = () =>
+      POST(
+        webhookRequest({
+          callback_query: {
+            id: 'cbq-ig-cycle',
+            data: `formattoggle:${postGroupId}:INSTAGRAM`,
+            message: { chat: { id: Number(chatId) }, message_id: 7 },
+          },
+        }),
+      );
+
+    await toggleFb();
+    expect((await prisma.publishJob.findUniqueOrThrow({ where: { id: fbJob.id } })).metaPostFormat).toBe('FEED');
+    await toggleFb();
+    expect((await prisma.publishJob.findUniqueOrThrow({ where: { id: fbJob.id } })).metaPostFormat).toBe('BOTH');
+    await toggleFb();
+    expect((await prisma.publishJob.findUniqueOrThrow({ where: { id: fbJob.id } })).metaPostFormat).toBe('REELS');
+
+    await toggleIg();
+    expect((await prisma.publishJob.findUniqueOrThrow({ where: { id: igJob.id } })).metaPostFormat).toBe('FEED');
+    await toggleIg();
+    expect((await prisma.publishJob.findUniqueOrThrow({ where: { id: igJob.id } })).metaPostFormat).toBe('REELS');
+  });
 });

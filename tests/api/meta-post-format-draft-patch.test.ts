@@ -102,4 +102,36 @@ describe('PATCH /api/publish-jobs/drafts/:id metaPostFormat', () => {
 
     expect(response.status).toBe(400);
   });
+
+  it('accepts BOTH on a Facebook video draft (Reels and a plain post are separate surfaces there)', async () => {
+    const { user, token } = await createTestUser();
+    cleanupUserId = user.id;
+    const account = await createSocialAccount(user.id, 'FACEBOOK');
+    const video = await createVideo(user.id, { mediaType: 'VIDEO' });
+    const job = await createDraftJob({ videoId: video.id, socialAccountId: account.id, postGroupId: `group-${user.id}` });
+
+    const response = await PATCH(
+      patchRequest(job.id, { metaPostFormat: 'BOTH' }, authHeaders(token)),
+      { params: Promise.resolve({ id: job.id }) },
+    );
+
+    expect(response.status).toBe(200);
+    const updated = await prisma.publishJob.findUniqueOrThrow({ where: { id: job.id } });
+    expect(updated.metaPostFormat).toBe('BOTH');
+  });
+
+  it('rejects BOTH on Instagram (a Reel there already reaches the feed via share_to_feed)', async () => {
+    const { user, token } = await createTestUser();
+    cleanupUserId = user.id;
+    const account = await createSocialAccount(user.id, 'INSTAGRAM');
+    const video = await createVideo(user.id, { mediaType: 'VIDEO' });
+    const job = await createDraftJob({ videoId: video.id, socialAccountId: account.id, postGroupId: `group-${user.id}` });
+
+    const response = await PATCH(
+      patchRequest(job.id, { metaPostFormat: 'BOTH' }, authHeaders(token)),
+      { params: Promise.resolve({ id: job.id }) },
+    );
+
+    expect(response.status).toBe(400);
+  });
 });

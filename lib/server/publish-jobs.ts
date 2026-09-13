@@ -241,7 +241,9 @@ export async function enqueueDraftGroup(userId: string, params: EnqueueDraftGrou
     }
   }
 
-  for (let index = 0; index < targetPlatforms.length; index += 1) {
+  const bothFormatCount = targetPlatforms.filter((platform) => draftJobByPlatform.get(platform)!.metaPostFormat === 'BOTH').length;
+
+  for (let index = 0; index < targetPlatforms.length + bothFormatCount; index += 1) {
     await assertUsageAllowed(userId, 'publish_jobs');
   }
 
@@ -258,23 +260,61 @@ export async function enqueueDraftGroup(userId: string, params: EnqueueDraftGrou
         status: 'PENDING',
         scheduledFor: scheduledDate,
         ...(platform === 'TIKTOK' ? { tiktokConsentAt: new Date() } : {}),
+        // Facebook "Oba" (BOTH) isn't a real Graph API value - it means "publish this job as a
+        // Reel, AND spin off an independent sibling job for the plain-post version" (below). The
+        // original job settles into a normal, unambiguous REELS job once split.
+        ...(job.metaPostFormat === 'BOTH' ? { metaPostFormat: 'REELS' } : {}),
       },
       include: PUBLISH_JOB_INCLUDE,
     });
   });
 
+  // Facebook Reels and a plain video post are genuinely separate publications (unlike Instagram,
+  // where a Reel with share_to_feed already appears in both places) - "Oba" is realized as a
+  // second, independent PublishJob sharing the same content, created fresh here rather than as
+  // a second DRAFT the user would have had to manage separately before this point.
+  const bothFormatJobs = targetPlatforms
+    .map((platform) => draftJobByPlatform.get(platform)!)
+    .filter((job) => job.socialAccount.platform === 'FACEBOOK' && job.metaPostFormat === 'BOTH');
+
+  const siblingCreateOperations = bothFormatJobs.map((job) =>
+    prisma.publishJob.create({
+      data: {
+        status: 'PENDING',
+        postGroupId: job.postGroupId,
+        caption: job.caption,
+        hashtags: job.hashtags,
+        title: job.title,
+        mentions: job.mentions,
+        isExplicit: job.isExplicit,
+        contentWarnings: job.contentWarnings,
+        metaPostFormat: 'FEED',
+        scheduledFor: scheduledDate,
+        videoId: job.videoId,
+        socialAccountId: job.socialAccountId,
+      },
+      include: PUBLISH_JOB_INCLUDE,
+    }),
+  );
+
   const transactionResults = await prisma.$transaction([
     ...updateOperations,
+    ...siblingCreateOperations,
     prisma.publishJob.deleteMany({ where: { id: { in: platformsToDelete } } }),
   ]);
 
   const updatedJobs = transactionResults.slice(0, updateOperations.length) as Array<Awaited<(typeof updateOperations)[number]>>;
+  const siblingJobs = transactionResults.slice(
+    updateOperations.length,
+    updateOperations.length + siblingCreateOperations.length,
+  ) as Array<Awaited<(typeof siblingCreateOperations)[number]>>;
+  const allEnqueuedJobs = [...updatedJobs, ...siblingJobs];
 
-  await incrementUsage(userId, 'publish_jobs', updatedJobs.length);
+  await incrementUsage(userId, 'publish_jobs', allEnqueuedJobs.length);
 
   const immediateOutcomes = publishNow
     ? await Promise.all(
-        updatedJobs.map(async (publishJob) => ({
+        allEnqueuedJobs.map(async (publishJob) => ({
           jobId: publishJob.id,
           outcome: await processPublishJobImmediately(publishJob.id),
         })),
@@ -283,11 +323,11 @@ export async function enqueueDraftGroup(userId: string, params: EnqueueDraftGrou
 
   const responseJobs = publishNow
     ? await prisma.publishJob.findMany({
-        where: { id: { in: updatedJobs.map((job) => job.id) } },
+        where: { id: { in: allEnqueuedJobs.map((job) => job.id) } },
         include: PUBLISH_JOB_INCLUDE,
         orderBy: { createdAt: 'desc' },
       })
-    : updatedJobs;
+    : allEnqueuedJobs;
 
   const immediateOutcome =
     immediateOutcomes.length === 0
@@ -303,7 +343,7 @@ export async function enqueueDraftGroup(userId: string, params: EnqueueDraftGrou
   return {
     ok: true,
     publishJobs: responseJobs,
-    targetsCount: targetPlatforms.length,
+    targetsCount: allEnqueuedJobs.length,
     immediateOutcome,
   };
 }

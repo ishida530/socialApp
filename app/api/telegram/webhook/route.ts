@@ -83,10 +83,9 @@ function buildPreviewButtons(postGroupId: string, jobs: PreviewJob[]) {
     ];
 
     if (canToggleMetaFormat(job)) {
-      row.push({
-        text: job.metaPostFormat === 'FEED' ? '📋 Zwykły post' : '🎬 Reels',
-        callback_data: `formattoggle:${postGroupId}:${job.socialAccount.platform}`,
-      });
+      const label =
+        job.metaPostFormat === 'FEED' ? '📋 Zwykły post' : job.metaPostFormat === 'BOTH' ? '🎬📋 Oba' : '🎬 Reels';
+      row.push({ text: label, callback_data: `formattoggle:${postGroupId}:${job.socialAccount.platform}` });
     }
 
     return row;
@@ -118,7 +117,13 @@ function describePlatformFormat(job: PreviewJob) {
   }
 
   if (platform === 'INSTAGRAM' || platform === 'FACEBOOK') {
-    return job.metaPostFormat === 'FEED' ? 'zwykły post' : 'Reels';
+    if (job.metaPostFormat === 'FEED') {
+      return 'zwykły post';
+    }
+    if (job.metaPostFormat === 'BOTH') {
+      return 'Reels + zwykły post (2 osobne publikacje)';
+    }
+    return 'Reels';
   }
 
   if (platform === 'YOUTUBE') {
@@ -471,7 +476,20 @@ async function handleCallbackQuery(update: NonNullable<TelegramUpdate['callback_
       return;
     }
 
-    const nextFormat = targetJob.metaPostFormat === 'FEED' ? 'REELS' : 'FEED';
+    // Facebook cycles through all three (Reels and a plain post are genuinely separate surfaces
+    // there, so "Oba" = two real publications - see enqueueDraftGroup). Instagram stays a
+    // two-way toggle: a Reel there already reaches the feed too (share_to_feed), so a separate
+    // "Oba" would just be a literal duplicate post, not a second real placement.
+    const nextFormat =
+      toggleTarget === 'FACEBOOK'
+        ? targetJob.metaPostFormat === 'REELS' || !targetJob.metaPostFormat
+          ? 'FEED'
+          : targetJob.metaPostFormat === 'FEED'
+            ? 'BOTH'
+            : 'REELS'
+        : targetJob.metaPostFormat === 'FEED'
+          ? 'REELS'
+          : 'FEED';
 
     await prisma.publishJob.update({ where: { id: targetJob.id }, data: { metaPostFormat: nextFormat } });
     // Same sticky-default write-through PATCH .../drafts/:id already does for the web composer -
@@ -486,10 +504,9 @@ async function handleCallbackQuery(update: NonNullable<TelegramUpdate['callback_
       orderBy: { createdAt: 'asc' },
     });
 
-    await answerTelegramCallbackQuery(
-      update.id,
-      nextFormat === 'FEED' ? `${toggleTarget}: zwykły post.` : `${toggleTarget}: Reels.`,
-    ).catch(() => {});
+    const confirmationText =
+      nextFormat === 'FEED' ? `${toggleTarget}: zwykły post.` : nextFormat === 'BOTH' ? `${toggleTarget}: oba (Reels + post).` : `${toggleTarget}: Reels.`;
+    await answerTelegramCallbackQuery(update.id, confirmationText).catch(() => {});
 
     await editTelegramMessage(
       chatIdStr,
