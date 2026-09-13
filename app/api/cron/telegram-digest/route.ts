@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sendMorningDigest } from '@/lib/server/telegram-notifications';
+import { sendInactivityNudges, sendMorningDigest } from '@/lib/server/telegram-notifications';
 import { serverError, unauthorized } from '@/lib/server/http';
 import { runWithRequestId } from '@/lib/server/request-context';
 
@@ -16,7 +16,12 @@ function isAuthorizedCronRequest(request: NextRequest) {
   return authorization === `Bearer ${secret}`;
 }
 
-// TASK-3.2.2: one requestId per digest sweep - see lib/server/request-context.ts.
+// One daily sweep covering two related, non-urgent Telegram notifications - the morning digest
+// (TASK-3.2.2) and the long-inactivity nudge (TASK-3.2.3). Kept on one route/cron entry
+// deliberately: free-tier Vercel cron slots are limited, and both are "check once a day,
+// nothing urgent" concerns that don't need separate schedules.
+//
+// TASK-1.3.4: one requestId per sweep - see lib/server/request-context.ts.
 export async function GET(request: NextRequest) {
   return runWithRequestId(() => handleGet(request));
 }
@@ -27,11 +32,14 @@ async function handleGet(request: NextRequest) {
       return unauthorized('Invalid cron secret');
     }
 
-    const summary = await sendMorningDigest();
+    const digestSummary = await sendMorningDigest();
+    // TASK-3.2.3: same daily sweep, not a separate cron entry - see lib/server/telegram-notifications.ts.
+    const inactivitySummary = await sendInactivityNudges();
 
     return NextResponse.json({
       ok: true,
-      ...summary,
+      ...digestSummary,
+      inactivityNudgesSent: inactivitySummary.usersNotified,
       processedAt: new Date().toISOString(),
     });
   } catch (error) {

@@ -108,3 +108,57 @@ export async function sendMorningDigest(): Promise<{ usersNotified: number; jobs
 
   return { usersNotified, jobsNotified };
 }
+
+// TASK-3.2.3: exact copy and threshold agreed with the product owner (2026-09-13) - a single
+// neutral question about content/scheduling, deliberately with zero reference to wellbeing, sent
+// rarely (never more often than the threshold itself, tracked via User.lastInactivityNudgeSentAt
+// so it doesn't repeat daily once triggered).
+const INACTIVITY_THRESHOLD_DAYS = 10;
+const INACTIVITY_NUDGE_MESSAGE =
+  'Nie było ostatnio aktywności na koncie — mam coś zaplanować, czy wszystko gra z materiałem?';
+
+// Called from the same daily sweep as sendMorningDigest (app/api/cron/telegram-digest) rather
+// than a separate cron entry - free-tier Vercel cron slots are limited, and this doesn't need
+// its own schedule.
+export async function sendInactivityNudges(): Promise<{ usersNotified: number }> {
+  const now = new Date();
+  const cutoff = new Date(now.getTime() - INACTIVITY_THRESHOLD_DAYS * 24 * 60 * 60 * 1000);
+
+  const candidates = await prisma.user.findMany({
+    where: {
+      telegramChatId: { not: null },
+      OR: [{ lastInactivityNudgeSentAt: null }, { lastInactivityNudgeSentAt: { lte: cutoff } }],
+    },
+    select: { id: true, telegramChatId: true },
+  });
+
+  let usersNotified = 0;
+
+  for (const user of candidates) {
+    const lastJob = await prisma.publishJob.findFirst({
+      where: { video: { userId: user.id } },
+      orderBy: { createdAt: 'desc' },
+      select: { createdAt: true },
+    });
+
+    // Never touched the pipeline at all - that's "hasn't started yet", not "went quiet after
+    // being active", and isn't what this nudge is for.
+    if (!lastJob || lastJob.createdAt > cutoff) {
+      continue;
+    }
+
+    try {
+      await sendTelegramMessage(user.telegramChatId as string, INACTIVITY_NUDGE_MESSAGE);
+      usersNotified += 1;
+    } catch (error) {
+      logError('telegram-notifications', 'inactivity-nudge-send-error', error, { userId: user.id });
+      continue;
+    }
+
+    await prisma.user.update({ where: { id: user.id }, data: { lastInactivityNudgeSentAt: now } });
+  }
+
+  logEvent('telegram-notifications', 'inactivity-nudges-sent', { usersNotified });
+
+  return { usersNotified };
+}
