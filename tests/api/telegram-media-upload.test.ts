@@ -105,6 +105,7 @@ describe('POST /api/telegram/webhook — media upload (TASK-3.1.2)', () => {
     ]);
     expect(buttons[1]).toEqual([
       { text: '✅ Publikuj', callback_data: `publish:${createdJobs[0].postGroupId}` },
+      { text: '📅 Zaplanuj', callback_data: `schedulestart:${createdJobs[0].postGroupId}` },
       { text: '❌ Anuluj', callback_data: `cancel:${createdJobs[0].postGroupId}` },
     ]);
   });

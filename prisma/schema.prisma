@@ -60,6 +60,10 @@ model User {
   // hashtags (see handleEditReply in the Telegram webhook) - not a hard FK, the job may be
   // published/canceled/deleted before the reply arrives, checked defensively at lookup time.
   telegramEditingJobId String?
+  // Set while the bot is waiting for a free-text reply to schedule a post ("📅 Zaplanuj" ->
+  // handleScheduleReply). Same pattern/caveats as telegramEditingJobId, but keyed on postGroupId
+  // (a schedule applies to the whole post, not one platform's job).
+  telegramSchedulingPostGroupId String?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   socialAccounts SocialAccount[]

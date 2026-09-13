@@ -22,6 +22,7 @@ import { prisma } from '@/lib/server/prisma';
 import { unauthorized } from '@/lib/server/http';
 import { logError, logEvent } from '@/lib/server/observability';
 import { parseTelegramEditReply } from '@/lib/server/telegram-edit-parser';
+import { parseTelegramScheduleReply } from '@/lib/server/telegram-schedule-parser';
 
 type TelegramPhotoSize = { file_id: string; file_size?: number };
 type TelegramVideo = { file_id: string; file_size?: number; mime_type?: string };
@@ -95,6 +96,7 @@ function buildPreviewButtons(postGroupId: string, jobs: PreviewJob[]) {
     ...platformRows,
     [
       { text: '✅ Publikuj', callback_data: `publish:${postGroupId}` },
+      { text: '📅 Zaplanuj', callback_data: `schedulestart:${postGroupId}` },
       { text: '❌ Anuluj', callback_data: `cancel:${postGroupId}` },
     ],
   ];
@@ -280,6 +282,73 @@ async function handleEditReply(chatIdStr: string, userId: string, jobId: string,
   await sendTelegramMessageWithButtons(chatIdStr, buildPreviewMessage(allJobs), buildPreviewButtons(job.postGroupId, allJobs)).catch(
     (error) => logError('telegram', 'send-preview-after-edit-failed', error, { chatId: chatIdStr }),
   );
+}
+
+// Consumes the free-text reply started by the "📅 Zaplanuj" button. Same session-state pattern
+// as handleEditReply (User.telegramSchedulingPostGroupId, always cleared first), but the parsed
+// result feeds enqueueDraftGroup(publishNow: false) - which schedules the precise QStash trigger
+// (lib/server/qstash.ts) and keeps the daily cron as its fallback, exactly like "Zaplanuj" in the
+// web composer.
+async function handleScheduleReply(chatIdStr: string, userId: string, postGroupId: string, rawText: string) {
+  await prisma.user.update({ where: { id: userId }, data: { telegramSchedulingPostGroupId: null } });
+
+  const parsedDate = parseTelegramScheduleReply(rawText);
+  if (!parsedDate) {
+    await prisma.user.update({ where: { id: userId }, data: { telegramSchedulingPostGroupId: postGroupId } });
+    await sendTelegramMessage(
+      chatIdStr,
+      'Nie rozpoznałem terminu. Wyślij np. "za 30 minut", "jutro 19:00" albo "20.09.2026 19:00".',
+    ).catch((error) => logError('telegram', 'send-schedule-unparseable-failed', error, { chatId: chatIdStr }));
+    return;
+  }
+
+  const draftJobs = await prisma.publishJob.findMany({
+    where: { postGroupId, status: 'DRAFT', video: { userId } },
+    include: { socialAccount: true },
+  });
+
+  if (draftJobs.length === 0) {
+    await sendTelegramMessage(
+      chatIdStr,
+      'Ten post nie jest już dostępny (opublikowany albo anulowany w międzyczasie).',
+    ).catch((error) => logError('telegram', 'send-schedule-stale-group-failed', error, { chatId: chatIdStr }));
+    return;
+  }
+
+  const targetPlatforms = draftJobs.filter((job) => !job.excludedFromPublish).map((job) => job.socialAccount.platform);
+
+  if (targetPlatforms.length === 0) {
+    await sendTelegramMessage(chatIdStr, 'Wszystkie platformy odznaczone - nie ma czego zaplanować.').catch((error) =>
+      logError('telegram', 'send-schedule-none-selected-failed', error, { chatId: chatIdStr }),
+    );
+    return;
+  }
+
+  const result = await enqueueDraftGroup(userId, {
+    postGroupId,
+    publishNow: false,
+    scheduledDate: parsedDate.toISOString(),
+    tiktokPostingConsent: targetPlatforms.includes('TIKTOK'),
+    targetPlatforms,
+  });
+
+  if (!result.ok) {
+    await sendTelegramMessage(chatIdStr, `Nie udało się zaplanować: ${result.error}`).catch((error) =>
+      logError('telegram', 'send-schedule-error-failed', error, { chatId: chatIdStr }),
+    );
+    return;
+  }
+
+  const formatted = parsedDate.toLocaleString('pl-PL', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: 'Europe/Warsaw',
+  });
+
+  await sendTelegramMessage(
+    chatIdStr,
+    `📅 Zaplanowano na ${formatted}. Platformy: ${targetPlatforms.join(', ')}.`,
+  ).catch((error) => logError('telegram', 'send-schedule-confirmation-failed', error, { chatId: chatIdStr }));
 }
 
 function formatStatusMessage(snapshot: Awaited<ReturnType<typeof getTelegramStatusSnapshot>>): string {
@@ -548,6 +617,18 @@ async function handleCallbackQuery(update: NonNullable<TelegramUpdate['callback_
     return;
   }
 
+  if (action === 'schedulestart') {
+    await prisma.user.update({ where: { id: linkedUser.id }, data: { telegramSchedulingPostGroupId: postGroupId } });
+    await answerTelegramCallbackQuery(update.id).catch(() => {});
+
+    await sendTelegramMessage(
+      chatIdStr,
+      'Kiedy opublikować? Wyślij termin jedną wiadomością, np.:\n"za 30 minut"\n"jutro 19:00"\n"20.09.2026 19:00"\n\n' +
+        'Godziny w czasie polskim (Europe/Warsaw).',
+    ).catch((error) => logError('telegram', 'send-schedule-prompt-failed', error, { chatId: chatIdStr }));
+    return;
+  }
+
   if (action === 'publish') {
     const draftJobs = await prisma.publishJob.findMany({
       where: { postGroupId, status: 'DRAFT', video: { userId: linkedUser.id } },
@@ -671,6 +752,12 @@ export async function POST(request: NextRequest) {
   // user isn't trapped needing to finish or abandon an edit before e.g. checking /status.
   if (linkedUser.telegramEditingJobId && !text.trim().startsWith('/')) {
     await handleEditReply(chatIdStr, linkedUser.id, linkedUser.telegramEditingJobId, text);
+    return NextResponse.json({ ok: true });
+  }
+
+  // Same priority rule as the edit reply above, for an in-progress "📅 Zaplanuj" prompt.
+  if (linkedUser.telegramSchedulingPostGroupId && !text.trim().startsWith('/')) {
+    await handleScheduleReply(chatIdStr, linkedUser.id, linkedUser.telegramSchedulingPostGroupId, text);
     return NextResponse.json({ ok: true });
   }
 
