@@ -97,6 +97,9 @@ describe('Telegram text commands (TASK-3.2.1)', () => {
         scheduledFor: new Date(Date.now() + 60 * 60 * 1000),
         videoId: video.id,
         socialAccountId: account.id,
+        // Not testing Reels-vs-Feed here - pin to FEED for the plain, single-request publish
+        // path this test's fetch mock expects.
+        metaPostFormat: 'FEED',
       },
     });
 

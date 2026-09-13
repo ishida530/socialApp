@@ -84,6 +84,15 @@ export async function createDraftGroupForVideo(
           scheduledFor: new Date(),
           video: { connect: { id: video.id } },
           socialAccount: { connect: { id: accountByPlatform.get(platform)!.id } },
+          // Default to Reels for Meta platforms, matching the pre-existing behavior (Instagram
+          // already always posted as a Reel) so this doesn't silently change what happens for
+          // anyone who never touches the new format picker. Set server-side, not client-side
+          // like TikTok's privacy default used to be - that split caused BUG-003 (Telegram-created
+          // drafts never got the default because only the web composer set it after load).
+          metaPostFormat:
+            video.mediaType === 'VIDEO' && (platform === Platform.FACEBOOK || platform === Platform.INSTAGRAM)
+              ? 'REELS'
+              : undefined,
         },
         include: PUBLISH_JOB_INCLUDE,
       }),

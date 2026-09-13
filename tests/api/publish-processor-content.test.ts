@@ -44,6 +44,9 @@ describe('publish-processor content consumption (prompt-dla-claude-code.md regre
         scheduledFor: new Date(Date.now() - 1000),
         videoId: video.id,
         socialAccountId: account.id,
+        // Not testing Reels-vs-Feed here - pin to FEED so this stays a single plain /videos
+        // call, not the newer three-step Reels upload (covered by meta-post-format.test.ts).
+        metaPostFormat: 'FEED',
       },
     });
 

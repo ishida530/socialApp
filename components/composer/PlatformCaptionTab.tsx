@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Hash, AtSign, RefreshCw, TriangleAlert } from 'lucide-react';
 import { TikTokSettingsPanel } from './TikTokSettingsPanel';
+import { MetaFormatPanel } from './MetaFormatPanel';
 import { PLATFORM_CAPTION_LIMIT } from './types';
 import type { DraftJob } from './types';
 
@@ -177,6 +178,11 @@ export function PlatformCaptionTab({
       {job.socialAccount.platform === 'TIKTOK' && (
         <TikTokSettingsPanel job={job} onSaveNow={(patch) => onSaveNow(job.id, patch)} />
       )}
+
+      {(job.socialAccount.platform === 'FACEBOOK' || job.socialAccount.platform === 'INSTAGRAM') &&
+        job.video.mediaType === 'VIDEO' && (
+          <MetaFormatPanel job={job} onSaveNow={(patch) => onSaveNow(job.id, patch)} />
+        )}
     </div>
   );
 }

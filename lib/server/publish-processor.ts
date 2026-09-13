@@ -435,6 +435,7 @@ type PublishInputJob = {
   hashtags: string[];
   title: string | null;
   tiktokSettings?: TikTokPublishSettings;
+  metaPostFormat?: string | null;
 };
 
 async function publishToYouTube(job: PublishInputJob, accessToken: string): Promise<PublishTransportResult> {
@@ -610,7 +611,8 @@ async function publishToTikTokPhoto(job: PublishInputJob, accessToken: string): 
   };
 }
 
-async function publishToFacebook(job: PublishInputJob, accessToken: string): Promise<PublishTransportResult> {
+// "Zwykły post wideo" - the format Facebook always used before the Reels/Feed picker existed.
+async function publishToFacebookFeed(job: PublishInputJob, accessToken: string): Promise<PublishTransportResult> {
   const pageId = job.socialAccount.externalId;
   if (!pageId) {
     throw new Error('Brak externalId strony Facebook dla konta social');
@@ -660,6 +662,146 @@ async function publishToFacebook(job: PublishInputJob, accessToken: string): Pro
     remoteId: payload.post_id ?? payload.id,
     postUrl: payload.post_id ? `https://www.facebook.com/${payload.post_id}` : undefined,
   };
+}
+
+// Facebook Reels is a separate, three-step protocol (start/upload/finish) - not a parameter on
+// the regular /videos endpoint. `file_url` on the upload step lets Facebook pull the video from
+// our public URL itself, the same pull-based pattern already used for /videos and Instagram,
+// instead of us streaming the bytes through this server.
+async function startFacebookReelUpload(pageId: string, accessToken: string, version: string) {
+  const params = new URLSearchParams({ access_token: accessToken, upload_phase: 'start' });
+
+  const response = await fetch(`https://graph.facebook.com/${version}/${pageId}/video_reels`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params.toString(),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    if (response.status === 401 || response.status === 403) {
+      throw new PublishAuthError(
+        `Facebook access token invalid/expired: ${errorBody || response.statusText}`,
+        response.status,
+      );
+    }
+    throw new Error(`Facebook Reels upload start failed: ${errorBody || response.statusText}`);
+  }
+
+  const payload = (await response.json()) as { video_id?: string; upload_url?: string };
+  if (!payload.video_id || !payload.upload_url) {
+    throw new Error('Facebook Reels upload start failed: missing video_id/upload_url in response');
+  }
+
+  return { videoId: payload.video_id, uploadUrl: payload.upload_url };
+}
+
+async function uploadFacebookReelFromUrl(uploadUrl: string, sourceUrl: string, accessToken: string) {
+  const response = await fetch(uploadUrl, {
+    method: 'POST',
+    headers: {
+      Authorization: `OAuth ${accessToken}`,
+      file_url: sourceUrl,
+    },
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`Facebook Reels upload failed: ${errorBody || response.statusText}`);
+  }
+}
+
+async function finishFacebookReelUpload(
+  pageId: string,
+  videoId: string,
+  accessToken: string,
+  version: string,
+  description: string,
+) {
+  const params = new URLSearchParams({
+    access_token: accessToken,
+    upload_phase: 'finish',
+    video_id: videoId,
+    video_state: 'PUBLISHED',
+    description,
+  });
+
+  const response = await fetch(`https://graph.facebook.com/${version}/${pageId}/video_reels`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params.toString(),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    if (response.status === 401 || response.status === 403) {
+      throw new PublishAuthError(
+        `Facebook access token invalid/expired: ${errorBody || response.statusText}`,
+        response.status,
+      );
+    }
+    throw new Error(`Facebook Reels publish failed: ${errorBody || response.statusText}`);
+  }
+
+  const payload = (await response.json()) as { success?: boolean };
+  if (payload.success === false) {
+    throw new Error('Facebook Reels publish failed: API returned success=false');
+  }
+}
+
+// Same defensive pattern as fetchInstagramPermalink: the reel is already published by the time
+// we call this, so a failure here must not fail the job - just leave the link empty.
+async function fetchFacebookReelPermalink(videoId: string, accessToken: string, version: string): Promise<string | undefined> {
+  try {
+    const response = await fetch(
+      `https://graph.facebook.com/${version}/${videoId}?fields=permalink_url&access_token=${encodeURIComponent(accessToken)}`,
+      { method: 'GET' },
+    );
+
+    if (!response.ok) {
+      return undefined;
+    }
+
+    const payload = (await response.json()) as { permalink_url?: string };
+    if (!payload.permalink_url) {
+      return undefined;
+    }
+
+    return payload.permalink_url.startsWith('http')
+      ? payload.permalink_url
+      : `https://www.facebook.com${payload.permalink_url.startsWith('/') ? '' : '/'}${payload.permalink_url}`;
+  } catch {
+    return undefined;
+  }
+}
+
+async function publishToFacebookReel(job: PublishInputJob, accessToken: string): Promise<PublishTransportResult> {
+  const pageId = job.socialAccount.externalId;
+  if (!pageId) {
+    throw new Error('Brak externalId strony Facebook dla konta social');
+  }
+
+  const sourceUrl = resolvePublicVideoUrl(job.video.sourceUrl);
+  const version = resolveMetaApiVersion();
+  const description = composeCaption(job.caption, job.hashtags).slice(0, 5000);
+
+  const { videoId, uploadUrl } = await startFacebookReelUpload(pageId, accessToken, version);
+  await uploadFacebookReelFromUrl(uploadUrl, sourceUrl, accessToken);
+  await finishFacebookReelUpload(pageId, videoId, accessToken, version, description);
+
+  const postUrl = await fetchFacebookReelPermalink(videoId, accessToken, version);
+
+  return {
+    provider: 'FACEBOOK' as const,
+    remoteId: videoId,
+    postUrl,
+  };
+}
+
+async function publishToFacebook(job: PublishInputJob, accessToken: string): Promise<PublishTransportResult> {
+  return job.metaPostFormat === 'FEED'
+    ? publishToFacebookFeed(job, accessToken)
+    : publishToFacebookReel(job, accessToken);
 }
 
 async function publishToFacebookPhoto(job: PublishInputJob, accessToken: string): Promise<PublishTransportResult> {
@@ -839,14 +981,17 @@ async function publishToInstagram(job: PublishInputJob, accessToken: string): Pr
   const sourceUrl = resolvePublicVideoUrl(job.video.sourceUrl);
   const version = resolveMetaApiVersion();
   const caption = composeCaption(job.caption, job.hashtags).slice(0, 2200);
+  const isFeedFormat = job.metaPostFormat === 'FEED';
 
   const createParams = new URLSearchParams({
     access_token: accessToken,
-    media_type: 'REELS',
+    media_type: isFeedFormat ? 'VIDEO' : 'REELS',
     video_url: sourceUrl,
     caption,
-    share_to_feed: 'true',
   });
+  if (!isFeedFormat) {
+    createParams.set('share_to_feed', 'true');
+  }
 
   return publishInstagramMediaContainer(igUserId, accessToken, version, createParams);
 }
@@ -1006,6 +1151,7 @@ async function processClaimedJob(jobId: string) {
     hashtags: job.hashtags,
     title: job.title,
     tiktokSettings,
+    metaPostFormat: job.metaPostFormat,
   };
 
   try {

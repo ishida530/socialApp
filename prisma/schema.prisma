@@ -143,6 +143,7 @@ model PublishJob {
   tiktokAllowDuet    Boolean?
   tiktokAllowStitch  Boolean?
   tiktokConsentAt    DateTime?
+  metaPostFormat  String?
   scheduledFor    DateTime
   publishedAt     DateTime?
   remotePostId    String?

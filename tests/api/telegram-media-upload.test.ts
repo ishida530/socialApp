@@ -205,6 +205,9 @@ describe('POST /api/telegram/webhook — callback_query (TASK-3.1.2)', () => {
         scheduledFor: new Date(),
         videoId: video.id,
         socialAccountId: account.id,
+        // Not testing Reels-vs-Feed here - pin to FEED for the plain, single-request publish
+        // path this test's fetch mock expects.
+        metaPostFormat: 'FEED',
       },
     });
 
