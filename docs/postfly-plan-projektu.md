@@ -616,6 +616,20 @@ Status: [x] zaimplementowane → [x] testy napisane i zielone → [x] zweryfikow
 
 ---
 
+### TASK-3.2.3: powiadomienie o długiej nieaktywności (2026-09-13)
+
+**[PO]:** wcześniej odłożone bo sekcja 4.1 planu nie zawierała specyfikacji, a temat jest wrażliwy. Właściciel produktu poproszony wprost o próg/treść (nie zgadywane) — zaakceptował dokładnie zaproponowaną wersję: 10 dni bez `PublishJob`, jedno neutralne pytanie o treść/harmonogram, zero odniesień do samopoczucia, wysyłane nie częściej niż raz na 10 dni.
+
+**[Architekt]:** zamiast osobnego crona (kolejny slot na darmowym planie Vercela — właściciel produktu jawnie zastrzegł "bazujemy na darmowych subskrypcjach") wpięte w już istniejący dzienny cron `app/api/cron/telegram-digest` obok `sendMorningDigest` — to samo uzasadnienie co digest: nic pilnego, sprawdzenie raz dziennie wystarczy. `User.lastInactivityNudgeSentAt` (nowe pole) jako znacznik "kiedy ostatnio wysłano", żeby nie powtarzać codziennie po wyzwoleniu.
+
+**[Inżynier]:** `sendInactivityNudges` w `lib/server/telegram-notifications.ts` — "aktywność" liczona jako istnienie `PublishJob` (dowolny status, nie tylko sukces — sam upload/próba się liczy), użytkownicy którzy NIGDY nic nie wgrali są pomijani (to "jeszcze nie zaczął", nie "ucichł po aktywności").
+
+**[QA]:** `tests/api/telegram-inactivity-nudge.test.ts` (6 testów: wysyłka dokładnej uzgodnionej treści, brak wysyłki w progu, brak wysyłki dla nigdy-nieaktywnego użytkownika, brak powtórki w oknie progu, powtórka po upływie progu, brak wysyłki bez powiązanego Telegrama). Pełna suita: 212/212 w obu trybach APP_MODE, tsc/build czyste.
+
+Status: [x] zaimplementowane → [x] testy napisane i zielone → [x] zweryfikowane (tsc, build czyste) → [ ] zamknięte (PR w przygotowaniu) → [ ] zweryfikowane realnie przez bota
+
+---
+
 ## Etap 2 — podsumowanie sesji (2026-09-13, właściciel produktu nieobecny)
 
 Użytkownik poprosił o kontynuację "by zakończyć wszystko w 100%" i musiał wyjść w trakcie. Poniżej pełny, uczciwy obraz co faktycznie jest zrobione, a co świadomie NIE zostało dotknięte i dlaczego — żeby nie trzeba było odtwarzać tego z historii PR-ów.

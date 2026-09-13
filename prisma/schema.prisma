@@ -64,6 +64,9 @@ model User {
   // handleScheduleReply). Same pattern/caveats as telegramEditingJobId, but keyed on postGroupId
   // (a schedule applies to the whole post, not one platform's job).
   telegramSchedulingPostGroupId String?
+  // TASK-3.2.3: last time the "long inactivity" nudge was sent, so it doesn't repeat every day
+  // once triggered - see lib/server/telegram-notifications.ts (sendInactivityNudges).
+  lastInactivityNudgeSentAt DateTime?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   socialAccounts SocialAccount[]
