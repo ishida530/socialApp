@@ -408,7 +408,24 @@ Status: [x] zaimplementowane → [x] testy napisane i zielone (`tests/api/meta-p
 
 **Wdrożenie:** schema (`PublishJob.excludedFromPublish`, `SocialAccount.last*`), `createDraftGroupForVideo` czyta `account.last*` zamiast stałych domyślnych, `PATCH .../drafts/:id` zapisuje `SocialAccount.last*` po każdym udanym zapisie ustawień (best-effort, nie blokuje odpowiedzi), `buildPreviewButtons`/`buildPreviewMessage` w webhooku renderują rząd przycisków-przełączników, nowa gałąź `action === 'toggle'` w `handleCallbackQuery` edytuje wiadomość w miejscu, `action === 'publish'` filtruje po `excludedFromPublish` przed wywołaniem `enqueueDraftGroup`.
 
-Status: [x] zaimplementowane → [x] testy napisane i zielone (`tests/api/telegram-platform-toggle.test.ts`, `tests/api/social-account-sticky-defaults.test.ts`, zaktualizowany `tests/api/telegram-media-upload.test.ts`) → [ ] zweryfikowane realnie przez prawdziwego bota → [ ] zamknięte (PR #...)
+Status: [x] zaimplementowane → [x] testy napisane i zielone (`tests/api/telegram-platform-toggle.test.ts`, `tests/api/social-account-sticky-defaults.test.ts`, zaktualizowany `tests/api/telegram-media-upload.test.ts`) → [x] zweryfikowane realnie przez prawdziwego bota (toggle zadziałał, dodatkowo znaleziono i naprawiono osobny problem — patrz niżej) → [x] zamknięte (PR #22)
+
+**Skutek uboczny testu na żywo** — post opublikowany przez Telegram miał generyczny caption ("Krótka aktualizacja: Nowa publikacja gotowa do harmonogramu.") zamiast treści dopasowanej do materiału. Przyczyna: `handleIncomingMedia` wołało `createDraftGroupForVideo(userId, video.id)` bez `contentType`/`songTitle` — w przeciwieństwie do web (`MediaStep` zawsze je zbiera) — więc generator treści dostawał pusty `rawInput`. Naprawione odczytaniem `message.caption` (Telegram natywnie pozwala dołączyć podpis tekstowy do zdjęcia/wideo w tej samej wiadomości) i przekazaniem go jako `contentType`. Test: `tests/api/telegram-media-upload.test.ts` ("forwards the media message caption as AI context"). Status: [x] zaimplementowane → [x] test zielony → [x] zamknięte (PR #23).
+
+---
+
+**Migracja OpenAI → Claude + realne generowanie treści (2026-09-13)** — użytkownik poprosił o zamianę OpenAI na Claude (platform.claude.com) i dobór modeli pod konkretne funkcje. Audyt kodu przed zmianą ujawnił coś ważniejszego niż sama migracja: jedyne realne wywołanie OpenAI w całym projekcie to mały klasyfikator w `smart-autopilot` (persona/contentType/intent, tylko tryb `ai-autopilot`, plan PRO) — **caption/tytuł/hashtagi widoczne przez całą tę sesję (i w web, i w Telegramie) nigdy nie były generowane przez LLM**. `generatePlatformBundles` → `orchestrateContent(mode: 'manual')` → `transformByPersona` to czysty system szablonów (4 persony × canned tekst z wklejonym `rawInput`) — stąd wszystkie te "Krótka aktualizacja: X — Y", "Hook w 1 sekundzie: X" w testach tej sesji. UI appki obiecuje "AI dopasowuje treść pod każdą platformę" — dziś tego nie robiło.
+
+**Decyzja (za zgodą użytkownika, opcja "oba naraz"):** (1) podmienić istniejący, mały OpenAI call na Claude; (2) zbudować prawdziwe generowanie treści przez Claude, zastępujące szablon w `transformByPersona`, żeby appka faktycznie robiła to, co obiecuje w UI.
+
+**Dobór modeli per funkcja:**
+- Klasyfikacja persona/contentType/intent (`lib/server/smart-autopilot/llm.ts`) — zadanie proste, jednoetykietowe, wymaga szybkości/taniości, nie głębokiego rozumowania → **Claude Haiku 4.5** (`claude-haiku-4-5-20251001`).
+- Generowanie captionów/hashtagów per platforma (`lib/server/smart-autopilot/ai-content.ts`) — realny tekst kreatywny pokazywany publicznie odbiorcom → **Claude Sonnet 5** (`claude-sonnet-5`), lepszy balans jakości pisania do kosztu niż Haiku, bez potrzeby Opusa dla krótkich postów social media.
+- Oba modele nadpisywalne przez `ANTHROPIC_CLASSIFICATION_MODEL`/`ANTHROPIC_CONTENT_MODEL`, patrz `.env.example`.
+
+**Architektura:** nowy współdzielony klient `lib/server/anthropic-client.ts` (`callClaudeTool` — Anthropic Messages API, wymuszony tool-use zamiast prompt-owego JSON mode jak w OpenAI, bo tool-use daje gwarantowaną strukturę bez ręcznego `JSON.parse`/walidacji błędów parsowania). Ten sam kontrakt co poprzednia integracja OpenAI i co reszta appki: **brak klucza albo błąd → `null` → wywołujący spada na deterministyczny fallback** (heurystyka dla klasyfikacji, szablon dla treści) — appka nigdy nie wymaga twardo klucza Anthropic do działania, tylko go wykorzystuje gdy jest dostępny. PII redagowane (`redactPotentialPii`) PRZED wysłaniem opisu do Claude, ta sama polityka co już istniała dla szablonu.
+
+Status: [x] zaimplementowane → [x] testy napisane i zielone (`tests/unit/anthropic-client.test.ts`, `tests/unit/smart-autopilot-ai-content.test.ts`, `tests/unit/smart-autopilot-llm.test.ts`) → [ ] zweryfikowane realnie z prawdziwym kluczem `ANTHROPIC_API_KEY` (trzeba dodać go w Vercelu — `OPENAI_API_KEY` był tam ustawiony, ale po tej migracji nie jest już czytany przez żaden kod, można go usunąć) → [ ] zamknięte (PR #...)
 
 ---
 

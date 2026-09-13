@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'crypto';
 import { prisma } from '@/lib/server/prisma';
 import { logError, logEvent } from '@/lib/server/observability';
 import { analyzeInput } from './analysis';
+import { generateBundlesWithClaude } from './ai-content';
 import { optimizeSchedule } from './schedule';
 import { buildStrategySummary } from './strategy';
 import { transformByPersona } from './transform';
@@ -191,7 +192,15 @@ export async function orchestrateContent(userId: string, input: OrchestrateConte
       analysis.persona = 'neutral';
     }
 
-    let bundles = transformByPersona(analysis, input);
+    const requestedPlatforms =
+      input.targetPlatforms && input.targetPlatforms.length > 0
+        ? input.targetPlatforms
+        : (['TIKTOK', 'INSTAGRAM', 'YOUTUBE', 'FACEBOOK'] as const);
+
+    // Real, tailored copy from Claude when configured; the pre-existing persona templates
+    // remain the fallback (no ANTHROPIC_API_KEY, timeout, or a malformed/incomplete response) -
+    // same "AI enhances, heuristic is the safety net" pattern as the classification step above.
+    let bundles = (await generateBundlesWithClaude(analysis, input, [...requestedPlatforms])) ?? transformByPersona(analysis, input);
 
     if (input.targetPlatforms && input.targetPlatforms.length > 0) {
       const allowedPlatforms = new Set(input.targetPlatforms);
