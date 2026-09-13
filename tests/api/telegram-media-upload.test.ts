@@ -95,7 +95,11 @@ describe('POST /api/telegram/webhook — media upload (TASK-3.1.2)', () => {
 
     expect(mockSendTelegramMessageWithButtons).toHaveBeenCalledTimes(1);
     const [, , buttons] = mockSendTelegramMessageWithButtons.mock.calls[0];
+    // Row 1: one toggle button per connected platform (here just Instagram). Row 2: Publikuj/Anuluj.
     expect(buttons[0]).toEqual([
+      { text: '✅ INSTAGRAM', callback_data: `toggle:${createdJobs[0].postGroupId}:INSTAGRAM` },
+    ]);
+    expect(buttons[1]).toEqual([
       { text: '✅ Publikuj', callback_data: `publish:${createdJobs[0].postGroupId}` },
       { text: '❌ Anuluj', callback_data: `cancel:${createdJobs[0].postGroupId}` },
     ]);

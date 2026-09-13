@@ -171,6 +171,28 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
       include: { video: true, socialAccount: true },
     });
 
+    // Remember this as the account's new "sticky" default - read back by createDraftGroupForVideo
+    // for the NEXT draft on this account, on either channel (web or Telegram). Best-effort: a
+    // failure here must not fail the save the user is actually waiting on.
+    if (touchesTikTokSettings || body.metaPostFormat !== undefined) {
+      await prisma.socialAccount
+        .update({
+          where: { id: job.socialAccountId },
+          data: {
+            ...(touchesTikTokSettings
+              ? {
+                  lastTiktokPrivacyLevel: data.tiktokPrivacyLevel as string,
+                  lastTiktokAllowComment: data.tiktokAllowComment as boolean,
+                  lastTiktokAllowDuet: data.tiktokAllowDuet as boolean,
+                  lastTiktokAllowStitch: data.tiktokAllowStitch as boolean,
+                }
+              : {}),
+            ...(body.metaPostFormat !== undefined ? { lastMetaPostFormat: data.metaPostFormat as string } : {}),
+          },
+        })
+        .catch((error) => console.error('[publish-jobs/drafts/:id] failed to persist sticky account defaults', error));
+    }
+
     return NextResponse.json(updated);
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
