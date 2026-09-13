@@ -1,6 +1,6 @@
-Zadanie: TASK-3.3.1
-Rola: Inzynier -> QA
-Aktualny krok: Podczas dyskusji o domknieciu DoD (wylacznie Telegram, zero web UI) uzytkownik zapytal czy appka realizuje zasade "Telegram to pelny punkt kontroli" - analiza pokazala realna luke (brak odznaczania platform, brak wgladu w ustawienia Reels/prywatnosc TikTok przez Telegram). Skonsultowano (PO/UX Researcher/UI Designer/Design Critic/Architekt) i wdrozono: (1) PublishJob.excludedFromPublish + toggle-buttony per platforma w Telegramie (edytuja wiadomosc w miejscu), (2) SocialAccount.last* pola - "sticky defaults" zapisywane przy PATCH .../drafts/:id, odczytywane w createDraftGroupForVideo - Telegram teraz dziedziczy ostatnio uzyte ustawienia z web zamiast twardych domyslnych. Migracja wygenerowana i zastosowana (dev+test DB), nowe testy napisane i zielone (telegram-platform-toggle.test.ts, social-account-sticky-defaults.test.ts), pelna suita 88/88 x2 tryby, build czysty. Gotowe do commit+push+PR+merge+deploy.
-Plik(i) w edycji: prisma/schema.prisma + migracja, lib/server/publish-jobs.ts, app/api/publish-jobs/drafts/[id]/route.ts, app/api/telegram/webhook/route.ts, docs/postfly-plan-projektu.md, testy
-Rozpoczęto krok: 15:04
-Ostatnia aktualizacja: 10:10 (2026-09-13)
+Zadanie: brak aktywnego zadania
+Rola: -
+Aktualny krok: TASK-3.3.1 formalnie zamknięte 2026-09-13 (czysty test wyłącznie przez Telegram, DoD spełnione dosłownie). Etap 1 zamknięty. Czeka na decyzję użytkownika co do dalszego kierunku (Etap 2 vs. inne priorytety).
+Plik(i) w edycji: -
+Rozpoczęto krok: -
+Ostatnia aktualizacja: 12:05 (2026-09-13)

@@ -390,7 +390,7 @@ Status: **zrewidowana** przez kolejną konsultację niżej (2026-09-13) — wła
 
 **Wdrożenie:** `PublishJob.metaPostFormat` (`'REELS' | 'FEED' | null`, domyślnie `'REELS'` ustawiane server-side w `createDraftGroupForVideo` — nie client-side jak przy TikToku, żeby uniknąć powtórki BUG-003, gdzie kanał Telegram nigdy nie dostawał domyślnej wartości ustawianej tylko w komponencie webowym), `MetaFormatPanel.tsx` w kompozytorze, walidacja w `PATCH /api/publish-jobs/drafts/[id]` (tylko FACEBOOK/INSTAGRAM, tylko wideo), branch w `lib/server/publish-processor.ts` (`publishToInstagram`, `publishToFacebookReel`/`publishToFacebookFeed`).
 
-Status: [x] zaimplementowane → [x] testy napisane i zielone (`tests/api/meta-post-format.test.ts`, `tests/api/meta-post-format-draft-patch.test.ts`, `tests/api/meta-post-format-draft-default.test.ts`) → [ ] zweryfikowane realnie (Facebook Reels — 3-etapowy upload — nie był jeszcze przetestowany przeciw prawdziwemu API Mety, tylko zamockowany; wymaga realnej weryfikacji jak reszta tego etapu) → [x] zamknięte (PR #21)
+Status: [x] zaimplementowane → [x] testy napisane i zielone (`tests/api/meta-post-format.test.ts`, `tests/api/meta-post-format-draft-patch.test.ts`, `tests/api/meta-post-format-draft-default.test.ts`) → [x] zweryfikowane realnie (pełny test przez Telegram 2026-09-13 obejmował realną publikację Facebook Reels przez 3-etapowy upload — potwierdzone przez użytkownika: "działa") → [x] zamknięte (PR #21)
 
 ---
 
@@ -441,11 +441,11 @@ To domyka drugą (obok braku wyboru platform, już zamkniętej wyżej) część 
 
 **Wdrożenie:** `prisma/schema.prisma` (`User.telegramEditingJobId`), `lib/server/telegram-edit-parser.ts` (czysta funkcja parsująca, testowalna w izolacji), `app/api/telegram/webhook/route.ts` (`buildPreviewButtons`/`buildPreviewMessage` przebudowane o przycisk edycji i opis formatu, nowa gałąź `action === 'editstart'`, nowa funkcja `handleEditReply`, routing wiadomości tekstowych sprawdza `telegramEditingJobId` przed komendami).
 
-Status: [x] zaimplementowane → [x] testy napisane i zielone (`tests/unit/telegram-edit-parser.test.ts`, `tests/api/telegram-caption-edit.test.ts`, zaktualizowany `tests/api/telegram-media-upload.test.ts`) → [ ] zweryfikowane realnie przez prawdziwego bota → [ ] zamknięte (PR #...)
+Status: [x] zaimplementowane → [x] testy napisane i zielone (`tests/unit/telegram-edit-parser.test.ts`, `tests/api/telegram-caption-edit.test.ts`, zaktualizowany `tests/api/telegram-media-upload.test.ts`) → [x] zweryfikowane realnie przez prawdziwego bota (pełny test 2026-09-13, w tym edycja opisu/hashtagów — potwierdzone: "działa") → [x] zamknięte (PR #26)
 
 **Korekta w tej samej sesji — Reels/Feed jednak dostaje przycisk w Telegramie.** Powyższy projekt świadomie zostawił format Reels/zwykły post jako "tylko podgląd, edycja przez web", argumentując że to "ustawienie wielowartościowe" nie pasujące do przycisków czatu (analogicznie do prywatności TikToka). Użytkownik słusznie to zakwestionował po realnym teście: Reels/Feed to w rzeczywistości **wybór dwuwartościowy** (nie wielowartościowy jak prywatność TikToka + duet/stitch/komentarze razem) — dokładnie tak prosty jak już istniejący przełącznik platform. Dodano trzeci przycisk w rzędzie platformy (tylko Facebook/Instagram, tylko wideo — `canToggleMetaFormat`): 🎬 Reels / 📋 Zwykły post, akcja `formattoggle`, ten sam wzorzec edycji wiadomości w miejscu co `toggle`. Toggle w Telegramie **też** zapisuje się jako `SocialAccount.lastMetaPostFormat` (to samo write-through co PATCH w web) — wybór trzyma się dla kolejnych postów na obu kanałach.
 
-Status: [x] zaimplementowane → [x] testy napisane i zielone (`tests/api/telegram-platform-toggle.test.ts` — trzy nowe testy) → [ ] zweryfikowane realnie → [ ] zamknięte (PR #...)
+Status: [x] zaimplementowane → [x] testy napisane i zielone (`tests/api/telegram-platform-toggle.test.ts` — trzy nowe testy) → [x] zweryfikowane realnie (pełny test 2026-09-13, w tym przełączanie Reels/Feed na Facebooku — potwierdzone: "działa") → [x] zamknięte (PR #27)
 
 ---
 
@@ -457,7 +457,21 @@ Status: [x] zaimplementowane → [x] testy napisane i zielone (`tests/api/telegr
 
 **UI:** web (`MetaFormatPanel.tsx`) dostaje trzecią kartę "Oba", widoczną tylko dla Facebooka. Telegram: przycisk formatu dla Facebooka cyklicznie przechodzi przez trzy stany (Reels → Zwykły post → Oba → Reels), dla Instagrama zostaje dwustanowy (Reels ↔ Zwykły post, "Oba" tam odrzucane jako nieprawidłowe).
 
-Status: [x] zaimplementowane → [x] testy napisane i zielone (`tests/api/meta-post-format-both.test.ts`, rozszerzone `tests/api/meta-post-format-draft-patch.test.ts` i `tests/api/telegram-platform-toggle.test.ts`) → [ ] zweryfikowane realnie (podwójna publikacja na Facebooku nigdy nie była przetestowana przeciw prawdziwemu API) → [ ] zamknięte (PR #...)
+Status: [x] zaimplementowane → [x] testy napisane i zielone (`tests/api/meta-post-format-both.test.ts`, rozszerzone `tests/api/meta-post-format-draft-patch.test.ts` i `tests/api/telegram-platform-toggle.test.ts`) → [x] zweryfikowane realnie (pełny test 2026-09-13 przez Telegram: cykl Reels→Feed→Oba→Reels na Facebooku, publikacja z "Oba" ustawionym — potwierdzone przez użytkownika: "działa") → [x] zamknięte (PR #28)
+
+---
+
+## Zamknięcie TASK-3.3.1 (2026-09-13)
+
+**[QA]:** Formalne DoD z `postfly-backlog-sprinty.md` (Sprint 3.3): *"Pełny cykl: upload → potwierdzenie → publikacja wyłącznie przez Telegram. DoD: zero kroków przez web UI w tym teście."* Potwierdzone czystym przebiegiem 2026-09-13, wyłącznie przez Telegram: wysłanie wideo z podpisem → AI (Claude) wygenerowało caption/hashtagi/tytuł per platforma → przegląd podglądu z typem publikacji per platforma → edycja treści jednej platformy przyciskiem "✏️ Edytuj" → przełączenie formatu Facebooka przez cykl Reels→Feed→Oba→Reels → "✅ Publikuj" → realna publikacja na wszystkich platformach, w tym podwójna (Reels + zwykły post) na Facebooku. Użytkownik potwierdził: "działa". Zero kroków przez web UI w tym konkretnym przebiegu — DoD spełnione dosłownie, nie tylko "funkcjonalnie".
+
+**[Architekt]:** Zakres faktycznie dostarczony znacznie przekracza pierwotny DoD zadania, bo realne testowanie (zgodnie z zasadą tego projektu — weryfikacja na produkcji, nie deklaracje) odkryło i zamknęło samo-podtrzymujący się łańcuch realnych problemów i luk, każdy udokumentowany i przetestowany osobno: BUG-004 (PATCH draftu TikTok gubił stan duet/stitch), BUG-005 (mylący status/brak linków w web UI), rozjazd między deklaracją "Telegram to pełny punkt kontroli" a rzeczywistością (brak wyboru platform, brak wglądu/edycji treści, brak kontroli formatu — wszystko domknięte), migracja OpenAI→Claude z odkryciem że generowanie treści było czystym szablonem, i funkcja Facebook "Oba". Żadne z tych nie było przewidziane w pierwotnym planie TASK-3.3.1 — wszystkie wynikły z **rzeczywistego** użycia appki, nie z planowania z góry.
+
+**[Inżynier]:** 11 PR-ów zmergowanych w ramach tej sesji dla TASK-3.3.1 (#18 przez #28), każdy z własnym testem/testami, każdy wdrożony na produkcję i zweryfikowany. Pełna suita testów: 119/119 w obu trybach APP_MODE, build i `tsc --noEmit` czyste na każdym kroku.
+
+**[PO]:** Definicja "działająca appka po Etapie 1" z `postfly-plan-wykonania.md` ("wysyłasz plik do bota, dostajesz podgląd z pytaniem o zgodę, klikasz zatwierdź, treść publikuje się na przynajmniej jednej platformie") jest nie tylko spełniona, ale znacznie przekroczona — appka dziś: generuje realną treść przez AI, pozwala ją edytować i kontrolować format publikacji bez opuszczania Telegrama, i publikuje na wszystkie 4 platformy (w tym podwójnie na Facebooku, jeśli tak wybrano).
+
+**Etap 1: ZAMKNIĘTY.** Zgodnie z `postfly-plan-wykonania.md`: *"Po zamknięciu Etapu 1: zatrzymaj się i czekaj na potwierdzenie użytkownika przed rozpoczęciem Etapu 2."* — czekam na decyzję właściciela produktu co do dalszego kierunku (Etap 2: BullMQ/pełna kolejka skalowalna, pełna pętla rozumowania agenta, moduł Monetyzacji — patrz sekcja 1/2 tego dokumentu), zamiast kontynuować automatycznie.
 
 ---
 
