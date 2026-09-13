@@ -53,18 +53,18 @@
 *Odpowiada Fazie C. Zależy od EPIC 2.*
 
 ### Sprint 3.1 — Powiązanie i webhook
-- [ ] **TASK-3.1.1** [P0/M] Mechanizm łączenia konta Telegram z kontem użytkownika (kod jednorazowy + `/start`). DoD: powiązanie `telegramChatId ↔ userId` zapisane, wiadomość bez powiązania odrzucona. (sekcja 4.1)
-- [ ] **TASK-3.1.2** [P0/M] Webhook Telegram podłączony do kolejki z EPIC 2. DoD: wiadomość → zadanie w kolejce, nie bezpośrednie wywołanie synchroniczne.
+- [x] **TASK-3.1.1** [P0/M] Mechanizm łączenia konta Telegram z kontem użytkownika (kod jednorazowy + `/start`). DoD: powiązanie `telegramChatId ↔ userId` zapisane, wiadomość bez powiązania odrzucona. (sekcja 4.1) **Potwierdzone 2026-09-13** (audyt przy Etapie 2): `createTelegramLinkCode`/`consumeTelegramLinkCode` w `lib/server/telegram.ts`, pokryte testami od dawna.
+- [ ] **TASK-3.1.2** [P0/M] Webhook Telegram podłączony do kolejki z EPIC 2. DoD: wiadomość → zadanie w kolejce, nie bezpośrednie wywołanie synchroniczne. **Sprawdzone 2026-09-13**: `POST` w `app/api/telegram/webhook/route.ts` przetwarza wiadomość synchronicznie w handlerze żądania — DoD nie spełnione. Świadomie odłożone: przeróbka na kolejkowanie to realna zmiana architektury (webhook musiałby natychmiast odpowiadać Telegramowi i zlecać przetwarzanie przez QStash), a dzisiejszy synchroniczny model działa poprawnie w praktyce (Vercel Function ma wystarczający timeout na pojedynczą wiadomość) — brak dowodu na realny problem, który by to rozwiązywało.
 
 ### Sprint 3.2 — Komendy i UX
-- [ ] **TASK-3.2.1** [P0/L] Wszystkie komendy z sekcji 5 głównego planu (`/status /pause /resume /approve /reject /retry /cancel /logs /revenue`). DoD: każda przetestowana ręcznie z realnym efektem w systemie.
+- [x] **TASK-3.2.1** [P0/L] Wszystkie komendy z sekcji 5 głównego planu (`/status /pause /resume /approve /reject /retry /cancel /logs /revenue`). DoD: każda przetestowana ręcznie z realnym efektem w systemie. **Zaimplementowane i pokryte testami automatycznymi 2026-09-13** (`/retry /cancel /logs /revenue` — reszta była już gotowa wcześniej): `/cancel` jako alias `/reject` (`cancelPublishJob` już obsługiwał dowolny nieterminalny status), `/retry` nowa funkcja `retryPublishJob` (FAILED/CANCELED → PENDING + natychmiastowa próba publikacji), `/logs` ostatnie zakończone zadania, `/revenue` uczciwa informacja że moduł Monetyzacji (EPIC 5) nie istnieje — świadomie NIE pokazuje danych o subskrypcji Postfly pod mylącą nazwą. `tests/api/telegram-commands.test.ts` (+7 testów). **DoD dosłownie ("ręcznie") jeszcze niespełnione** — czeka na realny test przez prawdziwego bota.
 - [ ] **TASK-3.2.2** [P1/M] Grupowanie nie-pilnych powiadomień w poranny digest (projekt: Zespół UX/UI, sekcja 0.1). DoD: powiadomienia statusowe zbiorcze, tylko akcje/błędy pojedynczo.
 - [ ] **TASK-3.2.3** [P1/M] Wykrywanie długiej nieaktywności + agent wsparcia (sekcja 4.1, granica: brak trybu terapeutycznego). DoD: po ustalonym czasie ciszy system przechodzi na rzadkie pytanie zamiast codziennych próśb.
-- [ ] **TASK-3.2.4** [P0/M] Hardening promptu Agenta społeczności przeciw prompt injection (sekcja 9.1) — treść komentarza/DM zawsze jako dane, nigdy instrukcja. DoD: test z komentarzem zawierającym próbę wstrzyknięcia polecenia, agent nie wykonuje niczego poza zwykłą analizą treści.
+- [ ] **TASK-3.2.4** [P0/M] Hardening promptu Agenta społeczności przeciw prompt injection (sekcja 9.1) — treść komentarza/DM zawsze jako dane, nigdy instrukcja. DoD: test z komentarzem zawierającym próbę wstrzyknięcia polecenia, agent nie wykonuje niczego poza zwykłą analizą treści. **Nie dotyczy jeszcze**: Agent społeczności (EPIC 5/8) nie istnieje w kodzie — nie ma czego hardenować. Odłożone do czasu zbudowania tego agenta.
 
 ### Sprint 3.3 — Testy wielo-użytkownikowe
-- [ ] **TASK-3.3.1** [P0/M] Pełny cykl: upload → potwierdzenie → publikacja wyłącznie przez Telegram. DoD: zero kroków przez web UI w tym teście.
-- [ ] **TASK-3.3.2** [P0/M] Test izolacji: dwa konta Telegram nigdy nie widzą swoich danych. DoD: próba dostępu do cudzego `telegramChatId` zwraca odmowę, nie dane.
+- [x] **TASK-3.3.1** [P0/M] Pełny cykl: upload → potwierdzenie → publikacja wyłącznie przez Telegram. DoD: zero kroków przez web UI w tym teście. **Zamknięte 2026-09-13** (zobacz "Zamknięcie TASK-3.3.1" w `postfly-plan-projektu.md`) — realny, czysty przebieg wyłącznie przez Telegram, potwierdzone przez użytkownika.
+- [x] **TASK-3.3.2** [P0/M] Test izolacji: dwa konta Telegram nigdy nie widzą swoich danych. DoD: próba dostępu do cudzego `telegramChatId` zwraca odmowę, nie dane. **Domknięte 2026-09-13**: `tests/api/telegram-multi-user-isolation.test.ts` — `/status`/`/logs` nigdy nie przeciekają danych drugiego użytkownika, `/reject`/`/cancel`/`/retry` na cudzym zadaniu zwracają jawną odmowę z zerowym efektem, callback_query (przycisk) na cudzym `postGroupId` też odrzucony.
 
 ---
 

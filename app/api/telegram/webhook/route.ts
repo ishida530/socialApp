@@ -15,7 +15,9 @@ import {
   cancelPublishJob,
   createDraftGroupForVideo,
   enqueueDraftGroup,
+  getRecentActivityForUser,
   getTelegramStatusSnapshot,
+  retryPublishJob,
   triggerPublishJob,
 } from '@/lib/server/publish-jobs';
 import { prisma } from '@/lib/server/prisma';
@@ -351,6 +353,40 @@ async function handleScheduleReply(chatIdStr: string, userId: string, postGroupI
   ).catch((error) => logError('telegram', 'send-schedule-confirmation-failed', error, { chatId: chatIdStr }));
 }
 
+function formatActivityMessage(entries: Awaited<ReturnType<typeof getRecentActivityForUser>>): string {
+  if (entries.length === 0) {
+    return '📋 Brak zakończonych zadań publikacji w historii.';
+  }
+
+  const lines = ['📋 Ostatnie zadania:', ''];
+
+  entries.forEach((entry) => {
+    const when = entry.updatedAt.toLocaleString('pl-PL', {
+      dateStyle: 'short',
+      timeStyle: 'short',
+      timeZone: 'Europe/Warsaw',
+    });
+
+    if (entry.status === 'SUCCESS') {
+      lines.push(
+        entry.remotePostUrl
+          ? `✅ ${entry.platform} (${when}): ${entry.remotePostUrl}`
+          : `✅ ${entry.platform} (${when}): opublikowano`,
+      );
+      return;
+    }
+
+    if (entry.status === 'CANCELED') {
+      lines.push(`❌ ${entry.platform} (${when}): anulowano`);
+      return;
+    }
+
+    lines.push(`⚠️ ${entry.platform} (${when}): ${entry.errorMessage ?? 'nieznany błąd'} [${entry.id}]`);
+  });
+
+  return lines.join('\n');
+}
+
 function formatStatusMessage(snapshot: Awaited<ReturnType<typeof getTelegramStatusSnapshot>>): string {
   const lines = [
     snapshot.publishingPaused ? '⏸️ Publikacje wstrzymane (/resume żeby wznowić).' : '▶️ Publikacje aktywne.',
@@ -407,13 +443,47 @@ async function handleTextCommand(chatIdStr: string, userId: string, text: string
     return true;
   }
 
-  const rejectMatch = trimmed.match(/^\/reject\s+(\S+)/i);
+  // /cancel jest aliasem /reject - cancelPublishJob obsługuje już każdy status poza
+  // SUCCESS/FAILED/CANCELED (DRAFT, PENDING, RUNNING), więc "odrzuć szkic" i "anuluj
+  // zaplanowany post" to dokładnie ta sama operacja, tylko inne słowo pasuje do intencji
+  // użytkownika w danym momencie.
+  const rejectMatch = trimmed.match(/^\/(?:reject|cancel)\s+(\S+)/i);
   if (rejectMatch) {
     const result = await cancelPublishJob(userId, rejectMatch[1]);
     await sendTelegramMessage(
       chatIdStr,
-      result.ok ? '❌ Odrzucono.' : `Nie udało się odrzucić: ${result.error}`,
+      result.ok ? '❌ Odrzucono/anulowano.' : `Nie udało się odrzucić/anulować: ${result.error}`,
     ).catch((error) => logError('telegram', 'send-reject-result-failed', error, { chatId: chatIdStr }));
+    return true;
+  }
+
+  const retryMatch = trimmed.match(/^\/retry\s+(\S+)/i);
+  if (retryMatch) {
+    const result = await retryPublishJob(userId, retryMatch[1]);
+    await sendTelegramMessage(
+      chatIdStr,
+      result.ok ? `🔁 Ponowiono. Status: ${result.immediateOutcome}.` : `Nie udało się ponowić: ${result.error}`,
+    ).catch((error) => logError('telegram', 'send-retry-result-failed', error, { chatId: chatIdStr }));
+    return true;
+  }
+
+  if (trimmed === '/logs') {
+    const entries = await getRecentActivityForUser(userId);
+    await sendTelegramMessage(chatIdStr, formatActivityMessage(entries)).catch((error) =>
+      logError('telegram', 'send-logs-failed', error, { chatId: chatIdStr }),
+    );
+    return true;
+  }
+
+  if (trimmed === '/revenue') {
+    // Uczciwie: appka dziś nie zbiera żadnych danych o przychodach z treści (EPIC 5
+    // Monetyzacja - Fan/Sale/FanSubscription - jeszcze nie istnieje w schemacie). Pokazanie
+    // tu danych o subskrypcji Postfly (koszt appki, nie przychód z treści) byłoby mylące pod
+    // tą nazwą komendy, więc zamiast tego jawna informacja, że tej funkcji jeszcze nie ma.
+    await sendTelegramMessage(
+      chatIdStr,
+      '💰 Śledzenie przychodów z treści jeszcze nie istnieje w Postfly (moduł Monetyzacji jest w planach, ale niezaimplementowany). Ta komenda zacznie zwracać realne dane, gdy ten moduł powstanie.',
+    ).catch((error) => logError('telegram', 'send-revenue-failed', error, { chatId: chatIdStr }));
     return true;
   }
 
@@ -761,9 +831,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
-  // TASK-3.2.1: /status /pause /resume /approve <id> /reject <id> - reszta komend
-  // z sekcji 5 głównego planu (/retry /cancel /logs /revenue) to Etap 2, celowo poza
-  // zakresem tego zadania.
+  // TASK-3.2.1: wszystkie komendy z sekcji 5 głównego planu - /status /pause /resume
+  // /approve <id> /reject <id> /retry <id> /cancel <id> /logs /revenue.
   await handleTextCommand(chatIdStr, linkedUser.id, text);
 
   return NextResponse.json({ ok: true });
