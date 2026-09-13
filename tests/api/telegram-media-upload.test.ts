@@ -29,7 +29,7 @@ const mockBundles = new Map([
 ]);
 
 vi.mock('@/lib/server/composer-drafts', () => ({
-  generatePlatformBundles: vi.fn().mockResolvedValue({ bundlesByPlatform: mockBundles, orchestrationWarning: null }),
+  generatePlatformBundles: vi.fn().mockResolvedValue({ bundlesByPlatform: mockBundles, orchestrationWarning: null, schedule: [] }),
 }));
 
 const { POST } = await import('@/app/api/telegram/webhook/route');
@@ -108,6 +108,66 @@ describe('POST /api/telegram/webhook — media upload (TASK-3.1.2)', () => {
       { text: '📅 Zaplanuj', callback_data: `schedulestart:${createdJobs[0].postGroupId}` },
       { text: '❌ Anuluj', callback_data: `cancel:${createdJobs[0].postGroupId}` },
     ]);
+  });
+
+  it('shows the computed schedule suggestion in the preview, instead of discarding it (EPIC 4 "popraw" step)', async () => {
+    const { generatePlatformBundles } = await import('@/lib/server/composer-drafts');
+    vi.mocked(generatePlatformBundles).mockResolvedValueOnce({
+      bundlesByPlatform: mockBundles as never,
+      orchestrationWarning: null,
+      schedule: [
+        { platform: 'TIKTOK', scheduledFor: new Date('2026-09-20T18:00:00.000Z').toISOString(), timezone: 'UTC', score: 0.7, reason: 'Baseline persona slot (brak danych historycznych).' },
+        {
+          platform: 'INSTAGRAM',
+          scheduledFor: new Date('2026-09-20T19:00:00.000Z').toISOString(),
+          timezone: 'UTC',
+          score: 0.95,
+          reason: 'Baseline + korekta historyczna z ograniczeniem odchylenia.',
+        },
+      ],
+    });
+
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
+    await createSocialAccount(user.id, 'INSTAGRAM');
+    const chatId = '111222335';
+    await linkChat(user.id, chatId);
+
+    const fakeVideo = await createVideo(user.id);
+    mockUploadTelegramMediaAsVideo.mockResolvedValue(fakeVideo);
+
+    await POST(webhookRequest({ message: { chat: { id: Number(chatId) }, video: { file_id: 'tg-file-2', file_size: 1024 } } }));
+
+    const [, message] = mockSendTelegramMessageWithButtons.mock.calls[0];
+    // Highest-scored slot (INSTAGRAM, 0.95) shown, not the first one in the array (TIKTOK, 0.7).
+    expect(message).toContain('💡 Sugerowana pora: 19:00');
+    expect(message).toContain('na podstawie Twoich wcześniejszych publikacji');
+  });
+
+  it('labels the schedule suggestion as baseline (not data-driven) when there is no historical data', async () => {
+    const { generatePlatformBundles } = await import('@/lib/server/composer-drafts');
+    vi.mocked(generatePlatformBundles).mockResolvedValueOnce({
+      bundlesByPlatform: mockBundles as never,
+      orchestrationWarning: null,
+      schedule: [
+        { platform: 'INSTAGRAM', scheduledFor: new Date('2026-09-20T17:00:00.000Z').toISOString(), timezone: 'UTC', score: 0.7, reason: 'Baseline persona slot (brak danych historycznych).' },
+      ],
+    });
+
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
+    await createSocialAccount(user.id, 'INSTAGRAM');
+    const chatId = '111222336';
+    await linkChat(user.id, chatId);
+
+    const fakeVideo = await createVideo(user.id);
+    mockUploadTelegramMediaAsVideo.mockResolvedValue(fakeVideo);
+
+    await POST(webhookRequest({ message: { chat: { id: Number(chatId) }, video: { file_id: 'tg-file-3', file_size: 1024 } } }));
+
+    const [, message] = mockSendTelegramMessageWithButtons.mock.calls[0];
+    expect(message).toContain('💡 Sugerowana pora: 17:00');
+    expect(message).toContain('baseline - jeszcze za mało Twoich danych');
   });
 
   it('forwards the media message caption as AI context, instead of leaving it empty', async () => {

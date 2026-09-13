@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { Platform, Prisma } from '@prisma/client';
 import { prisma } from './prisma';
 import { generatePlatformBundles } from './composer-drafts';
+import type { ScheduleSlot } from './smart-autopilot/types';
 import { collectContentWarnings } from './content-safety';
 import {
   assertScheduleWindowAllowed,
@@ -31,6 +32,11 @@ export type CreateDraftGroupResult =
       jobs: PublishJobWithRelations[];
       askDefaultExplicit: boolean;
       orchestrationWarning: string | null;
+      // EPIC 4: the real schedule suggestion computed by orchestrateContent - informational only
+      // here (DRAFT jobs still get scheduledFor=now below; actual scheduling still happens via
+      // the existing enqueue/"📅 Zaplanuj" flow), so a caller can show WHY a time is suggested
+      // instead of the loop's output going nowhere.
+      schedule: ScheduleSlot[];
     }
   | { ok: false; error: string };
 
@@ -111,7 +117,7 @@ export async function createDraftGroupForVideo(
 
   const rawInputParts = [options.contentType?.trim(), options.songTitle?.trim()].filter(Boolean);
 
-  const { bundlesByPlatform, orchestrationWarning } = await generatePlatformBundles(userId, {
+  const { bundlesByPlatform, orchestrationWarning, schedule } = await generatePlatformBundles(userId, {
     rawInput: rawInputParts.join(' — '),
     targetPlatforms: connectedPlatforms,
     timezone: options.timezone || 'Europe/Warsaw',
@@ -143,6 +149,7 @@ export async function createDraftGroupForVideo(
     jobs: updatedJobs,
     askDefaultExplicit: dbUser?.defaultExplicitContent === null,
     orchestrationWarning: orchestrationWarning ?? null,
+    schedule,
   };
 }
 

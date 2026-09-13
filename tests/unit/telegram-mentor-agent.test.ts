@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { runMentorTurn } from '@/lib/server/telegram-mentor-agent';
 import { prisma } from '@/lib/server/prisma';
-import { createTestUser, deleteTestUser, createSocialAccount } from '../helpers/fixtures';
+import { createTestUser, deleteTestUser, createSocialAccount, createVideo } from '../helpers/fixtures';
 
 // Agent-mentor: free-form Telegram fallback. Tools are READ-ONLY by design (PO decision
 // 2026-09-13) - these tests assert the tool loop actually calls real, existing read functions
@@ -78,6 +78,92 @@ describe('runMentorTurn', () => {
     expect(reply).toBe('Masz wstrzymane publikacje.');
     expect(capturedToolResult).not.toBeNull();
     expect(JSON.parse(capturedToolResult as unknown as string).publishingPaused).toBe(true);
+  });
+
+  it('executes get_performance_insights using real PostMetric data, sorted by engagement rate', async () => {
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
+
+    const account = await createSocialAccount(user.id, 'TIKTOK');
+    const video = await createVideo(user.id);
+    const publishedAt = new Date();
+    publishedAt.setUTCDate(publishedAt.getUTCDate() - 3);
+    const job = await prisma.publishJob.create({
+      data: {
+        status: 'SUCCESS',
+        postGroupId: `group-${video.id}`,
+        caption: 'x',
+        hashtags: [],
+        scheduledFor: publishedAt,
+        publishedAt,
+        remotePostId: `remote-${video.id}`,
+        videoId: video.id,
+        socialAccountId: account.id,
+      },
+    });
+    await prisma.postMetric.create({ data: { publishJobId: job.id, likes: 10, comments: 0, shares: 0, views: 100 } });
+
+    let capturedToolResult: string | null = null;
+    let callCount = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init?: RequestInit) => {
+        callCount += 1;
+        if (callCount === 1) {
+          return {
+            ok: true,
+            json: async () => ({
+              content: [{ type: 'tool_use', id: 'tool-1', name: 'get_performance_insights', input: {} }],
+              stop_reason: 'tool_use',
+            }),
+          };
+        }
+        const body = JSON.parse(init!.body as string);
+        const lastMessage = body.messages[body.messages.length - 1];
+        const toolResultBlock = lastMessage.content.find((block: { type: string }) => block.type === 'tool_result');
+        capturedToolResult = toolResultBlock?.content ?? null;
+        return textOnlyResponse('Najlepsza pora to widoczna w danych.');
+      }),
+    );
+
+    await runMentorTurn(user.id, 'kiedy najlepiej publikowac?');
+
+    const parsed = JSON.parse(capturedToolResult as unknown as string);
+    expect(parsed.insights).toHaveLength(1);
+    expect(parsed.insights[0]).toMatchObject({ platform: 'TIKTOK', er: 0.1 });
+  });
+
+  it('get_performance_insights returns an honest "not enough data" note for a user with no metrics', async () => {
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
+
+    let capturedToolResult: string | null = null;
+    let callCount = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init?: RequestInit) => {
+        callCount += 1;
+        if (callCount === 1) {
+          return {
+            ok: true,
+            json: async () => ({
+              content: [{ type: 'tool_use', id: 'tool-1', name: 'get_performance_insights', input: {} }],
+              stop_reason: 'tool_use',
+            }),
+          };
+        }
+        const body = JSON.parse(init!.body as string);
+        const lastMessage = body.messages[body.messages.length - 1];
+        const toolResultBlock = lastMessage.content.find((block: { type: string }) => block.type === 'tool_result');
+        capturedToolResult = toolResultBlock?.content ?? null;
+        return textOnlyResponse('Nie mam jeszcze danych.');
+      }),
+    );
+
+    await runMentorTurn(user.id, 'jak mi idzie?');
+
+    const parsed = JSON.parse(capturedToolResult as unknown as string);
+    expect(parsed.note).toMatch(/brak jeszcze wystarczaj/i);
   });
 
   it('persists user and assistant turns, and replays history on the next call', async () => {
