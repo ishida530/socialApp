@@ -1075,17 +1075,30 @@ async function claimDuePublishJobs(batchSizeRaw: number) {
 
   // TASK-3.2.1: /pause na Telegramie ustawia User.publishingPaused - filtr per-user tutaj,
   // nie globalny wyłącznik, żeby jeden spauzowany użytkownik nie wstrzymywał publikacji
-  // wszystkich innych. Join przez Video.userId (kanoniczny właściciel treści w tym schemacie).
+  // wszystkich innych.
+  //
+  // TASK-2.2.2: pauza sprawdzana przez NOT EXISTS, celowo NIE przez JOIN do Video/User w tym
+  // samym zapytaniu co FOR UPDATE SKIP LOCKED + ORDER BY + LIMIT. Zweryfikowane empirycznie
+  // (tests/api/publish-processor-concurrency.test.ts): JOIN w tej pozycji zmusza Postgresa do
+  // zablokowania wszystkich pasujących wierszy PRZED posortowaniem/obcięciem do LIMIT, więc przy
+  // kilku równoległych wywołaniach część zadań bywa "zablokowana" przez transakcję, która i tak
+  // ich finalnie nie zwraca - inne równoległe wywołania widzą je jako zajęte (SKIP LOCKED) i
+  // pomijają, mimo że nikt ich faktycznie nie przetwarza w tej rundzie. NOT EXISTS jako predykat
+  // filtrujący (bez JOIN-a w głównym FROM) nie ma tego efektu ubocznego.
   const rows = await prisma.$transaction(async (tx) => {
     return tx.$queryRaw<ClaimedJobRow[]>`
       WITH picked AS (
         SELECT pj.id
         FROM "PublishJob" pj
-        JOIN "Video" v ON v.id = pj."videoId"
-        JOIN "User" u ON u.id = v."userId"
         WHERE pj.status = 'PENDING'
           AND pj."scheduledFor" <= NOW()
-          AND u."publishingPaused" = false
+          AND NOT EXISTS (
+            SELECT 1
+            FROM "Video" v
+            JOIN "User" u ON u.id = v."userId"
+            WHERE v.id = pj."videoId"
+              AND u."publishingPaused" = true
+          )
         ORDER BY pj."scheduledFor" ASC
         FOR UPDATE SKIP LOCKED
         LIMIT ${batchSize}
