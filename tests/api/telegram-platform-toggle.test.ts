@@ -204,3 +204,82 @@ describe('Telegram preview platform toggle', () => {
     expect(tkStill.status).toBe('DRAFT');
   });
 });
+
+describe('Telegram preview Reels/Feed format toggle', () => {
+  it('flips metaPostFormat REELS -> FEED, persists it as the account sticky default, and updates the message', async () => {
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
+    const chatId = '5551005';
+    await linkChat(user.id, chatId);
+    const { postGroupId, igJob } = await makeDraftGroup(user.id);
+    await prisma.publishJob.update({ where: { id: igJob.id }, data: { metaPostFormat: 'REELS' } });
+
+    const response = await POST(
+      webhookRequest({
+        callback_query: {
+          id: 'cbq-format-1',
+          data: `formattoggle:${postGroupId}:INSTAGRAM`,
+          message: { chat: { id: Number(chatId) }, message_id: 7 },
+        },
+      }),
+    );
+    expect(response.status).toBe(200);
+
+    const updatedJob = await prisma.publishJob.findUniqueOrThrow({ where: { id: igJob.id } });
+    expect(updatedJob.metaPostFormat).toBe('FEED');
+
+    const account = await prisma.socialAccount.findUniqueOrThrow({ where: { id: updatedJob.socialAccountId } });
+    expect(account.lastMetaPostFormat).toBe('FEED');
+
+    expect(mockAnswerTelegramCallbackQuery).toHaveBeenCalledWith('cbq-format-1', expect.stringContaining('zwykły post'));
+
+    const [, , text, buttons] = mockEditTelegramMessage.mock.calls[0];
+    expect(text).toContain('INSTAGRAM — zwykły post');
+    expect(buttons.flat()).toContainEqual({ text: '📋 Zwykły post', callback_data: `formattoggle:${postGroupId}:INSTAGRAM` });
+  });
+
+  it('toggling back returns to REELS', async () => {
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
+    const chatId = '5551006';
+    await linkChat(user.id, chatId);
+    const { postGroupId, igJob } = await makeDraftGroup(user.id);
+    await prisma.publishJob.update({ where: { id: igJob.id }, data: { metaPostFormat: 'FEED' } });
+
+    await POST(
+      webhookRequest({
+        callback_query: {
+          id: 'cbq-format-2',
+          data: `formattoggle:${postGroupId}:INSTAGRAM`,
+          message: { chat: { id: Number(chatId) }, message_id: 7 },
+        },
+      }),
+    );
+
+    const updatedJob = await prisma.publishJob.findUniqueOrThrow({ where: { id: igJob.id } });
+    expect(updatedJob.metaPostFormat).toBe('REELS');
+  });
+
+  it('is not offered for TikTok (no formattoggle button) and rejects the action defensively if forced', async () => {
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
+    const chatId = '5551007';
+    await linkChat(user.id, chatId);
+    const { postGroupId, tkJob } = await makeDraftGroup(user.id);
+
+    const response = await POST(
+      webhookRequest({
+        callback_query: {
+          id: 'cbq-format-3',
+          data: `formattoggle:${postGroupId}:TIKTOK`,
+          message: { chat: { id: Number(chatId) }, message_id: 7 },
+        },
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(mockAnswerTelegramCallbackQuery).toHaveBeenCalledWith('cbq-format-3', expect.stringContaining('Nieprawidłowa'));
+
+    const unchangedJob = await prisma.publishJob.findUniqueOrThrow({ where: { id: tkJob.id } });
+    expect(unchangedJob.metaPostFormat).toBeNull();
+  });
+});
