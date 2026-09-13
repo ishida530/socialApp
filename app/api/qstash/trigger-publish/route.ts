@@ -3,12 +3,20 @@ import { unauthorized } from '@/lib/server/http';
 import { processPublishJobImmediately } from '@/lib/server/publish-processor';
 import { verifyQStashSignature } from '@/lib/server/qstash';
 import { logError, logEvent } from '@/lib/server/observability';
+import { runWithRequestId } from '@/lib/server/request-context';
 
 // Called by Upstash QStash at (or shortly after) a job's scheduledFor time - see
 // lib/server/qstash.ts / lib/server/publish-jobs.ts (enqueueDraftGroup schedules this for every
 // non-publishNow job). Same signature-verification-before-anything-else pattern as the Telegram
 // webhook: the body is data to act on, never trusted until the signature checks out.
+//
+// TASK-1.3.4: one requestId per triggered job, so its whole processing chain (claim ->
+// platform API call) shares one traceable id - see lib/server/request-context.ts.
 export async function POST(request: NextRequest) {
+  return runWithRequestId(() => handlePost(request));
+}
+
+async function handlePost(request: NextRequest) {
   const signature = request.headers.get('upstash-signature');
   const bodyText = await request.text();
 
