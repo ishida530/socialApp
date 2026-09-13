@@ -116,7 +116,7 @@ export async function runMentorTurn(userId: string, userMessage: string): Promis
 
   const history = await prisma.agentConversationTurn.findMany({
     where: { userId },
-    orderBy: { createdAt: 'desc' },
+    orderBy: { seq: 'desc' },
     take: HISTORY_TURNS,
   });
   history.reverse();
