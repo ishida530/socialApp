@@ -475,6 +475,32 @@ Status: [x] zaimplementowane → [x] testy napisane i zielone (`tests/api/meta-p
 
 ---
 
+## Etap 2 — start (2026-09-13)
+
+Świadome odstępstwo od `postfly-plan-wykonania.md` sekcja 1/4 ("Etap 2 dopiero po 2-3 tygodniach realnego użycia Etapu 1") — właściciel produktu zdecydował zacząć od razu, po zapytaniu o to wprost i uzyskaniu jawnej zgody na pominięcie rekomendacji.
+
+### Decyzja architektoniczna: QStash zamiast BullMQ (domyka TASK-1.4.1, zastępuje TASK-2.1.1/TASK-2.1.2)
+
+**Kontekst:** użytkownik zapytał wprost, hostując appkę na Vercel Free, czy precyzyjny harmonogram publikacji jest możliwy. Backlog (TASK-2.1.1/2.1.2) zakładał BullMQ na istniejącym Redis.
+
+**[Architekt]:** BullMQ wymaga stałego, długo działającego procesu-workera nasłuchującego kolejki — **Vercel Functions (Hobby i Pro) tego fundamentalnie nie obsługują** (bezstanowe, efemeryczne wywołania na żądanie, zero możliwości utrzymania procesu w tle). To nie jest ograniczenie planu cenowego, tylko modelu hostingu — TASK-2.1.2 ("wydzielenie workera jako osobnego procesu") milcząco zakładało infrastrukturę, której backlog nigdzie nie definiuje (gdzie by działała, ile by kosztowała). Audyt kodu potwierdził: BullMQ nie jest w ogóle zaczęte (zero linii kodu), lokalny Redis w `docker-compose.yml` jest nieużywanym rusztowaniem, jedyny realny konsument Upstash Redis to opcjonalny rate-limiting przez REST (`lib/server/rate-limit.ts`).
+
+**Decyzja:** **Upstash QStash** zamiast BullMQ. QStash woła zwykły, bezstanowy endpoint HTTP dokładnie o zaplanowanej godzinie — zero procesu-workera do utrzymania, naturalnie pasuje do Vercel Functions. Istniejący dzienny cron Vercela (`vercel.json`) zostaje jako fallback/siatka bezpieczeństwa (duch TASK-2.2.1), dokładnie tak jak zaplanowano dla kolejki, tylko inną technologią. Ten sam wzorzec "opcjonalne, zero-config, ciche cofnięcie do poprzedniego zachowania" co Claude/OpenAI wcześniej — brak `QSTASH_TOKEN` = appka działa dokładnie jak dziś (zaplanowany post czeka na dzienny cron), z kluczem = precyzyjne wywołanie o żądanej godzinie.
+
+**Wdrożenie:** `lib/server/qstash.ts` (`scheduleQStashPublish`, `cancelQStashMessage`, `verifyQStashSignature` — ta sama zasada weryfikacji podpisu przed zaufaniem treści co webhook Telegrama), nowy endpoint `app/api/qstash/trigger-publish/route.ts`, `PublishJob.qstashMessageId` (nowe pole, śledzi zaplanowaną wiadomość QStash do ewentualnego anulowania), wpięte w `enqueueDraftGroup` (planowanie przy `publishNow: false`) i `cancelPublishJob` (anulowanie wiadomości QStash przy odrzuceniu/anulowaniu posta). `.env.example` dokumentuje `QSTASH_TOKEN`/`QSTASH_CURRENT_SIGNING_KEY`/`QSTASH_NEXT_SIGNING_KEY`.
+
+Status: [x] zaimplementowane → [x] testy napisane i zielone (`tests/unit/qstash.test.ts`, `tests/api/qstash-trigger-publish.test.ts`, `tests/api/qstash-scheduling.test.ts`) → [ ] zweryfikowane realnie (wymaga prawdziwego konta Upstash QStash i kluczy na produkcji) → [ ] zamknięte (PR #...)
+
+### Konsultacja: kolejność AI-sugestii strategii (PO/Architekt/UX)
+
+Użytkownik zapytał o AI dobierające strategię prowadzącą do monetyzacji/wzrostu zasięgu. Audyt kodu: appka **nie zbiera dziś żadnych wyników publikacji** (views/likes/engagement) — `/analytics` pokazuje wyłącznie statystyki własnego pipeline'u (ile wgrano/opublikowano), zero modelu w bazie i zero kodu odpytującego API platform o wyniki. `performanceData` w `smart-autopilot/schedule.ts` to martwy kod — logika ważenia godzin istnieje, ale nikt nigdy jej nie karmi prawdziwymi danymi.
+
+**Decyzja (zgoda użytkownika):** AI w trybie "sugeruje, user zatwierdza" (nie pełna autonomia) — ale **dopiero po** zbudowaniu realnego zbierania wyników z platform (nowy model `PostMetric`, integracje read-API per platforma, pilotaż na TikToku bo scope już przyznany). Sugestie AI bez prawdziwych danych byłyby zgadywaniem ubranym w pewność siebie — świadomie odrzucone. Kolejność: (1) QStash [w trakcie], (2) zbieranie wyników — pilotaż TikTok → reszta platform, (3) pokazanie surowych liczb w `/analytics` (wartość sama w sobie, zero AI), (4) dopiero potem AI-sugestie na bazie zebranej historii.
+
+Status: skonsultowane, **niezaimplementowane** — kolejne zadanie w kolejce po QStash.
+
+---
+
 **Definicja "gotowy projekt w 100%":** każdy checkbox w sekcjach 6 i 7 odhaczony, każdy z jawnym DoD spełnionym i potwierdzonym testem (nie deklaracją), **QA niezależnie zweryfikowało, nie tylko Inżynier**, Architekt podpisał się pod skalowalnością w sekcji 9 dla każdej nowej warstwy, i sekcja 8 (Review końcowy) przeszła bez zastrzeżeń blokujących.
 
 ## 0.1 Zespół UX/UI — równoległy tor pracy

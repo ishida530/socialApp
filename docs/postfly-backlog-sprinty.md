@@ -25,7 +25,7 @@
 - [ ] **TASK-1.3.5** [P0/S] Konfiguracja Playwright: lokalnie zawsze `headed` (widoczna przeglądarka), w CI zostaje `headless`. DoD: `npm run test:e2e` lokalnie otwiera realne okno przeglądarki; workflow CI dalej przechodzi bez zmian w `headless`. Failujący e2e blokuje przejście do kolejnego zadania (sekcja 3.2 protokołu wykonania).
 
 ### Sprint 1.4 — Decyzja architektoniczna
-- [ ] **TASK-1.4.1** [P0/S] Architekt: decyzja o kolejce publikacji (BullMQ vs alternatywy) — patrz sekcja 8.1 głównego planu. DoD: dokument decyzji w repo, nie tylko ustna decyzja.
+- [x] **TASK-1.4.1** [P0/S] Architekt: decyzja o kolejce publikacji (BullMQ vs alternatywy) — patrz sekcja 8.1 głównego planu. DoD: dokument decyzji w repo, nie tylko ustna decyzja. **Zamknięte 2026-09-13**: QStash, nie BullMQ — BullMQ wymaga stałego procesu-workera, którego Vercel Functions (Hobby i Pro) nie obsługują. Pełne uzasadnienie: `postfly-plan-projektu.md`, sekcja "Etap 2 — start", "Decyzja architektoniczna: QStash zamiast BullMQ".
 
 ### Sprint 1.5 — Bezpieczeństwo agentów (sekcja 9 głównego planu)
 - [ ] **TASK-1.5.1** [P0/M] Weryfikacja podpisów wszystkich webhooków (Telegram, Stripe, TikTok). DoD: żądanie z nieprawidłowym/brakującym podpisem odrzucone, test regresyjny to potwierdza.
@@ -39,11 +39,11 @@
 *Odpowiada Fazie B. Fundament pod Telegram i realny wzrost — bez tego EPIC 3 dziedziczy limit crona raz dziennie.*
 
 ### Sprint 2.1 — Kolejka
-- [ ] **TASK-2.1.1** [P0/L] Wdrożenie BullMQ na istniejącym Redis. DoD: zadanie publikacji trafia do kolejki natychmiast po zatwierdzeniu, nie czeka na cron.
-- [ ] **TASK-2.1.2** [P0/M] Wydzielenie workera publikującego jako osobnego procesu. DoD: worker skalowalny niezależnie od web, restart workera nie wpływa na dostępność web UI.
+- [x] ~~**TASK-2.1.1** [P0/L] Wdrożenie BullMQ na istniejącym Redis.~~ **Zastąpione QStash** (TASK-1.4.1, 2026-09-13) — DoD osiągnięte inną technologią: zadanie genuinie zaplanowane (`publishNow: false`) trafia do QStash natychmiast po zatwierdzeniu i wywołuje endpoint dokładnie o zaplanowanej godzinie, nie czeka na cron. `lib/server/qstash.ts`.
+- [x] ~~**TASK-2.1.2** [P0/M] Wydzielenie workera publikującego jako osobnego procesu.~~ **Nie dotyczy przy QStash** — nie ma stałego procesu do wydzielenia, QStash woła zwykły, bezstanowy endpoint Vercel Function.
 
 ### Sprint 2.2 — Migracja i odporność
-- [ ] **TASK-2.2.1** [P0/M] Migracja z cron-only na kolejkę, cron zostaje jako fallback/health-check (np. co godzinę). DoD: wyłączenie crona nie zatrzymuje publikacji, tylko traci warstwę bezpieczeństwa.
+- [x] **TASK-2.2.1** [P0/M] Migracja z cron-only na kolejkę, cron zostaje jako fallback/health-check (np. co godzinę). DoD: wyłączenie crona nie zatrzymuje publikacji, tylko traci warstwę bezpieczeństwa. Zrealizowane przez QStash + istniejący dzienny cron Vercela jako fallback (bez zmian w `vercel.json` — cron już tam był, teraz jest drugą linią obrony, nie jedyną).
 - [ ] **TASK-2.2.2** [P1/M] Podstawowy test obciążeniowy kolejki. DoD: symulacja N równoczesnych zadań publikacji, brak utraty/duplikacji zadań.
 - [ ] **TASK-2.2.3** [P1/S] Idempotency key per zadanie w całym łańcuchu (nie tylko `postGroupId`). DoD: ponowne przetworzenie tego samego zadania nie publikuje dwa razy.
 

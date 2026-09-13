@@ -10,6 +10,7 @@ import {
   incrementUsage,
 } from './subscription';
 import { processPublishJobImmediately } from './publish-processor';
+import { cancelQStashMessage, scheduleQStashPublish } from './qstash';
 
 // TASK-3.1.2: rdzeń logiki app/api/publish-jobs/drafts (POST) i
 // app/api/publish-jobs/enqueue (POST), wydzielony żeby webhook Telegrama (upload materiału,
@@ -312,6 +313,21 @@ export async function enqueueDraftGroup(userId: string, params: EnqueueDraftGrou
 
   await incrementUsage(userId, 'publish_jobs', allEnqueuedJobs.length);
 
+  // Precise trigger for genuinely-scheduled jobs (publishNow jobs run inline below instead, no
+  // need to schedule anything). Best-effort: unconfigured or failed QStash calls just leave
+  // qstashMessageId null - the job stays PENDING and the daily Vercel cron fallback still
+  // catches it eventually, exactly like before this feature existed.
+  if (!publishNow) {
+    await Promise.all(
+      allEnqueuedJobs.map(async (publishJob) => {
+        const messageId = await scheduleQStashPublish(publishJob.id, scheduledDate);
+        if (messageId) {
+          await prisma.publishJob.update({ where: { id: publishJob.id }, data: { qstashMessageId: messageId } }).catch(() => {});
+        }
+      }),
+    );
+  }
+
   const immediateOutcomes = publishNow
     ? await Promise.all(
         allEnqueuedJobs.map(async (publishJob) => ({
@@ -393,7 +409,7 @@ export type CancelPublishJobResult =
 export async function cancelPublishJob(userId: string, jobId: string): Promise<CancelPublishJobResult> {
   const job = await prisma.publishJob.findFirst({
     where: { id: jobId, video: { userId } },
-    select: { id: true, status: true },
+    select: { id: true, status: true, qstashMessageId: true },
   });
 
   if (!job) {
@@ -409,6 +425,12 @@ export async function cancelPublishJob(userId: string, jobId: string): Promise<C
     data: { status: 'CANCELED', errorMessage: 'Anulowane ręcznie przez użytkownika.' },
     include: PUBLISH_JOB_INCLUDE,
   });
+
+  // Best-effort: if QStash still fires after this, processPublishJobImmediately's own
+  // status/scheduledFor guard just no-ops on a CANCELED job - this is cleanup, not a safety net.
+  if (job.qstashMessageId) {
+    await cancelQStashMessage(job.qstashMessageId);
+  }
 
   return { ok: true, publishJob: updated };
 }
