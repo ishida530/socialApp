@@ -186,6 +186,16 @@ async function handleIncomingMedia(
     return;
   }
 
+  // UX: uploadTelegramMediaAsVideo (download + blob upload) and createDraftGroupForVideo (real
+  // Claude calls, one per target platform) below can easily take several seconds to over a
+  // minute combined - without this, the chat goes silent the instant the file is sent, with
+  // nothing distinguishing "still working" from "the bot is broken". Best-effort, never blocks
+  // the actual processing on whether this send succeeds.
+  await sendTelegramMessage(
+    chatIdStr,
+    '📥 Odebrano! Przetwarzam materiał i przygotowuję treść dla platform - może to potrwać do minuty...',
+  ).catch((error) => logError('telegram', 'send-processing-ack-failed', error, { chatId: chatIdStr }));
+
   try {
     const video = await uploadTelegramMediaAsVideo(userId, media.fileId, media.mediaType, `Telegram ${new Date().toISOString()}`);
     // Telegram lets a user attach a text caption to the photo/video itself - the natural place
@@ -436,6 +446,12 @@ async function handleTextCommand(chatIdStr: string, userId: string, text: string
 
   const approveMatch = trimmed.match(/^\/approve\s+(\S+)/i);
   if (approveMatch) {
+    // UX: triggerPublishJob actually publishes synchronously (video upload to the platform,
+    // possibly a multi-step protocol like Facebook Reels) - without this, the chat goes silent
+    // for however long that takes, same gap as the media-upload ack above.
+    await sendTelegramMessage(chatIdStr, '⏳ Publikuję...').catch((error) =>
+      logError('telegram', 'send-approve-ack-failed', error, { chatId: chatIdStr }),
+    );
     const result = await triggerPublishJob(userId, approveMatch[1]);
     await sendTelegramMessage(
       chatIdStr,
@@ -460,6 +476,10 @@ async function handleTextCommand(chatIdStr: string, userId: string, text: string
 
   const retryMatch = trimmed.match(/^\/retry\s+(\S+)/i);
   if (retryMatch) {
+    // UX: same reasoning as /approve above - retryPublishJob publishes synchronously.
+    await sendTelegramMessage(chatIdStr, '⏳ Ponawiam...').catch((error) =>
+      logError('telegram', 'send-retry-ack-failed', error, { chatId: chatIdStr }),
+    );
     const result = await retryPublishJob(userId, retryMatch[1]);
     await sendTelegramMessage(
       chatIdStr,
@@ -712,14 +732,20 @@ async function handleCallbackQuery(update: NonNullable<TelegramUpdate['callback_
       return;
     }
 
+    // UX: answering the callback query early clears the button's native loading spinner, which
+    // on its own is easy to miss - editing the message text to something explicit is a much
+    // clearer signal that the (possibly multi-platform, possibly slow) publish is under way.
+    await answerTelegramCallbackQuery(update.id).catch(() => {});
+    await editTelegramMessage(chatIdStr, messageId, '⏳ Publikuję...').catch((error) =>
+      logError('telegram', 'edit-message-publish-ack-failed', error, { chatId: chatIdStr }),
+    );
+
     const result = await enqueueDraftGroup(linkedUser.id, {
       postGroupId,
       publishNow: true,
       tiktokPostingConsent: targetPlatforms.includes('TIKTOK'),
       targetPlatforms,
     });
-
-    await answerTelegramCallbackQuery(update.id).catch(() => {});
 
     if (!result.ok) {
       await editTelegramMessage(chatIdStr, messageId, `Nie udało się opublikować: ${result.error}`).catch((error) =>
