@@ -139,6 +139,29 @@ describe('POST /api/telegram/webhook — media upload (TASK-3.1.2)', () => {
     );
   });
 
+  it('sends an immediate processing acknowledgment before the slow upload/AI work, so the chat is never silently unresponsive', async () => {
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
+    await createSocialAccount(user.id, 'INSTAGRAM');
+    const chatId = '111222444';
+    await linkChat(user.id, chatId);
+
+    const fakeVideo = await createVideo(user.id);
+    mockUploadTelegramMediaAsVideo.mockResolvedValue(fakeVideo);
+
+    const response = await POST(
+      webhookRequest({ message: { chat: { id: Number(chatId) }, video: { file_id: 'tg-file-ack', file_size: 1024 } } }),
+    );
+    expect(response.status).toBe(200);
+
+    // The ack is the FIRST message sent, before uploadTelegramMediaAsVideo/generatePlatformBundles
+    // resolve - sendTelegramMessage's own timing doesn't prove ordering relative to those async
+    // calls, but this is the only sendTelegramMessage (non-buttons) call in the happy path, so
+    // its content is what matters here.
+    expect(mockSendTelegramMessage).toHaveBeenCalledTimes(1);
+    expect(mockSendTelegramMessage.mock.calls[0][1]).toMatch(/Odebrano/);
+  });
+
   it('rejects a video from an unlinked chat without uploading anything', async () => {
     const response = await POST(
       webhookRequest({ message: { chat: { id: 987654321 }, video: { file_id: 'tg-file-2' } } }),
@@ -217,8 +240,10 @@ describe('POST /api/telegram/webhook — media upload (TASK-3.1.2)', () => {
     expect(refreshed.status).toBe('PENDING');
     expect(refreshed.errorMessage).toMatch(/tiktok-tracking/);
 
-    expect(mockEditTelegramMessage).toHaveBeenCalledTimes(1);
-    expect(mockEditTelegramMessage.mock.calls[0][2]).not.toMatch(/poziom prywatności/);
+    // 2 calls: the immediate "⏳ Publikuję..." processing ack, then the final result.
+    expect(mockEditTelegramMessage).toHaveBeenCalledTimes(2);
+    expect(mockEditTelegramMessage.mock.calls[0][2]).toMatch(/Publikuję/);
+    expect(mockEditTelegramMessage.mock.calls.at(-1)?.[2]).not.toMatch(/poziom prywatności/);
   });
 });
 
