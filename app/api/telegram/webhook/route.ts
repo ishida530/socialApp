@@ -49,6 +49,14 @@ type TelegramUpdate = {
   };
 };
 
+// TASK-3.1.2 (decyzja PO 2026-09-13, "zostaw jak jest"): /approve, /retry i przycisk Publikuj
+// publikują synchronicznie wewnątrz tego handlera - dla wolnego protokołu (np. 3-etapowy upload
+// Facebook Reels) mogłoby to zbliżyć się do domyślnego limitu czasu funkcji Vercela. Zamiast
+// przebudowy na kolejkę (odrzucone - brak dowodu na realny problem, kosztowna zmiana UX
+// natychmiastowego wyniku), tani margines bezpieczeństwa: ten sam maxDuration co
+// app/api/videos/upload/route.ts.
+export const maxDuration = 60;
+
 const START_COMMAND_PATTERN = /^\/start(?:@\w+)?\s+(\S+)/i;
 const VALID_TOGGLE_PLATFORMS = ['YOUTUBE', 'TIKTOK', 'INSTAGRAM', 'FACEBOOK'];
 
