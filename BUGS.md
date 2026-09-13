@@ -26,7 +26,7 @@ Kroki reprodukcji:
 1. Mieć w korzeniu repo `.env.production.local` z realnym `DATABASE_URL` (np. przez `vercel env pull --environment=production`).
 2. `npm run build && npm run start` (bez ustawiania `NODE_ENV`).
 3. `curl http://localhost:3000/api/health` → `database: "ok"` łączy się z bazą z `.env.production.local`, nie z `.env`.
-Status: [x] test napisany (czerwony) → [x] poprawka wdrożona (test zielony) → [ ] zamknięty (PR #...)
+Status: [x] test napisany (czerwony) → [x] poprawka wdrożona (test zielony) → [x] zamknięty (PR #3)
 
 ## BUG-002 (zamknięty — nie jest błędem aplikacji)
 Zgłoszony: 2026-09-12
@@ -51,7 +51,7 @@ Kroki reprodukcji:
 2. Wyślij wideo/zdjęcie do bota → dostajesz podgląd z przyciskami.
 3. Kliknij "✅ Publikuj".
 4. Obserwacja: błąd o braku poziomu prywatności TikTok, zero platform opublikowanych (nie tylko TikTok).
-Status: [x] test napisany (czerwony) → [x] poprawka wdrożona (test zielony) → [ ] zamknięty (PR #...)
+Status: [x] test napisany (czerwony) → [x] poprawka wdrożona (test zielony) → [x] zamknięty (PR #15)
 
 ## BUG-004
 Zgłoszony: 2026-09-12
@@ -62,7 +62,7 @@ Kroki reprodukcji:
 2. Utwórz draft, poczekaj aż panel ustawień TikTok ustawi domyślne wartości (w tym `tiktokAllowDuet: false`).
 3. Zmień samą "Prywatność postu" w dropdownie (bez dotykania przełączników Duet/Stitch).
 4. Obserwacja: `PATCH .../drafts/:id` zwraca 400 "Na tym koncie TikTok duet jest wyłączony. Odznacz duet." — zmiana prywatności nie zapisuje się.
-Status: [x] test napisany (czerwony) → [x] poprawka wdrożona (test zielony) → [ ] zamknięty (PR #...)
+Status: [x] test napisany (czerwony) → [x] poprawka wdrożona (test zielony) → [x] zamknięty (PR #18)
 
 ## BUG-005
 Zgłoszony: 2026-09-12

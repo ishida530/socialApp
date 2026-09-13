@@ -1,5 +1,5 @@
-Ostatnio ukończone zadanie: TASK-3.2.1
-Stan builda: przechodzi (npm run build OK, npm test 58/58 OK w obu trybach APP_MODE)
-Następne zadanie w kolejce: TASK-3.3.1 (ostatnie zadanie Etapu 1, postfly-plan-wykonania.md sekcja 2) — test pełnego cyklu: upload → potwierdzenie → publikacja przez Telegram
-Blokery/niedokończone wątki: Sesja świadomie zatrzymana przed TASK-3.3.1 na prośbę użytkownika — to zadanie z natury wymaga prawdziwego bota Telegram (test pełnego cyklu PRZEZ Telegram, nie da się sensownie zmockować i nazwać "pełnym cyklem"). Użytkownik założy bota u @BotFather (docs/postfly-instrukcja-startu.md, Krok 6.5) i wtedy wrócimy do TASK-3.3.1 z prawdziwą weryfikacją end-to-end. TASK-3.1.1/3.1.2/3.2.1 są zamknięte formalnie (testy integracyjne z zamockowanym Telegram Bot API) z jawnie odnotowanym ograniczeniem braku realnej weryfikacji — do potwierdzenia realnie przy okazji TASK-3.3.1.
-Data/godzina ostatniej aktualizacji: 2026-09-12 12:31
+Ostatnio ukończone zadanie: TASK-3.3.1 (Etap 1 zamknięty)
+Stan builda: przechodzi (npm run build OK, npm test 119/119 OK w obu trybach APP_MODE, tsc --noEmit czyste)
+Następne zadanie w kolejce: brak — Etap 1 formalnie zamknięty 2026-09-13, czeka na decyzję właściciela produktu co do Etapu 2 (BullMQ/pełna kolejka skalowalna, pełna pętla rozumowania agenta, moduł Monetyzacji — sekcja 1/2 postfly-plan-projektu.md) albo innego kierunku.
+Blokery/niedokończone wątki: brak blokerów. Zrealizowany zakres wykracza poza pierwotny DoD TASK-3.3.1 — pełne podsumowanie w docs/postfly-plan-projektu.md, sekcja "Zamknięcie TASK-3.3.1 (2026-09-13)". Wniosek audytowy TikTok Content Posting API złożony, odpowiedź oczekiwana w 2-4 tygodnie — do tego czasu appka produkcyjna pozostaje nieaudytowana dla TikToka (SELF_ONLY / konta testowe), reszta platform (YouTube/Instagram/Facebook) działa bez ograniczeń.
+Data/godzina ostatniej aktualizacji: 2026-09-13 12:05
