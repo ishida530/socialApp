@@ -731,6 +731,26 @@ Status: [x] zaimplementowane → [x] testy napisane i zielone → [x] zweryfikow
 
 ---
 
+### EPIC 4 — zamknięcie: realne dane platform + pętla walidacji LLM (2026-09-13)
+
+Użytkownik poprosił o (1) analizę dokumentacji każdej platformy pod kątem dostępnych statystyk konta, żeby faktycznie zasilić nimi strategię/analizy, a następnie (2) dokończenie EPIC 4 (sekcja 4.2 — wąski silnik decyzyjny, świadomie odróżniony wcześniej od agenta-mentora).
+
+**[Architekt/Research]:** przegląd aktualnej dokumentacji (WebSearch/WebFetch bezpośrednio z developers.tiktok.com i developers.facebook.com, nie wtórne źródła) wykazał: TikTok Query Videos (`video.list` scope, już przyznany) — potwierdzony poprawny endpoint, dokładnie taki jak zaimplementowany w `PostMetric` wcześniej tej sesji. Instagram — realna zmiana: `impressions`/`plays` przestały działać dla mediów nowszych niż 2024-07-02, zastąpione przez `views` (nowa metryka insights) — appka tego jeszcze nie zbierała. Facebook — deprecacja całej rodziny `*_impressions*` od 2026-06-15, appka jej nigdy nie używała (tylko bezpośrednie pola `likes`/`comments`/`shares`), więc bez wpływu. Pełny zapis: `docs/status-audytow-api.md`, sekcja "Statystyki/metryki postów".
+
+**[PO]:** dwie niezależne części EPIC 4 (sekcja 4.2): "obserwuj/sprawdź" (realne dane) i "walidacja schematu JSON, retry, fallback" (odporność samej pętli klasyfikującej) — obie zbudowane, żadna nie czekała na drugą.
+
+**[Inżynier] — realne dane:** `fetchInstagramViews` (nowa, osobna funkcja w `post-metrics.ts`, insights `metric=views`) dołączona do istniejącego `fetchInstagramMetrics` (odporna na błąd niezależnie od likes/comments). Nowy `lib/server/smart-autopilot/performance-data.ts` (`getRealPerformanceData`) — agreguje `PostMetric` per (platforma, godzina LOKALNA) w oknie 90 dni, `er` (engagement rate = (likes+comments+shares)/views) jako jedyna uczciwa metryka jaką appka faktycznie ma (CTR/watch-time NIE są dostępne przez posiadane scope'y odczytu, więc pozostają `undefined`, nie zmyślone). Krytyczny szczegół poprawiony podczas budowy: `publishedAt` jest zapisywane w UTC, a `schedule.ts` (baseline godziny, `nextLocalDateAtHour`) operuje na godzinie LOKALNEJ requestu — naiwne `getUTCHours()` cicho przesuwałoby dane względem złej strefy czasowej; naprawione przez konwersję `Intl.DateTimeFormat` do strefy z `input.timezone`. Wpięte w `orchestrator.ts`: gdy `input.performanceData` nie jest jawnie podane przez wołającego (zewnętrzne API/testy mogą wciąż nadpisać), orchestrator dociąga realne dane użytkownika równolegle z innymi zapytaniami startowymi.
+
+**[Inżynier] — walidacja/retry/fallback:** `classifyWithValidation` (analysis.ts) całościowo waliduje odpowiedź LLM (persona/contentType/intent muszą być dozwolonym enumem, confidence w [0,1]) zamiast dotychczasowego cichego koercowania pole-po-polu (mieszanka częściowo-poprawnych wartości). Nieprawidłowa odpowiedź → jedna dodatkowa próba z `correctionNote` (dokładny powód odrzucenia, wpięty w `llm.ts` jako `previousAttemptError` w promptcie) → jeśli druga próba też zawiedzie, `logError` jako alert i pełny powrót do czystej heurystyki (nigdy mieszanki, nigdy zapisania nieprawidłowego planu).
+
+**[QA]:** `tests/api/post-metrics.test.ts` (+1: Instagram `views` z osobnego wywołania insights). `tests/unit/smart-autopilot-performance-data.test.ts` (nowy, 5 testów — w tym bezpośredni test konwersji UTC→lokalna godzina, niezależny od tego kiedy suita faktycznie się uruchamia, żeby nie polegać na założeniu o konkretnej porze roku/strefie czasowej). `tests/unit/smart-autopilot-schedule.test.ts` (nowy, TASK-4.1.3: brak/pusty `performanceData` → reason jawnie "brak danych historycznych", realne dane → inny reason "korekta historyczna"). `tests/api/orchestrate-content-performance-data.test.ts` (nowy, pełne wpięcie od realnej bazy przez orchestrator do harmonogramu, plus test że jawnie podane `performanceData` NIE jest nadpisywane). `tests/unit/smart-autopilot-analysis-validation.test.ts` (nowy, TASK-4.1.2: poprawna odpowiedź bez retry, niepoprawny enum → retry z `previousAttemptError` w treści zapytania, obie próby złe → heurystyka + dokładnie jeden `logError` jako alert, confidence poza zakresem też odrzucone). `tests/unit/smart-autopilot-llm.test.ts` (+2: `previousAttemptError` obecne/nieobecne w zależności od `correctionNote`). Pełna suita: 272/272 w obu trybach APP_MODE, tsc/build czyste.
+
+Status: [x] zaimplementowane → [x] testy napisane i zielone → [x] zweryfikowane (tsc, build czyste) → [ ] zamknięte (PR w przygotowaniu)
+
+**EPIC 4 — zamknięty.** Wszystkie 3 zadania (TASK-4.1.1/4.1.2/4.1.3) zrealizowane z realnymi testami, nie deklaracją.
+
+---
+
 ---
 
 **Definicja "gotowy projekt w 100%":** każdy checkbox w sekcjach 6 i 7 odhaczony, każdy z jawnym DoD spełnionym i potwierdzonym testem (nie deklaracją), **QA niezależnie zweryfikowało, nie tylko Inżynier**, Architekt podpisał się pod skalowalnością w sekcji 9 dla każdej nowej warstwy, i sekcja 8 (Review końcowy) przeszła bez zastrzeżeń blokujących.

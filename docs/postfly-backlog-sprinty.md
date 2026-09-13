@@ -72,9 +72,9 @@
 *Odpowiada Fazie D.*
 
 ### Sprint 4.1
-- [ ] **TASK-4.1.1** [P1/L] Rozbudowa `smart-autopilot` do pętli obserwuj→planuj→działaj→sprawdź→popraw (sekcja 4.2). DoD: walidacja schematu JSON, retry z poprawionym promptem (maks. 2), fallback na plan domyślny.
-- [ ] **TASK-4.1.2** [P1/S] Test: symulacja złego JSON-a z LLM. DoD: system nie zapisuje nieprawidłowego planu, generuje alert.
-- [ ] **TASK-4.1.3** [P1/S] Test: symulacja braku danych historycznych. DoD: fallback na plan domyślny, jawnie oznaczony jako "nieoparty na danych".
+- [x] **TASK-4.1.1** [P1/L] Rozbudowa `smart-autopilot` do pętli obserwuj→planuj→działaj→sprawdź→popraw (sekcja 4.2). DoD: walidacja schematu JSON, retry z poprawionym promptem (maks. 2), fallback na plan domyślny. **Domknięte 2026-09-13**: (1) "obserwuj/sprawdź" — `lib/server/smart-autopilot/performance-data.ts` zasila realnymi danymi z `PostMetric` pole `performanceData`, wcześniej zawsze puste na wewnętrznej ścieżce; (2) walidacja+retry — `classifyWithValidation` (analysis.ts) całościowo waliduje odpowiedź LLM (enumy + zakres confidence), retry z `previousAttemptError` w promptcie (maks. 2 próby), fallback na czystą heurystykę gdy obie próby zawiodą.
+- [x] **TASK-4.1.2** [P1/S] Test: symulacja złego JSON-a z LLM. DoD: system nie zapisuje nieprawidłowego planu, generuje alert. **Domknięte 2026-09-13**: `tests/unit/smart-autopilot-analysis-validation.test.ts` — niepoprawny enum/confidence poza zakresem nigdy nie trafia do wyniku (zawsze heurystyka), `logError('smart-autopilot','llm-classification-failed-after-retries',...)` jako alert po wyczerpaniu prób.
+- [x] **TASK-4.1.3** [P1/S] Test: symulacja braku danych historycznych. DoD: fallback na plan domyślny, jawnie oznaczony jako "nieoparty na danych". **Domknięte 2026-09-13**: `tests/unit/smart-autopilot-schedule.test.ts` + `tests/api/orchestrate-content-performance-data.test.ts` — brak/pusty `performanceData` → `reason: "Baseline persona slot (brak danych historycznych)."` jawnie, obecność realnych danych → inny, wyraźnie oznaczony powód ("korekta historyczna").
 
 ---
 

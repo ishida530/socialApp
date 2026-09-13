@@ -1,5 +1,6 @@
 import { collectSafetyFlags, sanitizeUserInput } from './safety';
 import { refineClassificationWithLlm } from './llm';
+import { logError, logEvent } from '@/lib/server/observability';
 import type {
   AnalysisOutput,
   ContentType,
@@ -7,6 +8,106 @@ import type {
   OrchestrateContentInput,
   Persona,
 } from './types';
+
+const VALID_PERSONAS: Persona[] = ['video_creator', 'ecommerce_owner', 'real_estate_agent', 'neutral'];
+const VALID_CONTENT_TYPES: ContentType[] = ['video', 'text', 'image', 'mixed', 'unknown'];
+const VALID_INTENTS: Intent[] = ['promotional', 'educational', 'informational', 'listing', 'unknown'];
+
+type ValidatedClassification = {
+  persona: Persona;
+  contentType: ContentType;
+  intent: Intent;
+  confidence: number;
+};
+
+// TASK-4.1.1: walidacja schematu odpowiedzi LLM wykraczająca poza to, co strukturalnie wymusza
+// tool-use Claude (poprawny KSZTAŁT JSON-a nie gwarantuje poprawnych WARTOŚCI - model bywa
+// twórczy z enumami mimo forced tool_choice). Całościowa walidacja (nie per-pole), żeby nigdy nie
+// zapisać niespójnej mieszanki częściowo-poprawnych pól.
+function validateLlmClassification(
+  result: Awaited<ReturnType<typeof refineClassificationWithLlm>>,
+): { ok: true; value: ValidatedClassification } | { ok: false; errors: string[] } {
+  if (!result) {
+    return { ok: false, errors: ['Brak odpowiedzi od modelu.'] };
+  }
+
+  const errors: string[] = [];
+
+  if (!VALID_PERSONAS.includes(result.persona as Persona)) {
+    errors.push(`persona musi być jedną z: ${VALID_PERSONAS.join(', ')} (otrzymano: ${result.persona})`);
+  }
+  if (!VALID_CONTENT_TYPES.includes(result.contentType as ContentType)) {
+    errors.push(`contentType musi być jednym z: ${VALID_CONTENT_TYPES.join(', ')} (otrzymano: ${result.contentType})`);
+  }
+  if (!VALID_INTENTS.includes(result.intent as Intent)) {
+    errors.push(`intent musi być jednym z: ${VALID_INTENTS.join(', ')} (otrzymano: ${result.intent})`);
+  }
+  if (
+    typeof result.confidence !== 'number' ||
+    !Number.isFinite(result.confidence) ||
+    result.confidence < 0 ||
+    result.confidence > 1
+  ) {
+    errors.push(`confidence musi być liczbą w zakresie 0..1 (otrzymano: ${result.confidence})`);
+  }
+
+  if (errors.length > 0) {
+    return { ok: false, errors };
+  }
+
+  return {
+    ok: true,
+    value: {
+      persona: result.persona as Persona,
+      contentType: result.contentType as ContentType,
+      intent: result.intent as Intent,
+      confidence: result.confidence as number,
+    },
+  };
+}
+
+const MAX_CLASSIFICATION_ATTEMPTS = 2;
+
+// TASK-4.1.1: pętla retry z poprawionym promptem (maks. 2 próby) - druga próba dostaje dokładny
+// powód odrzucenia pierwszej (correctionNote), zamiast ślepo powtarzać to samo pytanie.
+// TASK-4.1.2: gdy obie próby zawiodą, funkcja zwraca null (wołający spada na czysto
+// heurystyczną klasyfikację - nigdy nie zapisuje nieprawidłowego planu) i emituje logError jako
+// alert, zamiast cicho gubić powtarzający się błąd.
+async function classifyWithValidation(params: {
+  textSample: string;
+  heuristicPersona: Persona;
+  heuristicContentType: ContentType;
+  heuristicIntent: Intent;
+}): Promise<ValidatedClassification | null> {
+  let lastErrors: string[] = [];
+
+  for (let attempt = 1; attempt <= MAX_CLASSIFICATION_ATTEMPTS; attempt += 1) {
+    const llm = await refineClassificationWithLlm({
+      textSample: params.textSample,
+      heuristicPersona: params.heuristicPersona,
+      heuristicContentType: params.heuristicContentType,
+      heuristicIntent: params.heuristicIntent,
+      correctionNote: attempt > 1 ? lastErrors.join('; ') : undefined,
+    });
+
+    const validated = validateLlmClassification(llm);
+    if (validated.ok) {
+      return validated.value;
+    }
+
+    lastErrors = validated.errors;
+    logEvent('smart-autopilot', 'llm-classification-attempt-invalid', { attempt, errors: lastErrors });
+  }
+
+  logError(
+    'smart-autopilot',
+    'llm-classification-failed-after-retries',
+    new Error(lastErrors.join('; ') || 'brak odpowiedzi'),
+    { attempts: MAX_CLASSIFICATION_ATTEMPTS },
+  );
+
+  return null;
+}
 
 function detectPersonaHeuristic(rawInput: string, hint?: Persona): Persona {
   if (hint && hint !== 'neutral') {
@@ -114,14 +215,14 @@ export async function analyzeInput(input: OrchestrateContentInput, useAi: boolea
     };
   }
 
-  const llm = await refineClassificationWithLlm({
+  const validated = await classifyWithValidation({
     textSample: sanitizedText,
     heuristicPersona,
     heuristicContentType,
     heuristicIntent,
   });
 
-  if (!llm) {
+  if (!validated) {
     return {
       persona: heuristicPersona,
       contentType: heuristicContentType,
@@ -133,42 +234,11 @@ export async function analyzeInput(input: OrchestrateContentInput, useAi: boolea
     };
   }
 
-  const resolvedPersona =
-    llm.persona === 'video_creator' ||
-    llm.persona === 'ecommerce_owner' ||
-    llm.persona === 'real_estate_agent' ||
-    llm.persona === 'neutral'
-      ? llm.persona
-      : heuristicPersona;
-
-  const resolvedContentType =
-    llm.contentType === 'video' ||
-    llm.contentType === 'text' ||
-    llm.contentType === 'image' ||
-    llm.contentType === 'mixed' ||
-    llm.contentType === 'unknown'
-      ? llm.contentType
-      : heuristicContentType;
-
-  const resolvedIntent =
-    llm.intent === 'promotional' ||
-    llm.intent === 'educational' ||
-    llm.intent === 'informational' ||
-    llm.intent === 'listing' ||
-    llm.intent === 'unknown'
-      ? llm.intent
-      : heuristicIntent;
-
-  const resolvedConfidence =
-    typeof llm.confidence === 'number' && llm.confidence >= 0 && llm.confidence <= 1
-      ? llm.confidence
-      : 0.7;
-
   return {
-    persona: resolvedPersona,
-    contentType: resolvedContentType,
-    intent: resolvedIntent,
-    confidence: resolvedConfidence,
+    persona: validated.persona,
+    contentType: validated.contentType,
+    intent: validated.intent,
+    confidence: validated.confidence,
     safetyFlags,
     unknownAspectRatio: aspect.unknownAspectRatio,
     aspectRatioConfidence: aspect.aspectRatioConfidence,
