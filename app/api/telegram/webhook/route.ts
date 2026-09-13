@@ -22,6 +22,7 @@ import {
   triggerPublishJob,
 } from '@/lib/server/publish-jobs';
 import { generateContentIdeas, type ContentIdea } from '@/lib/server/telegram-content-ideas';
+import { runMentorTurn } from '@/lib/server/telegram-mentor-agent';
 import { prisma } from '@/lib/server/prisma';
 import { unauthorized } from '@/lib/server/http';
 import { logError, logEvent } from '@/lib/server/observability';
@@ -988,7 +989,21 @@ async function handlePost(request: NextRequest) {
   // TASK-3.2.1: wszystkie komendy z sekcji 5 głównego planu - /status /pause /resume
   // /approve <id> /reject <id> /retry <id> /cancel <id> /logs /revenue, plus /pomysl (pomysły
   // na kolejne nagrania na podstawie własnej historii postów).
-  await handleTextCommand(chatIdStr, linkedUser.id, text);
+  const handled = await handleTextCommand(chatIdStr, linkedUser.id, text);
+
+  // Agent-mentor (decyzja PO 2026-09-13): dowolny tekst, który nie pasował do żadnej znanej
+  // komendy ani aktywnej sesji, wcześniej ginął w ciszy - teraz trafia do rozmowy z agentem
+  // zamiast być ignorowany. Nie konkuruje z istniejącymi komendami (te zawsze wygrywają, bo
+  // handleTextCommand jest sprawdzane pierwsze) ani nie zwiększa kosztu istniejących ścieżek.
+  if (!handled) {
+    await sendTelegramMessage(chatIdStr, '🤔 Myślę...').catch((error) =>
+      logError('telegram', 'send-mentor-ack-failed', error, { chatId: chatIdStr }),
+    );
+    const reply = await runMentorTurn(linkedUser.id, text);
+    await sendTelegramMessage(chatIdStr, reply).catch((error) =>
+      logError('telegram', 'send-mentor-reply-failed', error, { chatId: chatIdStr }),
+    );
+  }
 
   return NextResponse.json({ ok: true });
 }

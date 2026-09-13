@@ -31,6 +31,76 @@ type AnthropicToolResponse = {
   content?: Array<{ type: string; name?: string; input?: unknown }>;
 };
 
+// Agent-mentor (multi-tool, model-driven tool_choice) support - deliberately separate from
+// callClaudeTool above, which forces exactly one tool and returns only its parsed input. This one
+// returns the raw content blocks (text and/or tool_use) so a caller can drive a multi-round
+// tool-use loop itself (lib/server/telegram-mentor-agent.ts).
+export type AnthropicContentBlock =
+  | { type: 'text'; text: string }
+  | { type: 'tool_use'; id: string; name: string; input: unknown }
+  | { type: 'tool_result'; tool_use_id: string; content: string };
+
+export type AnthropicAgentMessage = {
+  role: 'user' | 'assistant';
+  content: string | AnthropicContentBlock[];
+};
+
+export async function callClaudeAgentTurn(params: {
+  model: string;
+  system: string;
+  messages: AnthropicAgentMessage[];
+  tools: Array<{ name: string; description: string; input_schema: Record<string, unknown> }>;
+  maxTokens?: number;
+  timeoutMs?: number;
+}): Promise<{ content: AnthropicContentBlock[]; stopReason?: string } | null> {
+  const config = getAnthropicConfig();
+  if (!config) {
+    return null;
+  }
+
+  const timeoutMs = params.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(config.endpoint, {
+      method: 'POST',
+      headers: {
+        'x-api-key': config.apiKey,
+        'anthropic-version': ANTHROPIC_VERSION,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: params.model,
+        max_tokens: params.maxTokens ?? 1024,
+        system: params.system,
+        messages: params.messages,
+        tools: params.tools.map((tool) => ({
+          name: tool.name,
+          description: tool.description,
+          input_schema: tool.input_schema,
+        })),
+      }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const payload = (await response.json()) as { content?: AnthropicContentBlock[]; stop_reason?: string };
+    if (!Array.isArray(payload.content)) {
+      return null;
+    }
+
+    return { content: payload.content, stopReason: payload.stop_reason };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function callClaudeTool<T>(params: {
   model: string;
   system: string;
