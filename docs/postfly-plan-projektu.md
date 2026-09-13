@@ -751,6 +751,18 @@ Status: [x] zaimplementowane → [x] testy napisane i zielone → [x] zweryfikow
 
 ---
 
+### Rate limiting webhooka Telegrama (2026-09-13)
+
+Użytkownik zapytał "czy o czymś zapomniałem, co może być użyteczne" po zamknięciu EPIC 4 — audyt kodu (nie zgadywanie) wykazał realną lukę: każdy mutujący route web API (`/publish-jobs/[id]/trigger`, `/retry`, `/enqueue`) ma `consumeRateLimit`, webhook Telegrama nigdy go nie miał. Mniej istotne przed tą sesją — teraz agent-mentor zamienia każdą nierozpoznaną wiadomość tekstową w do 3 płatnych wywołań Claude, więc brak limitu to bezpośrednie zagrożenie dla zasady "Claude jedynym kosztem, trzymać go pod kontrolą".
+
+**[Inżynier]:** limit per-chat (30 wiadomości/5 min, ten sam wzorzec `consumeRateLimit` co reszta appki — Upstash gdy skonfigurowany, in-memory fallback), sprawdzany na samym wejściu `handlePost`, przed jakąkolwiek inną pracą (w tym przed rozgałęzieniem na callback_query vs wiadomość tekstową) — zablokowany request nigdy nie dociera do handlera komendy ani do agenta-mentora. Kluczowany po `chatId` wyciągniętym z surowego update (działa nawet przed powiązaniem `/start`, nie tylko dla już połączonych kont).
+
+**[QA]:** `tests/api/telegram-webhook-rate-limit.test.ts` (2 testy: 31. wiadomość w oknie 5 minut blokowana z jawnym komunikatem, limit jednego czatu nie wpływa na inny czat). Pełna suita: 274/274 w obu trybach APP_MODE, tsc/build czyste.
+
+Status: [x] zaimplementowane → [x] testy napisane i zielone → [x] zweryfikowane (tsc, build czyste) → [ ] zamknięte (PR w przygotowaniu)
+
+---
+
 ---
 
 **Definicja "gotowy projekt w 100%":** każdy checkbox w sekcjach 6 i 7 odhaczony, każdy z jawnym DoD spełnionym i potwierdzonym testem (nie deklaracją), **QA niezależnie zweryfikowało, nie tylko Inżynier**, Architekt podpisał się pod skalowalnością w sekcji 9 dla każdej nowej warstwy, i sekcja 8 (Review końcowy) przeszła bez zastrzeżeń blokujących.

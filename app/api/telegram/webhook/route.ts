@@ -27,6 +27,7 @@ import { prisma } from '@/lib/server/prisma';
 import { unauthorized } from '@/lib/server/http';
 import { logError, logEvent } from '@/lib/server/observability';
 import { runWithRequestId } from '@/lib/server/request-context';
+import { consumeRateLimit } from '@/lib/server/rate-limit';
 import { parseTelegramEditReply } from '@/lib/server/telegram-edit-parser';
 import { parseTelegramScheduleReply } from '@/lib/server/telegram-schedule-parser';
 
@@ -49,6 +50,20 @@ type TelegramUpdate = {
     message?: { chat?: { id?: number | string }; message_id?: number };
   };
 };
+
+function resolveRateLimitChatId(update: TelegramUpdate): string | null {
+  const callbackChatId = update.callback_query?.message?.chat?.id;
+  if (callbackChatId !== undefined && callbackChatId !== null) {
+    return String(callbackChatId);
+  }
+
+  const messageChatId = update.message?.chat?.id;
+  if (messageChatId !== undefined && messageChatId !== null) {
+    return String(messageChatId);
+  }
+
+  return null;
+}
 
 // TASK-3.1.2 (decyzja PO 2026-09-13, "zostaw jak jest"): /approve, /retry i przycisk Publikuj
 // publikują synchronicznie wewnątrz tego handlera - dla wolnego protokołu (np. 3-etapowy upload
@@ -895,6 +910,27 @@ async function handlePost(request: NextRequest) {
     update = (await request.json()) as TelegramUpdate;
   } catch {
     return NextResponse.json({ ok: true });
+  }
+
+  // Every other mutating route in this app (publish-jobs trigger/retry/enqueue) already rate
+  // limits - this webhook never did. That gap mattered less before the agent-mentor existed;
+  // now unrecognized free text triggers up to 3 paid Claude calls per message with nothing
+  // stopping a runaway loop or spam. Keyed per chat (works even before /start linking), checked
+  // before ANY other work so a blocked burst never reaches a command handler or the mentor.
+  const rateLimitChatId = resolveRateLimitChatId(update);
+  if (rateLimitChatId) {
+    const rateLimit = await consumeRateLimit({
+      key: `telegram-webhook:${rateLimitChatId}`,
+      limit: 30,
+      windowMs: 5 * 60 * 1000,
+    });
+
+    if (!rateLimit.allowed) {
+      await sendTelegramMessage(rateLimitChatId, 'Zbyt wiele wiadomości w krótkim czasie - spróbuj ponownie za chwilę.').catch(
+        (error) => logError('telegram', 'send-rate-limit-notice-failed', error, { chatId: rateLimitChatId }),
+      );
+      return NextResponse.json({ ok: true });
+    }
   }
 
   if (update.callback_query) {
