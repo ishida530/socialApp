@@ -161,6 +161,11 @@ model PublishJob {
   // final Publikuj tap. Not exposed in the web composer (that has its own platform checkboxes
   // in ScheduleStep that act immediately, no separate "excluded" state to persist).
   excludedFromPublish Boolean   @default(false)
+  // Set when a genuinely-scheduled (not publishNow) job gets a precise QStash callback
+  // scheduled for it (lib/server/qstash.ts) - null if QStash isn't configured or the call
+  // failed, in which case the daily Vercel cron fallback is the only trigger, same as before
+  // this feature existed. Used to cancel the pending QStash message if the job is canceled.
+  qstashMessageId String?
   scheduledFor    DateTime
   publishedAt     DateTime?
   remotePostId    String?
