@@ -1,4 +1,5 @@
 import { redactSensitiveValue } from '@/lib/redact';
+import { getCurrentRequestId } from '@/lib/server/request-context';
 
 type LogLevel = 'info' | 'error';
 
@@ -10,8 +11,16 @@ type LogPayload = {
 };
 
 function emitLog(payload: LogPayload) {
+  // TASK-1.3.4: whatever entry point (Telegram webhook, cron, QStash trigger) wrapped this
+  // request in runWithRequestId - every log line emitted anywhere downstream, however deep,
+  // carries the same requestId automatically. undefined (omitted) for code paths nothing wraps
+  // yet - not every entry point needs this, only ones where tracing a chain across services
+  // actually matters.
+  const requestId = getCurrentRequestId();
+
   const message = {
     timestamp: new Date().toISOString(),
+    ...(requestId ? { requestId } : {}),
     scope: payload.scope,
     event: payload.event,
     // TASK-1.5.2: scrub before it ever reaches console/Vercel's log stream - see lib/redact.ts.

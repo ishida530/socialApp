@@ -590,6 +590,18 @@ Status: [x] zaimplementowane → [x] testy napisane i zielone (190/190 × 2 tryb
 
 ---
 
+### TASK-1.3.4: correlation ID w logach (2026-09-13)
+
+**[Architekt]:** zamiast przepychać dodatkowy parametr `requestId` przez dziesiątki sygnatur funkcji w całym łańcuchu (webhook Telegrama → publish-jobs → publish-processor → wywołania API platform), użyty `AsyncLocalStorage` (Node) — jeden `runWithRequestId(() => handler())` na wejściu (webhook Telegrama, cron, trigger QStash), a każde `logEvent`/`logError` gdziekolwiek w tym łańcuchu automatycznie dostaje ten sam `requestId`, zero zmian w pośrednich funkcjach.
+
+**[Inżynier]:** `lib/server/request-context.ts` (`runWithRequestId`, `getCurrentRequestId`), wpięte w `emitLog` (`lib/server/observability.ts`) i trzy punkty wejścia: `app/api/telegram/webhook/route.ts`, `app/api/cron/publish/route.ts`, `app/api/qstash/trigger-publish/route.ts`.
+
+**[QA]:** `tests/unit/request-context.test.ts` (propagacja przez zagnieżdżone async, brak przecieku między współbieżnymi wywołaniami). `tests/api/telegram-request-id-tracing.test.ts` — dowód end-to-end na prawdziwym wywołaniu webhooka: wszystkie linie logów z jednego `/approve` (od `job-processing-started` po `job-succeeded`) mają dokładnie ten sam `requestId`, a dwa osobne wywołania webhooka dostają dwa różne identyfikatory.
+
+Status: [x] zaimplementowane → [x] testy napisane i zielone (196/196 w obu trybach APP_MODE) → [x] zweryfikowane (tsc, build czyste) → [ ] zamknięte (PR w przygotowaniu)
+
+---
+
 **Definicja "gotowy projekt w 100%":** każdy checkbox w sekcjach 6 i 7 odhaczony, każdy z jawnym DoD spełnionym i potwierdzonym testem (nie deklaracją), **QA niezależnie zweryfikowało, nie tylko Inżynier**, Architekt podpisał się pod skalowalnością w sekcji 9 dla każdej nowej warstwy, i sekcja 8 (Review końcowy) przeszła bez zastrzeżeń blokujących.
 
 ## 0.1 Zespół UX/UI — równoległy tor pracy

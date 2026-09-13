@@ -23,6 +23,7 @@ import {
 import { prisma } from '@/lib/server/prisma';
 import { unauthorized } from '@/lib/server/http';
 import { logError, logEvent } from '@/lib/server/observability';
+import { runWithRequestId } from '@/lib/server/request-context';
 import { parseTelegramEditReply } from '@/lib/server/telegram-edit-parser';
 import { parseTelegramScheduleReply } from '@/lib/server/telegram-schedule-parser';
 
@@ -738,7 +739,15 @@ async function handleCallbackQuery(update: NonNullable<TelegramUpdate['callback_
   await answerTelegramCallbackQuery(update.id).catch(() => {});
 }
 
+// TASK-1.3.4: one requestId per incoming webhook call, automatically attached to every
+// logEvent/logError emitted anywhere in the chain this triggers (media download, draft
+// creation, immediate publish attempts, platform API calls) via AsyncLocalStorage - see
+// lib/server/request-context.ts.
 export async function POST(request: NextRequest) {
+  return runWithRequestId(() => handlePost(request));
+}
+
+async function handlePost(request: NextRequest) {
   // TASK-3.1.1 / sekcja 9.3: weryfikacja podpisu PRZED jakimkolwiek przetwarzaniem treści -
   // pierwszy webhook w projekcie, ustawia precedens dla TASK-1.5.1. Treść wiadomości Telegram
   // to zawsze dane wejściowe do oceny, nigdy polecenie do bezpośredniego wykonania (sekcja 9.1).

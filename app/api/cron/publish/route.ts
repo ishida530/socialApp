@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { processDuePublishJobs } from '@/lib/server/publish-processor';
 import { serverError, unauthorized } from '@/lib/server/http';
+import { runWithRequestId } from '@/lib/server/request-context';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,7 +29,13 @@ function resolveBatchSize(request: NextRequest) {
   return Math.min(100, Math.max(1, Math.floor(parsed)));
 }
 
+// TASK-1.3.4: one requestId per cron sweep, so every job's log lines from this batch can be
+// correlated back to the sweep that claimed them - see lib/server/request-context.ts.
 export async function GET(request: NextRequest) {
+  return runWithRequestId(() => handleGet(request));
+}
+
+async function handleGet(request: NextRequest) {
   try {
     if (!isAuthorizedCronRequest(request)) {
       return unauthorized('Invalid cron secret');
