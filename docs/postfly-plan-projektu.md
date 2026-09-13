@@ -425,7 +425,7 @@ Status: [x] zaimplementowane → [x] testy napisane i zielone (`tests/api/telegr
 
 **Architektura:** nowy współdzielony klient `lib/server/anthropic-client.ts` (`callClaudeTool` — Anthropic Messages API, wymuszony tool-use zamiast prompt-owego JSON mode jak w OpenAI, bo tool-use daje gwarantowaną strukturę bez ręcznego `JSON.parse`/walidacji błędów parsowania). Ten sam kontrakt co poprzednia integracja OpenAI i co reszta appki: **brak klucza albo błąd → `null` → wywołujący spada na deterministyczny fallback** (heurystyka dla klasyfikacji, szablon dla treści) — appka nigdy nie wymaga twardo klucza Anthropic do działania, tylko go wykorzystuje gdy jest dostępny. PII redagowane (`redactPotentialPii`) PRZED wysłaniem opisu do Claude, ta sama polityka co już istniała dla szablonu.
 
-Status: [x] zaimplementowane → [x] testy napisane i zielone (`tests/unit/anthropic-client.test.ts`, `tests/unit/smart-autopilot-ai-content.test.ts`, `tests/unit/smart-autopilot-llm.test.ts`) → [ ] zweryfikowane realnie z prawdziwym kluczem `ANTHROPIC_API_KEY` (trzeba dodać go w Vercelu — `OPENAI_API_KEY` był tam ustawiony, ale po tej migracji nie jest już czytany przez żaden kod, można go usunąć) → [ ] zamknięte (PR #...)
+Status: [x] zaimplementowane → [x] testy napisane i zielone (`tests/unit/anthropic-client.test.ts`, `tests/unit/smart-autopilot-ai-content.test.ts`, `tests/unit/smart-autopilot-llm.test.ts`) → [x] zweryfikowane realnie z prawdziwym kluczem `ANTHROPIC_API_KEY` na produkcji (potwierdzone przez użytkownika: caption/hashtagi realnie generowane przez Claude, nie szablon) → [x] zamknięte (PR #24)
 
 ---
 
