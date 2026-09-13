@@ -527,7 +527,32 @@ Kontynuacja Sprint 2.2 po QStash — dwa ostatnie zadania backlogu: podstawowy t
 
 **[PO]:** praktyczne ryzyko w produkcji jest ograniczone — `processDuePublishJobs` ma dziś jednego wołającego (`/api/cron/publish`, pojedynczy dzienny trigger Vercela), więc scenariusz "N naprawdę równoległych wywołań" nie zdarza się w normalnej pracy. Mimo to błąd wart był naprawienia od razu, bo (a) Vercel Cron nie gwarantuje ściśle-jednokrotnego wywołania (możliwe nakładanie się przy retry/wolnym poprzednim przebiegu), i (b) dokładnie taki scenariusz jest tym, co TASK-2.2.2 miał zweryfikować z definicji.
 
-Status: [x] zaimplementowane (fix w `lib/server/publish-processor.ts`) → [x] testy napisane i zielone (`tests/api/publish-processor-concurrency.test.ts`, 4 rundy × zero utraty/duplikacji) → [x] zweryfikowane (pełna suita 160/160 × 2 tryby, tsc, build) → [ ] zamknięte (PR w przygotowaniu)
+Status: [x] zaimplementowane (fix w `lib/server/publish-processor.ts`) → [x] testy napisane i zielone (`tests/api/publish-processor-concurrency.test.ts`, 4 rundy × zero utraty/duplikacji) → [x] zweryfikowane (pełna suita 160/160 × 2 tryby, tsc, build) → [x] zamknięte (PR #33, wdrożone na produkcję, `postfly.pl/api/health` zielony)
+
+**Sprint 2.1 + 2.2 = EPIC 2 w całości domknięty.**
+
+---
+
+## Etap 2 — powrót do pełnego backlogu EPIC 1 (2026-09-13)
+
+Po domknięciu EPIC 2 użytkownik poprosił o kontynuację "do zamknięcia Etapu 2". Zgodnie z `postfly-plan-wykonania.md` sekcja 1 (*"Etap 2+ — powrót do pełnego backlogu, w kolejności EPIC-ów"*), Etap 1 zrealizował tylko wąski podzbiór zadań z EPIC 1-3, resztę świadomie zostawiając na Etap 2 — więc "zamknięcie Etapu 2" oznacza nie tylko EPIC 2 (już zrobiony), ale powrót i domknięcie **całego** EPIC 1 (zasada kolejności: nie zaczynaj wyższego EPIC-u z otwartymi P0 w niższym) przed dalszą pracą w EPIC 3.
+
+**[PO]:** audyt repozytorium (agent Explore, read-only) wobec pełnej listy zadań EPIC 1 — dużo okazało się już zrobione przy okazji wcześniejszej pracy pod nazwami spoza numeracji backlogu, tylko nigdy nie odhaczone: TASK-1.1.0 (`CURRENT_TASK.md`/`BUGS.md`), TASK-1.1.1 (`lib/server/test-network-guard.ts` + `lib/server/prod-db-guard.ts` — realne blokady kodu, nie tylko puste zmienne w `.env.test`), TASK-1.1.2 (backup+realny dryl odtworzenia, `docs/backup-i-odzyskiwanie.md`), TASK-1.2.1 (regresja na gubienie treści). Odhaczone z cytowanym dowodem w `postfly-backlog-sprinty.md`.
+
+**[Architekt]:** pozostałe otwarte P0 z EPIC 1 zdomknięte w tej samej turze:
+- **TASK-1.3.1** (ochrona brancha `main`): potwierdzone `gh api .../branches/main/protection` → 404 (brak ochrony w ogóle). Włączone: wymagany zielony status check `test`, zakaz force-push/usunięcia brancha, `enforce_admins: false` (żeby właściciel nie zablokował sam siebie w nagłym przypadku).
+- **TASK-1.5.1** (weryfikacja podpisów webhooków): Telegram już miał test. TikTok już miał realną weryfikację HMAC w kodzie (401), ale zero testu — dodany (`tests/api/tiktok-webhook.test.ts`). Stripe miał weryfikację, ale błąd wpadał w ogólny `serverError` (500) zamiast jawnego odrzucenia — dodana jawna obsługa `Stripe.errors.StripeSignatureVerificationError` → 401, plus test.
+- **TASK-1.3.5** (Playwright headed/headless): `playwright.config.ts` → `use.headless: !!process.env.CI`.
+
+**[QA]:** dwie decyzje świadomie NIE zamknięte, z udokumentowanym uzasadnieniem zamiast cichego pominięcia:
+- **TASK-1.1.3** (npm audit, P1): 17 podatności, wszystkie w jednej gałęzi `@prisma/client → prisma → @prisma/dev → hono/chevrotain/lodash` (potwierdzone `npm ls --omit=dev`). `@prisma/dev` to wbudowany serwer `prisma studio`, uruchamiany WYŁĄCZNIE ręczną komendą, nigdy przez działającą appkę — potwierdzone zerem importów `hono`/`chevrotain`/`lodash` w `app/`/`lib/`/`components/`. Realny wektor ataku na ruch produkcyjny: brak. Jedyny fix to bump Prisma na `8.0.0-rc.14` (release candidate) — zbyt ryzykowne dla ORM-a w rdzeniu appki. Ryzyko świadomie zaakceptowane, do rewizji przy stabilnym Prisma 8.
+- **TASK-1.3.2** (staging environment, P1): pominięte na wyraźną decyzję właściciela produktu (pytanie zadane wprost) — realny koszt infrastruktury nieuzasadniony przy jednoosobowym projekcie, lokalny dev + CI dają dziś wystarczającą siatkę bezpieczeństwa.
+
+**TASK-1.2.2** (status audytu API TikTok/Meta): stan platform nie da się wyczytać z repo — zapytano właściciela produktu wprost. `docs/status-audytow-api.md`: TikTok złożony/czeka na decyzję, Meta zatwierdzony (Advanced Access).
+
+Pozostałe otwarte punkty EPIC 1 to P1/P2, nieblokujące dalszej pracy per zasada kolejności (TASK-1.3.2 świadomie odłożone, TASK-1.3.3/1.3.4/1.5.2/1.5.3/1.5.4 — patrz kolejny wpis).
+
+Status: [x] zaimplementowane → [x] testy napisane i zielone (`tests/api/stripe-webhook.test.ts` +1, `tests/api/tiktok-webhook.test.ts` nowy, 166/166 w obu trybach APP_MODE) → [x] zweryfikowane (tsc czyste poza znanymi `.mjs`, build czysty) → [ ] zamknięte (PR w przygotowaniu)
 
 ---
 
