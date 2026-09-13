@@ -23,6 +23,7 @@ import {
 } from '@/lib/server/publish-jobs';
 import { generateContentIdeas, type ContentIdea } from '@/lib/server/telegram-content-ideas';
 import { runMentorTurn } from '@/lib/server/telegram-mentor-agent';
+import type { ScheduleSlot } from '@/lib/server/smart-autopilot/types';
 import { prisma } from '@/lib/server/prisma';
 import { unauthorized } from '@/lib/server/http';
 import { logError, logEvent } from '@/lib/server/observability';
@@ -168,15 +169,41 @@ function describePlatformFormat(job: PreviewJob) {
   return 'post';
 }
 
-function buildPreviewMessage(jobs: PreviewJob[]) {
+// EPIC 4 ("popraw"): orchestrateContent already computes a reasoned schedule suggestion for
+// every draft - previously silently discarded (composer-drafts.ts only returned the captions).
+// Shown here as information only (doesn't change scheduledFor on its own - actual scheduling
+// still happens via the existing "📅 Zaplanuj"/Publikuj flow), so the loop's output is visible
+// instead of invisible. One line, the highest-scored slot only - not a full per-platform table.
+function describeScheduleSuggestion(schedule: ScheduleSlot[]): string | null {
+  if (schedule.length === 0) {
+    return null;
+  }
+
+  const best = [...schedule].sort((a, b) => b.score - a.score)[0];
+  const localTime = new Date(best.scheduledFor).toLocaleTimeString('pl-PL', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: best.timezone,
+  });
+
+  const isDataDriven = !best.reason.toLowerCase().includes('brak danych historycznych');
+  const suffix = isDataDriven ? '(na podstawie Twoich wcześniejszych publikacji)' : '(baseline - jeszcze za mało Twoich danych)';
+
+  return `💡 Sugerowana pora: ${localTime} ${suffix}`;
+}
+
+function buildPreviewMessage(jobs: PreviewJob[], schedule: ScheduleSlot[] = []) {
   const lines = jobs.map(
     (job) => `${job.excludedFromPublish ? '☐' : '✅'} ${job.socialAccount.platform} — ${describePlatformFormat(job)}`,
   );
+
+  const scheduleSuggestion = describeScheduleSuggestion(schedule);
 
   return [
     'Materiał odebrany! Oto co przygotowałem:',
     '',
     ...lines,
+    ...(scheduleSuggestion ? ['', scheduleSuggestion] : []),
     '',
     'Odznacz platformę żeby ją pominąć, ✏️ Edytuj żeby poprawić opis/hashtagi/tytuł, 🎬/📋 żeby przełączyć Reels/zwykły post (Facebook/Instagram), potem zatwierdź albo anuluj.',
   ].join('\n');
@@ -276,7 +303,7 @@ async function handleIncomingMedia(
 
     await sendTelegramMessageWithButtons(
       chatIdStr,
-      buildPreviewMessage(draftResult.jobs),
+      buildPreviewMessage(draftResult.jobs, draftResult.schedule),
       buildPreviewButtons(draftResult.postGroupId, draftResult.jobs),
     ).catch((error) => logError('telegram', 'send-preview-failed', error, { chatId: chatIdStr }));
   } catch (error) {

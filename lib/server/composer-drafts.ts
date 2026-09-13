@@ -1,5 +1,6 @@
 import { Platform } from '@prisma/client';
 import { orchestrateContent } from './smart-autopilot/orchestrator';
+import type { ScheduleSlot } from './smart-autopilot/types';
 
 type PlatformBundle = {
   platform: 'TIKTOK' | 'INSTAGRAM' | 'YOUTUBE' | 'FACEBOOK';
@@ -30,12 +31,18 @@ export async function generatePlatformBundles(
     return {
       bundlesByPlatform: new Map(result.platformBundles.map((bundle) => [bundle.platform, bundle])),
       orchestrationWarning: null as string | null,
+      // EPIC 4 (obserwuj->planuj->działaj->sprawdź->popraw): orchestrateContent already computes
+      // a real, reasoned schedule suggestion here - previously silently discarded by every
+      // caller of generatePlatformBundles, so the "popraw" step never had a way to reach the
+      // user. Passed through so callers (Telegram preview) can show it, not just apply it.
+      schedule: result.schedule as ScheduleSlot[],
     };
   } catch (error) {
     return {
       bundlesByPlatform: new Map<string, PlatformBundle>(),
       orchestrationWarning:
         error instanceof Error ? error.message : 'Nie udało się automatycznie wygenerować treści.',
+      schedule: [] as ScheduleSlot[],
     };
   }
 }

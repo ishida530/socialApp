@@ -759,6 +759,20 @@ Użytkownik zapytał "czy o czymś zapomniałem, co może być użyteczne" po za
 
 **[QA]:** `tests/api/telegram-webhook-rate-limit.test.ts` (2 testy: 31. wiadomość w oknie 5 minut blokowana z jawnym komunikatem, limit jednego czatu nie wpływa na inny czat). Pełna suita: 274/274 w obu trybach APP_MODE, tsc/build czyste.
 
+Status: [x] zaimplementowane → [x] testy napisane i zielone → [x] zweryfikowane (tsc, build czyste) → [x] zamknięte (PR #69)
+
+---
+
+### Domknięcie pętli EPIC 4 — widoczność uzasadnienia + narzędzie mentora (2026-09-13)
+
+Użytkownik zapytał, po zamknięciu EPIC 4, czy w samym EPIC 4 czegoś nie zabrakło. Audyt kodu (nie zgadywanie) znalazł dwie realne luki i użytkownik wybrał obie do naprawy.
+
+**[PO/Architekt]:** (1) `orchestrateContent` liczy realne, uzasadnione `schedule[].reason` na każdym drafcie od początku tej sesji — ale `composer-drafts.ts` zawsze wyrzucał `result.schedule`, więc krok "popraw" pętli EPIC 4 domykał się wewnętrznie z zerową widocznością dla użytkownika. (2) Agent-mentor (zbudowany PRZED EPIC 4 w tej samej sesji) nie miał żadnego narzędzia sięgającego po dane `PostMetric`/`performanceData` — dziś nie mógł odpowiedzieć na "kiedy najlepiej publikować" mimo że te dane już istnieją. Dwie niezależne, tanie poprawki domykające most między funkcjami zbudowanymi tej sesji, nie nowy zakres.
+
+**[Inżynier]:** `generatePlatformBundles`/`createDraftGroupForVideo` przekazują teraz `schedule` dalej zamiast go gubić. Podgląd na Telegramie pokazuje jedną linię dla najlepiej ocenionego slotu: `describeScheduleSuggestion` wybiera slot o najwyższym `score`, formatuje godzinę w jego własnej strefie czasowej, i jawnie rozróżnia "na podstawie Twoich wcześniejszych publikacji" od "baseline - jeszcze za mało Twoich danych" (na podstawie tego czy `reason` zawiera "brak danych historycznych") — czysto informacyjne, nie zmienia rzeczywistego harmonogramu (ten nadal ustawia się przez istniejący `/Zaplanuj`). Nowe narzędzie agenta-mentora `get_performance_insights` woła `getRealPerformanceData` (ten sam kod co EPIC 4) i zwraca dane posortowane wg engagement rate, z jawnym komunikatem "brak jeszcze wystarczających danych" zamiast pustej odpowiedzi; prompt systemowy jawnie zabrania zmyślania CTR/watch-time, których appka nie ma.
+
+**[QA]:** `tests/api/telegram-media-upload.test.ts` (+2: sugestia pokazuje najlepiej oceniony slot nie pierwszy z listy, jawne rozróżnienie baseline vs dane). `tests/unit/telegram-mentor-agent.test.ts` (+2: realne dane `PostMetric` trafiają do wyniku narzędzia posortowane, pusty wynik daje uczciwy komunikat zamiast ciszy). Cztery istniejące testy mockujące `generatePlatformBundles` zaktualizowane o pole `schedule` (dodatek, nie zmiana zachowania). Pełna suita: 278/278 w obu trybach APP_MODE, tsc/build czyste.
+
 Status: [x] zaimplementowane → [x] testy napisane i zielone → [x] zweryfikowane (tsc, build czyste) → [ ] zamknięte (PR w przygotowaniu)
 
 ---

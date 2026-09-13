@@ -13,6 +13,7 @@ vi.mock('@/lib/server/composer-drafts', () => ({
   generatePlatformBundles: vi.fn().mockResolvedValue({
     bundlesByPlatform: mockBundles,
     orchestrationWarning: null,
+    schedule: [],
   }),
 }));
 
