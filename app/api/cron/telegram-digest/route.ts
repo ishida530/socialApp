@@ -8,6 +8,7 @@ import {
 } from '@/lib/server/telegram-notifications';
 import { collectMetricsForRecentJobs } from '@/lib/server/post-metrics';
 import { collectAccountGrowth } from '@/lib/server/account-growth';
+import { detectAndNotifyNewComments } from '@/lib/server/social-comments';
 import { serverError, unauthorized } from '@/lib/server/http';
 import { runWithRequestId } from '@/lib/server/request-context';
 
@@ -24,13 +25,13 @@ function isAuthorizedCronRequest(request: NextRequest) {
   return authorization === `Bearer ${secret}`;
 }
 
-// One daily sweep covering seven related, non-urgent background jobs - the morning digest
+// One daily sweep covering eight related, non-urgent background jobs - the morning digest
 // (TASK-3.2.2), the long-inactivity nudge (TASK-3.2.3), post-performance metrics collection, the
 // sponsorship growth signal (TASK-5.4.3), the weekly coaching check-in, the stale-campaign
-// reminder, and account growth (follower/subscriber count) collection (all 2026-09-14, cooldown-
-// gated where relevant, not by cron day-of-week). Kept on one route/cron entry deliberately:
-// free-tier Vercel cron slots are limited, and none of these are urgent enough to need their own
-// schedule.
+// reminder, account growth (follower/subscriber count) collection, and new-comment detection
+// (EPIC 11 Sprint 11.2, TASK-11.2.5) (all 2026-09-14, cooldown/dedupe-gated where relevant, not by
+// cron day-of-week). Kept on one route/cron entry deliberately: free-tier Vercel cron slots are
+// limited, and none of these are urgent enough to need their own schedule.
 //
 // TASK-1.3.4: one requestId per sweep - see lib/server/request-context.ts.
 export async function GET(request: NextRequest) {
@@ -56,6 +57,10 @@ async function handleGet(request: NextRequest) {
     const coachingSummary = await sendWeeklyCoachingCheckins();
     // Campaigns (2026-09-14): same daily sweep, gated to once/week by its own cooldown field.
     const campaignReminderSummary = await sendStaleCampaignReminders();
+    // EPIC 11 Sprint 11.2 (2026-09-14): same daily sweep, not a separate cron entry - see
+    // lib/server/social-comments.ts. Dedupe via the unique (publishJobId, externalCommentId)
+    // constraint, not a cooldown field - a new comment is a discrete event, not a periodic nudge.
+    const commentsSummary = await detectAndNotifyNewComments();
 
     return NextResponse.json({
       ok: true,
@@ -66,6 +71,7 @@ async function handleGet(request: NextRequest) {
       coachingCheckinsSent: coachingSummary.usersNotified,
       campaignRemindersSent: campaignReminderSummary.usersNotified,
       followerSnapshotsUpdated: growthSummary.updated,
+      commentsDetected: commentsSummary.commentsDetected,
       processedAt: new Date().toISOString(),
     });
   } catch (error) {

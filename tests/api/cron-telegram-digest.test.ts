@@ -77,6 +77,8 @@ describe('GET /api/cron/telegram-digest (TASK-3.2.2)', () => {
     expect(body.campaignRemindersSent).toBe(0);
     // No usable access token on the test account - collectAccountGrowth skips it silently.
     expect(body.followerSnapshotsUpdated).toBe(0);
+    // Same reason - detectAndNotifyNewComments can't call the platform API without a token.
+    expect(body.commentsDetected).toBe(0);
     expect(mockSendTelegramMessage).toHaveBeenCalledTimes(2);
   });
 });

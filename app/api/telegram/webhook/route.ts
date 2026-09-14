@@ -28,6 +28,7 @@ import { addFan, getFanCount, getRecentFans, getRevenueSummary, isValidEmail, pa
 import { completeGoal, getActiveGoals, setGoal } from '@/lib/server/coaching';
 import { endActiveCampaign, getActiveCampaign, getCampaignReport, listRecentCampaigns, startCampaign, type CampaignReport } from '@/lib/server/campaigns';
 import { getFollowerGrowth, type FollowerGrowthEntry } from '@/lib/server/account-growth';
+import { acceptSuggestedReply, ignoreComment, sendCustomReply } from '@/lib/server/social-comments';
 import { prisma } from '@/lib/server/prisma';
 import { unauthorized } from '@/lib/server/http';
 import { logError, logEvent } from '@/lib/server/observability';
@@ -477,6 +478,19 @@ async function handleScheduleReply(chatIdStr: string, userId: string, postGroupI
   ).catch((error) => logError('telegram', 'send-schedule-confirmation-failed', error, { chatId: chatIdStr }));
 }
 
+// EPIC 11 Sprint 11.2: consumes the free-text reply started by the "✏️ Napisz własną" button on a
+// detected comment. Same session-state pattern as handleEditReply/handleScheduleReply (always
+// clears the flag first) - TASK-11.2.8's content-confirmation gate is satisfied by construction
+// here: the user is dictating the literal text that gets sent, the send itself is the approval.
+async function handleCommentReplyText(chatIdStr: string, userId: string, commentId: string, rawText: string) {
+  await prisma.user.update({ where: { id: userId }, data: { telegramReplyingToCommentId: null } });
+
+  const result = await sendCustomReply(commentId, userId, rawText);
+  await sendTelegramMessage(chatIdStr, result.ok ? '✅ Odpowiedź wysłana.' : result.error).catch((error) =>
+    logError('telegram', 'send-comment-custom-reply-result-failed', error, { chatId: chatIdStr }),
+  );
+}
+
 function formatContentIdeasMessage(ideas: ContentIdea[]): string {
   const lines = ['💡 Pomysły na kolejne nagrania:', ''];
   ideas.forEach((idea, index) => {
@@ -901,6 +915,49 @@ function formatPublishResultMessage(
   return lines.join('\n');
 }
 
+// EPIC 11 Sprint 11.2: the three button actions on a detected-comment alert
+// (commentreply/commentcustom/commentignore in detectAndNotifyNewComments). Edits the original
+// alert message to reflect the outcome, mirroring how toggle/cancel edit their own message rather
+// than sending a new one.
+async function handleCommentCallback(
+  action: string,
+  commentId: string,
+  userId: string,
+  chatIdStr: string,
+  messageId: number,
+  callbackQueryId: string,
+) {
+  if (action === 'commentreply') {
+    const result = await acceptSuggestedReply(commentId, userId);
+    await answerTelegramCallbackQuery(callbackQueryId, result.ok ? 'Wysłano.' : result.error).catch(() => {});
+    if (result.ok) {
+      await editTelegramMessage(chatIdStr, messageId, '✅ Odpowiedź wysłana.').catch((error) =>
+        logError('telegram', 'edit-comment-reply-failed', error, { chatId: chatIdStr }),
+      );
+    }
+    return;
+  }
+
+  if (action === 'commentignore') {
+    const result = await ignoreComment(commentId, userId);
+    await answerTelegramCallbackQuery(callbackQueryId, result.ok ? 'Zignorowano.' : result.error).catch(() => {});
+    if (result.ok) {
+      await editTelegramMessage(chatIdStr, messageId, '🚫 Zignorowano.').catch((error) =>
+        logError('telegram', 'edit-comment-ignore-failed', error, { chatId: chatIdStr }),
+      );
+    }
+    return;
+  }
+
+  // commentcustom: starts the same free-text-turn pattern as editstart/schedulestart - the next
+  // non-slash message from this user is sent verbatim as the reply (see handleCommentReplyText).
+  await prisma.user.update({ where: { id: userId }, data: { telegramReplyingToCommentId: commentId } });
+  await answerTelegramCallbackQuery(callbackQueryId).catch(() => {});
+  await sendTelegramMessage(chatIdStr, 'Wyślij treść odpowiedzi na ten komentarz jedną wiadomością.').catch((error) =>
+    logError('telegram', 'send-comment-custom-prompt-failed', error, { chatId: chatIdStr }),
+  );
+}
+
 async function handleCallbackQuery(update: NonNullable<TelegramUpdate['callback_query']>) {
   const chatId = update.message?.chat?.id;
   const messageId = update.message?.message_id;
@@ -917,6 +974,15 @@ async function handleCallbackQuery(update: NonNullable<TelegramUpdate['callback_
   const linkedUser = await findUserByTelegramChatId(chatIdStr);
   if (!linkedUser) {
     await answerTelegramCallbackQuery(update.id, 'To konto nie jest połączone.').catch(() => {});
+    return;
+  }
+
+  // EPIC 11 Sprint 11.2: comment actions carry a SocialComment id in the same data-field position
+  // as postGroupId (action:id) - handled before the postGroupId ownership gate below, since that
+  // gate assumes a PublishJob group id, not a comment id. Ownership is checked inside each helper
+  // (SocialComment.userId === linkedUser.id), same "never touch another user's row" guarantee.
+  if (action === 'commentreply' || action === 'commentcustom' || action === 'commentignore') {
+    await handleCommentCallback(action, postGroupId, linkedUser.id, chatIdStr, messageId, update.id);
     return;
   }
 
@@ -1261,6 +1327,13 @@ async function handlePost(request: NextRequest) {
   // Same priority rule as the edit reply above, for an in-progress "📅 Zaplanuj" prompt.
   if (linkedUser.telegramSchedulingPostGroupId && !text.trim().startsWith('/')) {
     await handleScheduleReply(chatIdStr, linkedUser.id, linkedUser.telegramSchedulingPostGroupId, text);
+    return NextResponse.json({ ok: true });
+  }
+
+  // EPIC 11 Sprint 11.2: same priority rule, for an in-progress "✏️ Napisz własną" prompt on a
+  // detected comment (see commentcustom in handleCallbackQuery).
+  if (linkedUser.telegramReplyingToCommentId && !text.trim().startsWith('/')) {
+    await handleCommentReplyText(chatIdStr, linkedUser.id, linkedUser.telegramReplyingToCommentId, text);
     return NextResponse.json({ ok: true });
   }
 
