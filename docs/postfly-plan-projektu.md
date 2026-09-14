@@ -791,7 +791,23 @@ Użytkownik poprosił o "kompletny EPIC 5" i wyszedł, dając pełny mandat decy
 
 **Co NIE zostało zbudowane i dlaczego — pełna lista z uzasadnieniem w `postfly-backlog-sprinty.md` przy każdym zadaniu**: automatyczny checkout/webhook płatności (TASK-5.2.2 pełne), Agent superfanów (5.3.1), Agent tantiem (5.3.2), Agent sync (5.3.3), kategoryzacja podatkowa (5.4.1), Agent ochrony treści (5.4.2), pełny web dashboard majątku (5.4.4 pełne), bramka potwierdzenia dla Monetyzacji (5.4.5 — nie dotyczy, nic autonomicznego jeszcze nie wysyła), Agent społeczności (5.4.6 — wymaga nowych zgód OAuth), weryfikacja zmiany danych wypłat (5.4.7 — nie dotyczy, nie ma jeszcze mechanizmu wypłat do zabezpieczenia).
 
-Status: [x] zaimplementowane (zakres opisany wyżej) → [x] testy napisane i zielone → [x] zweryfikowane (tsc, build czyste) → [ ] zamknięte (PR w przygotowaniu) → [ ] weryfikacja przez właściciela produktu po powrocie (w tym decyzja: czy i kiedy zakładać konto procesora płatności dla pełnego TASK-5.2.2)
+Status: [x] zaimplementowane (zakres opisany wyżej) → [x] testy napisane i zielone → [x] zweryfikowane (tsc, build czyste) → [x] zamknięte (PR #72) → [ ] weryfikacja przez właściciela produktu po powrocie (w tym decyzja: czy i kiedy zakładać konto procesora płatności dla pełnego TASK-5.2.2)
+
+---
+
+### Agent-mentor: /fan i /sale wprost z rozmowy (2026-09-14)
+
+Użytkownik: "nie rozumiem tego modułu epic5" → wyjaśnienie w prostym języku → "ale zamiast używania komend, to po prostu chcę rozmawiać z moim agentem na Telegramie". Bezpośrednia prośba o rozszerzenie agenta-mentora o zapis danych EPIC 5 z rozmowy, nie tylko odczyt.
+
+**[PO]:** to zmiana wcześniej ustalonej zasady (agent-mentor = wyłącznie odczyt, PR #65) — potwierdzona wprost z użytkownikiem przez `AskUserQuestion`, nie zdecydowana po cichu. Rozstrzygnięcie: `add_fan`/`record_sale` dostają wyjątek — w przeciwieństwie do publikacji/anulowania (nieodwracalne, widoczne na zewnątrz), to prywatna notatka użytkownika o nim samym (kontakt, sprzedaż która już się wydarzyła), bez efektu poza jego własną listą. Agent wykonuje wprost, bez przycisku, ale zawsze odczytuje z powrotem co dokładnie zapisał — to przejrzystość, nie bramka. Wszystkie pozostałe akcje (publikuj/anuluj/ponów/pauza/harmonogram) zostają WYŁĄCZNIE przez komendy, zero zmian.
+
+**[Architekt] — znaleziony i naprawiony konflikt:** `runMentorTurn` redagowało PII (w tym adresy email) z wiadomości użytkownika PRZED wysłaniem do Claude — sensowne dla ai-content.ts (opis biznesu/podpisy nie powinny nigdy zawierać cudzych danych), ale dla `add_fan` to by całkowicie łamało funkcję: prawdziwy email fana zamieniałby się w "[redacted-email]" zanim agent zdążyłby go zobaczyć. Nowa funkcja `redactPotentialPiiKeepingEmail` (smart-autopilot/safety.ts) — ten sam mechanizm dla telefonu/ID, świadomy wyjątek TYLKO dla email, wyłącznie w tym jednym miejscu (`redactPotentialPii` bez zmian dla wszystkich pozostałych 4 miejsc użycia w kodzie).
+
+**[Inżynier]:** dwa nowe narzędzia w `TOOLS`/`executeTool` (`telegram-mentor-agent.ts) — walidacja identyczna jak w komendach Telegrama (`isValidEmail`, kwota > 0), wołają wprost `addFan`/`recordSale` z `lib/server/monetization.ts` (ten sam kod co komendy `/fan`/`/sale` - jedna prawda). System prompt zaktualizowany: jawna instrukcja żeby NIE zgadywać emaila/kwoty gdy nie podane (dopytać), zawsze potwierdzić zapisane dane w odpowiedzi.
+
+**[QA]:** `tests/unit/telegram-mentor-agent.test.ts` (+3: `add_fan` tworzy realny wiersz Fan Z zachowanym emailem mimo redakcji — bezpośredni test regresji na konflikt opisany wyżej, `add_fan` odrzuca nieprawidłowy email bez zapisu, `record_sale` tworzy realny wiersz Sale). `tests/unit/smart-autopilot-safety.test.ts` (nowy, 2 testy: `redactPotentialPii` nadal redaguje email jak wcześniej, `redactPotentialPiiKeepingEmail` zachowuje email a telefon/ID nadal redaguje). Pełna suita: 303/303 w obu trybach APP_MODE, tsc/build czyste.
+
+Status: [x] zaimplementowane → [x] testy napisane i zielone → [x] zweryfikowane (tsc, build czyste) → [ ] zamknięte (PR w przygotowaniu) → [ ] weryfikacja żywej rozmowy przez prawdziwego bota
 
 ---
 

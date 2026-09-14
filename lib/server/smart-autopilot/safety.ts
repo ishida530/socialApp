@@ -78,3 +78,13 @@ export function redactPotentialPii(value: string) {
     .replace(PHONE_REGEX, '[redacted-phone]')
     .replace(ID_REGEX, '[redacted-id]');
 }
+
+// Same redaction, but keeps email addresses intact - used only by the agent-mentor
+// (telegram-mentor-agent.ts). That agent has a legitimate reason to see real emails: its
+// add_fan/record_sale tools let the user dictate a fan's email in conversation (EPIC 5), and
+// blanket email redaction would silently break that feature (the agent would only ever see
+// "[redacted-email]"). Phone numbers and ID-like digit strings are still stripped - the email
+// exception is deliberate, not a general loosening.
+export function redactPotentialPiiKeepingEmail(value: string) {
+  return value.replace(PHONE_REGEX, '[redacted-phone]').replace(ID_REGEX, '[redacted-id]');
+}
