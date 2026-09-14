@@ -10,6 +10,7 @@ import { prisma } from './prisma';
 import { sendTelegramMessage } from './telegram';
 import { logError, logEvent } from './observability';
 import { checkSponsorshipGrowth } from './monetization';
+import { formatFallbackCoachingMessage, generateCoachingMessage, getWeeklyCoachingData, hasCoachableActivity } from './coaching';
 
 export async function notifyJobFailedImmediately(jobId: string): Promise<void> {
   const job = await prisma.publishJob.findUnique({
@@ -206,6 +207,59 @@ export async function sendSponsorshipSignals(): Promise<{ usersNotified: number 
   }
 
   logEvent('telegram-notifications', 'sponsorship-signals-sent', { usersNotified });
+
+  return { usersNotified };
+}
+
+// Real coaching (2026-09-14): the proactive half of "real coaching" - the mentor agent already
+// answers when asked (reactive), this is the once-a-week unprompted check-in with a real,
+// personalized observation instead of a raw stats dump. Same cooldown-field pattern as the two
+// nudges above (User.lastCoachingCheckinSentAt), same daily-cron reuse (no new cron slot).
+const COACHING_CHECKIN_COOLDOWN_DAYS = 7;
+
+function formatCoachingCheckinMessage(message: { summary: string; suggestion: string }): string {
+  return `🎯 Podsumowanie tygodnia:\n\n${message.summary}\n\n💡 ${message.suggestion}`;
+}
+
+export async function sendWeeklyCoachingCheckins(): Promise<{ usersNotified: number }> {
+  const now = new Date();
+  const cutoff = new Date(now.getTime() - COACHING_CHECKIN_COOLDOWN_DAYS * 24 * 60 * 60 * 1000);
+
+  const candidates = await prisma.user.findMany({
+    where: {
+      telegramChatId: { not: null },
+      OR: [{ lastCoachingCheckinSentAt: null }, { lastCoachingCheckinSentAt: { lte: cutoff } }],
+    },
+    select: { id: true, telegramChatId: true, businessDescription: true },
+  });
+
+  let usersNotified = 0;
+
+  for (const user of candidates) {
+    const data = await getWeeklyCoachingData(user.id);
+
+    // Same posture as sendInactivityNudges: nothing to coach about yet, don't manufacture a
+    // message - a brand-new, untouched account gets silence here, not noise.
+    if (!hasCoachableActivity(data)) {
+      continue;
+    }
+
+    // AI enhances, template is the safety net - same pattern as caption generation
+    // (ai-content.ts): a real, honest, data-only message beats no message at all.
+    const message = (await generateCoachingMessage(data, user.businessDescription)) ?? formatFallbackCoachingMessage(data);
+
+    try {
+      await sendTelegramMessage(user.telegramChatId as string, formatCoachingCheckinMessage(message));
+      usersNotified += 1;
+    } catch (error) {
+      logError('telegram-notifications', 'coaching-checkin-send-error', error, { userId: user.id });
+      continue;
+    }
+
+    await prisma.user.update({ where: { id: user.id }, data: { lastCoachingCheckinSentAt: now } });
+  }
+
+  logEvent('telegram-notifications', 'coaching-checkins-sent', { usersNotified });
 
   return { usersNotified };
 }

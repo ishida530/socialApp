@@ -29,6 +29,7 @@ import { getRecentActivityForUser, getRecentContentForIdeas, getTelegramStatusSn
 import { generateContentIdeas } from './telegram-content-ideas';
 import { getRealPerformanceData } from './smart-autopilot/performance-data';
 import { addFan, isValidEmail, recordSale } from './monetization';
+import { completeGoal, getActiveGoals, setGoal } from './coaching';
 import { logError, logEvent } from './observability';
 
 // No per-user timezone is stored anywhere in this app today - every Telegram-sourced draft
@@ -45,8 +46,9 @@ const MAX_MESSAGE_CHARS = 2000;
 
 const MENTOR_SYSTEM_PROMPT = [
   'Jestes mentorem/asystentem uzytkownika appki Postfly (planowanie i publikacja tresci social media), rozmawiasz z nim na Telegramie po polsku, krotko i konkretnie.',
-  'Masz narzedzia odczytu (status, historia, pomysly na tresc, opis konta, wyniki publikacji) ORAZ dwa narzedzia zapisu: add_fan i record_sale.',
-  'add_fan/record_sale: uzywaj ich WPROST (bez pytania o potwierdzenie) gdy uzytkownik jawnie podaje dane do zapisania - np. "dodaj fana jan@przyklad.com" albo "zapisz sprzedaz 80zl koszulka". Po wywolaniu ZAWSZE potwierdz w odpowiedzi dokladnie co zapisales (email/imie albo produkt/kwote), zeby ewentualny blad byl od razu widoczny. Nie zgaduj emaila ani kwoty, jesli uzytkownik ich nie podal - dopytaj.',
+  'Masz narzedzia odczytu (status, historia, pomysly na tresc, opis konta, wyniki publikacji) ORAZ narzedzia zapisu: add_fan, record_sale, set_goal, get_goals, complete_goal.',
+  'add_fan/record_sale/set_goal/complete_goal: uzywaj ich WPROST (bez pytania o potwierdzenie) gdy uzytkownik jawnie podaje dane do zapisania - np. "dodaj fana jan@przyklad.com", "zapisz sprzedaz 80zl koszulka", "chce publikowac 3x w tygodniu". Po wywolaniu ZAWSZE potwierdz w odpowiedzi dokladnie co zapisales, zeby ewentualny blad byl od razu widoczny. Nie zgaduj danych (email/kwota/tresc celu), jesli uzytkownik ich nie podal - dopytaj.',
+  'Jestes tez coachem - gdy uzytkownik pyta "jak mi idzie" albo o strategie, polacz get_performance_insights/get_recent_activity Z get_goals (jesli ma aktywne cele) i daj krotka, konkretna odpowiedz odnoszaca sie do jego celu, nie tylko suche liczby.',
   'NIGDY nie masz narzedzia do publikacji/anulowania/ponawiania/pauzy/harmonogramu posta - to zawsze zostaje przez istniejace komendy. Gdy uzytkownik prosi o taka akcje (anuluj, ponow, zatwierdz, wstrzymaj, zaplanuj), NIGDY nie udawaj ze to zrobiles - podaj DOKLADNA komende do wpisania, np. "/cancel <id>", "/retry <id>", "/approve <id>", "/pause", "/resume" - z prawdziwym ID zadania jesli je znasz z narzedzia get_recent_activity/get_status.',
   'Uzywaj WYLACZNIE danych z wynikow narzedzi - nigdy nie zgaduj liczb, statusow ani tresci postow. Jesli narzedzie zwrocilo blad albo brak danych, powiedz to wprost.',
   'get_performance_insights zwraca TYLKO engagement rate (polubienia+komentarze+udostepnienia/wyswietlenia) per platforma+godzina - appka NIE ma danych o CTR ani watch-time (platformy tego nie udostepniaja przez posiadane uprawnienia), nigdy nie zmyslaj tych metryk ani nie udawaj wiekszej precyzji niz to.',
@@ -105,6 +107,29 @@ const TOOLS = [
       required: ['product', 'amount'],
     },
   },
+  {
+    name: 'set_goal',
+    description: 'Zapisuje wlasny cel uzytkownika (dowolny tekst, np. "publikowac 3x w tygodniu"). Uzyj TYLKO gdy uzytkownik jawnie chce zapisac cel.',
+    input_schema: {
+      type: 'object',
+      properties: { description: { type: 'string', description: 'Opis celu' } },
+      required: ['description'],
+    },
+  },
+  {
+    name: 'get_goals',
+    description: 'Lista aktywnych (niezrealizowanych) celow uzytkownika.',
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'complete_goal',
+    description: 'Oznacza cel jako zrealizowany po ID (znanym z get_goals). Uzyj TYLKO gdy uzytkownik jawnie potwierdza ze dany cel zostal zrealizowany.',
+    input_schema: {
+      type: 'object',
+      properties: { goalId: { type: 'string', description: 'ID celu z get_goals' } },
+      required: ['goalId'],
+    },
+  },
 ] as const;
 
 type ToolBlock = Extract<AnthropicContentBlock, { type: 'tool_use' }>;
@@ -141,6 +166,35 @@ async function executeTool(userId: string, name: string, input: unknown): Promis
       const fanEmail = typeof args.fanEmail === 'string' && isValidEmail(args.fanEmail) ? args.fanEmail : undefined;
       const sale = await recordSale(userId, product, Math.round(amount * 100), { fanEmail });
       return JSON.stringify({ ok: true, sale: { product: sale.product, amountCents: sale.amountCents, currency: sale.currency } });
+    }
+
+    if (name === 'set_goal') {
+      const args = (input && typeof input === 'object' ? input : {}) as { description?: unknown };
+      const description = typeof args.description === 'string' ? args.description.trim() : '';
+
+      if (!description) {
+        return JSON.stringify({ error: 'Brak opisu celu.' });
+      }
+
+      const goal = await setGoal(userId, description);
+      return JSON.stringify({ ok: true, goal: { id: goal.id, description: goal.description } });
+    }
+
+    if (name === 'get_goals') {
+      const goals = await getActiveGoals(userId);
+      return JSON.stringify({ goals: goals.map((goal) => ({ id: goal.id, description: goal.description })) });
+    }
+
+    if (name === 'complete_goal') {
+      const args = (input && typeof input === 'object' ? input : {}) as { goalId?: unknown };
+      const goalId = typeof args.goalId === 'string' ? args.goalId : '';
+
+      if (!goalId) {
+        return JSON.stringify({ error: 'Brak ID celu.' });
+      }
+
+      const result = await completeGoal(userId, goalId);
+      return JSON.stringify(result);
     }
 
     if (name === 'get_status') {
