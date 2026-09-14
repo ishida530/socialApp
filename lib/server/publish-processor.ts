@@ -449,7 +449,7 @@ type PublishInputJob = {
 
 async function publishToYouTube(job: PublishInputJob, accessToken: string): Promise<PublishTransportResult> {
   const fileBytes = await resolveVideoBytes(job);
-  const boundary = `flowstate-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const boundary = `postfly-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
   const metadata = {
     snippet: {

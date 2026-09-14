@@ -7,7 +7,7 @@ type SessionPayload = {
   exp?: number;
 };
 
-const TOKEN_COOKIE_NAME = 'flowstate_token';
+const TOKEN_COOKIE_NAME = 'postfly_token';
 
 function getTokenFromRequest(request: NextRequest): string | null {
   const authHeader = request.headers.get('authorization');
