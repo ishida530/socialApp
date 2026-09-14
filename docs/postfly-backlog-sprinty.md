@@ -201,6 +201,17 @@
 
 **Sprint 11.3 — w pełni zamknięty.** Świadomie NIE zrobione w tej turze: autopilot nie zmienia CO się publikuje (treść/caption) na podstawie wyników — tylko KIEDY. Prawdziwe uczenie się "ten format/pora działa lepiej niż tamten" (nie tylko godzina) i automatyczne odpowiadanie na komentarze bez bramki (Sprint 11.2 ma ją celowo) pozostają nierozpoczęte — oba wymagałyby świadomej decyzji o dalszym zdjęciu nadzoru człowieka, nie tylko pracy inżynierskiej.
 
+### Sprint 11.4 — Proaktywne sugestie treści (CO publikować, nie tylko KIEDY)
+*Domyka drugą połowę pytania z Sprint 11.3 — właściciel doprecyzował (2026-09-14): agent MOŻE sam wpadać na pomysł posta na podstawie realnych wyników, i MOŻE go od razu przygotować — ale NIGDY nie publikuje bez jednego tapnięcia zgody, i NIGDY nie generuje mediów (obrazków/wideo) samodzielnie, materiał zawsze dostarcza właściciel. Doprecyzowanie: post tekstowy ma też zachęcać do komentowania (prawdziwa interakcja pod postem = jeden z najsilniejszych sygnałów dla algorytmu Facebooka), bez mechanicznego "engagement bait", za który Facebook obniża zasięg.*
+
+- [x] **TASK-11.4.1** [P1/M] `MediaType.TEXT` + `PublishJob` bez prawdziwego materiału (migracja `20260914091741_proactive_content_suggestions`) — placeholder `Video` (`sourceUrl: 'text-post://no-media'`), żeby cała reszta appki (własność, kampanie, metryki) dalej działała bez zmian, zamiast robić `videoId` opcjonalnym wszędzie.
+- [x] **TASK-11.4.2** [P1/M] `publishToFacebookTextPost` (`lib/server/publish-processor.ts`) — zwykły status Facebooka przez `POST /{page-id}/feed?message=...`, bez `file_url`/`url` — jedyna z czterech platform, której API pozwala na post bez żadnego materiału (potwierdzone, nie założone). Próba użycia TEXT na innej platformie kończy się natychmiastowym, nie-ponawianym błędem (nowa kategoria "trwały błąd", ten sam wzorzec co `isPermanentFacebookPermissionError`).
+- [x] **TASK-11.4.3** [P1/M] `generateFacebookTextPostSuggestion` (`lib/server/content-suggestions.ts`) — gotowy do publikacji post na bazie realnych danych tygodnia (ten sam `getWeeklyCoachingData` co coaching), z wymuszonym w prompcie naturalnym pytaniem/zaproszeniem do komentarza na końcu, i jawnym zakazem mechanicznego "engagement bait" (oznacz znajomego / napisz TAK / udostępnij) — to obniża zasięg na Facebooku, nie podnosi. Honest decline (`canSuggest: false`) zamiast zmyślonej treści, gdy naprawdę nie ma o czym pisać.
+- [x] **TASK-11.4.4** [P1/M] `sendContentSuggestions` (`lib/server/telegram-notifications.ts`) — dziewiąta funkcja w tym samym dziennym cronie, zero nowego slotu. Dwie ścieżki: gotowy post tekstowy (gdy jest podłączony Facebook) albo pomysł na materiał (`generateContentIdeas`, dotąd tylko na żądanie przez `/pomysl` — teraz też proaktywnie, koszt Claude ograniczony tym samym mechanizmem cooldownu co reszta appki, nie tylko "na żądanie"). Pomijane dla użytkownika z `publishingPaused` (nowa propozycja do zatwierdzenia zaraz po auto-pauzie/`/pause` byłaby nie na miejscu).
+- [x] **TASK-11.4.5** [P1/S] Zero nowego kodu obsługi przycisków — sugestia to zwykły `PublishJob` w statusie DRAFT, więc istniejące `publish`/`cancel`/`editstart` w webhooku obsługują ją bez zmian (potwierdzone testem end-to-end, nie założone).
+
+**Sprint 11.4 — w pełni zamknięty.**
+
 ---
 
 ## Kolejność realizacji (zależności między epikami)

@@ -79,6 +79,8 @@ describe('GET /api/cron/telegram-digest (TASK-3.2.2)', () => {
     expect(body.followerSnapshotsUpdated).toBe(0);
     // Same reason - detectAndNotifyNewComments can't call the platform API without a token.
     expect(body.commentsDetected).toBe(0);
+    // No usable Facebook account and fewer than 2 published posts - nothing to suggest yet.
+    expect(body.contentSuggestionsSent).toBe(0);
     expect(mockSendTelegramMessage).toHaveBeenCalledTimes(2);
   });
 });

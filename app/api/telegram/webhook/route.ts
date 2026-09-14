@@ -152,6 +152,13 @@ const YOUTUBE_SHORTS_MAX_SEC = 180;
 function describePlatformFormat(job: PreviewJob) {
   const platform = job.socialAccount.platform;
 
+  // Proactive content suggestions (2026-09-14): a Facebook post with no attached media - checked
+  // before the platform-specific branches below (the FACEBOOK branch otherwise assumes a
+  // video/Reels context and would mislabel this as "Reels").
+  if (job.video.mediaType === 'TEXT') {
+    return 'post tekstowy (bez materiału)';
+  }
+
   if (job.video.mediaType === 'IMAGE') {
     return 'zdjęcie';
   }

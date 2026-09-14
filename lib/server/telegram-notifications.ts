@@ -6,12 +6,16 @@
 // already individual by construction (a command reply in the webhook handler itself); what was
 // actually missing is this file: FAILED is urgent enough to notify immediately, SUCCESS is not
 // (batched into one daily digest instead of a message per post).
+import { randomUUID } from 'crypto';
 import { prisma } from './prisma';
-import { sendTelegramMessage } from './telegram';
+import { sendTelegramMessage, sendTelegramMessageWithButtons } from './telegram';
 import { logError, logEvent } from './observability';
 import { checkSponsorshipGrowth } from './monetization';
 import { formatFallbackCoachingMessage, generateCoachingMessage, getWeeklyCoachingData, hasCoachableActivity } from './coaching';
 import { findStaleActiveCampaigns } from './campaigns';
+import { generateFacebookTextPostSuggestion } from './content-suggestions';
+import { generateContentIdeas } from './telegram-content-ideas';
+import { getRecentContentForIdeas } from './publish-jobs';
 
 export async function notifyJobFailedImmediately(jobId: string): Promise<void> {
   const job = await prisma.publishJob.findUnique({
@@ -339,4 +343,142 @@ export async function checkAndApplyFailureCircuitBreaker(userId: string): Promis
   logEvent('telegram-notifications', 'publishing-auto-paused', { userId });
 
   return { paused: true };
+}
+
+// Proactive content suggestions (2026-09-14): the "CO" (what) half of autopilot, requested
+// explicitly by the product owner alongside Sprint 11.3's "KIEDY" (when). The agent may come up
+// with the idea itself, on real performance data - but NEVER publishes without the owner's own
+// tap ("sam wymysla, ale za moja zgoda"), and NEVER generates media itself (images/video always
+// come from the owner). Two paths, gated by what the account can actually do without new media:
+// a ready-to-approve Facebook TEXT post when a usable Facebook connection exists, otherwise a
+// content IDEA nudge (reusing /pomysl's generator) prompting the owner to send footage. Same
+// cooldown-field pattern as every other proactive nudge; skipped entirely while publishingPaused
+// (offering a brand-new post to approve right after an auto-pause, or a manual /pause, would be
+// tone-deaf - same integration is likely to fail again, or the owner explicitly asked for quiet).
+const CONTENT_SUGGESTION_COOLDOWN_DAYS = 7;
+const MIN_POSTS_FOR_IDEAS = 2;
+
+function formatContentSuggestionMessage(postText: string): string {
+  return [
+    '🤖 Mam pomysł na post na Facebooka, bazujący na Twoich wynikach:',
+    '',
+    `"${postText}"`,
+    '',
+    'Wyślij, popraw treść, albo odrzuć.',
+  ].join('\n');
+}
+
+function formatProactiveIdeasMessage(ideas: Array<{ title: string; description: string }>): string {
+  const lines = ['🤖 Pomysł na kolejny materiał, bazujący na Twoim stylu:', ''];
+  ideas.forEach((idea, index) => {
+    lines.push(`${index + 1}. ${idea.title}`);
+    lines.push(idea.description);
+    lines.push('');
+  });
+  lines.push('Wrzuć materiał na ten temat, kiedy będziesz gotowy - zajmę się resztą.');
+  return lines.join('\n').trimEnd();
+}
+
+async function sendFacebookTextPostSuggestion(user: { id: string; telegramChatId: string; businessDescription: string | null }): Promise<boolean> {
+  const fbAccount = await prisma.socialAccount.findFirst({
+    where: { userId: user.id, platform: 'FACEBOOK', accessToken: { not: null } },
+  });
+
+  if (!fbAccount) {
+    return false;
+  }
+
+  const data = await getWeeklyCoachingData(user.id);
+  const postText = await generateFacebookTextPostSuggestion(user.businessDescription, data);
+  if (!postText) {
+    return false;
+  }
+
+  const video = await prisma.video.create({
+    data: {
+      title: postText.slice(0, 80),
+      sourceUrl: 'text-post://no-media',
+      mediaType: 'TEXT',
+      status: 'READY',
+      userId: user.id,
+    },
+  });
+
+  const postGroupId = randomUUID();
+  await prisma.publishJob.create({
+    data: {
+      status: 'DRAFT',
+      postGroupId,
+      caption: postText,
+      scheduledFor: new Date(),
+      videoId: video.id,
+      socialAccountId: fbAccount.id,
+    },
+  });
+
+  // Reuses the webhook's existing editstart/publish/cancel callback handlers unmodified (same
+  // callback_data format as the normal upload preview) - no new button-handling code needed.
+  await sendTelegramMessageWithButtons(user.telegramChatId, formatContentSuggestionMessage(postText), [
+    [{ text: '✏️ Popraw', callback_data: `editstart:${postGroupId}:FACEBOOK` }],
+    [
+      { text: '✅ Publikuj', callback_data: `publish:${postGroupId}` },
+      { text: '🚫 Odrzuć', callback_data: `cancel:${postGroupId}` },
+    ],
+  ]);
+
+  return true;
+}
+
+async function sendMediaContentIdeaSuggestion(user: { id: string; telegramChatId: string; businessDescription: string | null }): Promise<boolean> {
+  const recentPosts = await getRecentContentForIdeas(user.id);
+  if (recentPosts.length < MIN_POSTS_FOR_IDEAS) {
+    return false;
+  }
+
+  const ideas = await generateContentIdeas(user.businessDescription, recentPosts);
+  if (!ideas || ideas.length === 0) {
+    return false;
+  }
+
+  await sendTelegramMessage(user.telegramChatId, formatProactiveIdeasMessage(ideas));
+  return true;
+}
+
+export async function sendContentSuggestions(): Promise<{ usersNotified: number }> {
+  const now = new Date();
+  const cutoff = new Date(now.getTime() - CONTENT_SUGGESTION_COOLDOWN_DAYS * 24 * 60 * 60 * 1000);
+
+  const candidates = await prisma.user.findMany({
+    where: {
+      telegramChatId: { not: null },
+      publishingPaused: false,
+      OR: [{ lastContentSuggestionSentAt: null }, { lastContentSuggestionSentAt: { lte: cutoff } }],
+    },
+    select: { id: true, telegramChatId: true, businessDescription: true },
+  });
+
+  let usersNotified = 0;
+
+  for (const user of candidates) {
+    const typedUser = { id: user.id, telegramChatId: user.telegramChatId as string, businessDescription: user.businessDescription };
+
+    try {
+      const sent = (await sendFacebookTextPostSuggestion(typedUser)) || (await sendMediaContentIdeaSuggestion(typedUser));
+
+      if (!sent) {
+        continue;
+      }
+
+      usersNotified += 1;
+    } catch (error) {
+      logError('telegram-notifications', 'content-suggestion-send-error', error, { userId: user.id });
+      continue;
+    }
+
+    await prisma.user.update({ where: { id: user.id }, data: { lastContentSuggestionSentAt: now } });
+  }
+
+  logEvent('telegram-notifications', 'content-suggestions-sent', { usersNotified });
+
+  return { usersNotified };
 }

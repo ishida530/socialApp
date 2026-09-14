@@ -1,10 +1,12 @@
-// /pomysl: on-demand Telegram command for when the user has run out of their own material and
-// wants help - explicitly NOT automatic/proactive (every call is a paid Claude request, and the
-// product owner's standing constraint is that Claude is the only paid component of this app;
-// "on-demand only" keeps that cost tied 1:1 to real usage). Grounded in the user's own recent
-// PUBLISHED posts + businessDescription, not generic advice - and NOT based on engagement metrics
-// (PostMetric exists now, but "what performs well" is a separate, not-yet-built claim; this only
-// looks at what was posted, not how it did).
+// /pomysl: originally an on-demand-only Telegram command (every call is a paid Claude request,
+// and the product owner's standing constraint is that Claude is the only paid component of this
+// app). Proactive content suggestions (2026-09-14) now also call this on a weekly cron sweep, for
+// accounts without a usable Facebook text-post path - cost stays bounded the same way every other
+// proactive nudge in this app is bounded, by a per-user cooldown field
+// (User.lastContentSuggestionSentAt), not by being on-demand-only. Grounded in the user's own
+// recent PUBLISHED posts + businessDescription, not generic advice - and NOT based on engagement
+// metrics (PostMetric exists now, but "what performs well" is a separate claim; this only looks
+// at what was posted, not how it did).
 import { callClaudeTool, CLAUDE_MODELS } from './anthropic-client';
 import { redactPotentialPii } from './smart-autopilot/safety';
 import { PLATFORM_ALGORITHM_KNOWLEDGE } from './platform-knowledge';
