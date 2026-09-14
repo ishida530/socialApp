@@ -484,4 +484,34 @@ describe('Telegram text commands (TASK-3.2.1)', () => {
     await POST(webhookRequest(chatId, '/campaign-end'));
     expect(mockSendTelegramMessage.mock.calls.at(-1)?.[1]).toMatch(/Zakończono kampanię "Test"/);
   });
+
+  it('/followers reports real, honestly-missing trend data for a fresh account', async () => {
+    const { user } = await createTestUser();
+    cleanupUserIds.push(user.id);
+    const chatId = '1000000021';
+    await linkChat(user.id, chatId);
+    const account = await createSocialAccount(user.id, 'TIKTOK');
+    await prisma.accountGrowthSnapshot.create({ data: { socialAccountId: account.id, followerCount: 1250 } });
+
+    await POST(webhookRequest(chatId, '/followers'));
+
+    const message = mockSendTelegramMessage.mock.calls.at(-1)?.[1] as string;
+    expect(message).toContain('TIKTOK: 1250 (brak jeszcze wystarczających danych)');
+  });
+
+  it('/followers reports a real week-over-week delta once there is history', async () => {
+    const { user } = await createTestUser();
+    cleanupUserIds.push(user.id);
+    const chatId = '1000000022';
+    await linkChat(user.id, chatId);
+    const account = await createSocialAccount(user.id, 'TIKTOK');
+    await prisma.accountGrowthSnapshot.create({
+      data: { socialAccountId: account.id, followerCount: 1000, fetchedAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000) },
+    });
+    await prisma.accountGrowthSnapshot.create({ data: { socialAccountId: account.id, followerCount: 1045 } });
+
+    await POST(webhookRequest(chatId, '/followers'));
+
+    expect(mockSendTelegramMessage.mock.calls.at(-1)?.[1]).toContain('TIKTOK: 1045 (+45 w tym tygodniu)');
+  });
 });

@@ -160,6 +160,7 @@ describe('generateCoachingMessage / formatFallbackCoachingMessage', () => {
     newFansThisWeek: 3,
     salesThisWeekCents: 8000,
     activeGoals: ['Publikować 3x w tygodniu'],
+    followerGrowth: [{ platform: 'TIKTOK', current: 1000, weekAgo: 950, monthAgo: 800 }],
   };
 
   it('returns a summary+suggestion from a successful Claude response', async () => {
@@ -203,5 +204,18 @@ describe('generateCoachingMessage / formatFallbackCoachingMessage', () => {
   it('the fallback suggestion nudges toward setting a goal when none exists', () => {
     const message = formatFallbackCoachingMessage({ ...baseData, activeGoals: [] });
     expect(message.suggestion).toMatch(/\/goal/);
+  });
+
+  it('the fallback message includes real follower growth when available', () => {
+    const message = formatFallbackCoachingMessage(baseData);
+    expect(message.summary).toContain('TIKTOK: +50 obserwujących');
+  });
+
+  it('the fallback message omits a platform with no historical follower data instead of guessing', () => {
+    const message = formatFallbackCoachingMessage({
+      ...baseData,
+      followerGrowth: [{ platform: 'YOUTUBE', current: 500, weekAgo: null, monthAgo: null }],
+    });
+    expect(message.summary).not.toContain('YOUTUBE');
   });
 });

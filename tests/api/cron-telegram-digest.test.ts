@@ -75,6 +75,8 @@ describe('GET /api/cron/telegram-digest (TASK-3.2.2)', () => {
     expect(body.coachingCheckinsSent).toBe(1);
     // No active campaign for this user - the stale-campaign reminder never fires here.
     expect(body.campaignRemindersSent).toBe(0);
+    // No usable access token on the test account - collectAccountGrowth skips it silently.
+    expect(body.followerSnapshotsUpdated).toBe(0);
     expect(mockSendTelegramMessage).toHaveBeenCalledTimes(2);
   });
 });

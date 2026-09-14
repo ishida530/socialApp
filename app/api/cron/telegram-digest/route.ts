@@ -7,6 +7,7 @@ import {
   sendWeeklyCoachingCheckins,
 } from '@/lib/server/telegram-notifications';
 import { collectMetricsForRecentJobs } from '@/lib/server/post-metrics';
+import { collectAccountGrowth } from '@/lib/server/account-growth';
 import { serverError, unauthorized } from '@/lib/server/http';
 import { runWithRequestId } from '@/lib/server/request-context';
 
@@ -23,12 +24,13 @@ function isAuthorizedCronRequest(request: NextRequest) {
   return authorization === `Bearer ${secret}`;
 }
 
-// One daily sweep covering six related, non-urgent background jobs - the morning digest
+// One daily sweep covering seven related, non-urgent background jobs - the morning digest
 // (TASK-3.2.2), the long-inactivity nudge (TASK-3.2.3), post-performance metrics collection, the
-// sponsorship growth signal (TASK-5.4.3), the weekly coaching check-in, and the stale-campaign
-// reminder (both 2026-09-14, each gated by its own cooldown field, not by cron day-of-week).
-// Kept on one route/cron entry deliberately: free-tier Vercel cron slots are limited, and none of
-// these are urgent enough to need their own schedule.
+// sponsorship growth signal (TASK-5.4.3), the weekly coaching check-in, the stale-campaign
+// reminder, and account growth (follower/subscriber count) collection (all 2026-09-14, cooldown-
+// gated where relevant, not by cron day-of-week). Kept on one route/cron entry deliberately:
+// free-tier Vercel cron slots are limited, and none of these are urgent enough to need their own
+// schedule.
 //
 // TASK-1.3.4: one requestId per sweep - see lib/server/request-context.ts.
 export async function GET(request: NextRequest) {
@@ -46,6 +48,8 @@ async function handleGet(request: NextRequest) {
     const inactivitySummary = await sendInactivityNudges();
     // Same daily sweep, not a separate cron entry - see lib/server/post-metrics.ts.
     const metricsSummary = await collectMetricsForRecentJobs();
+    // EPIC 11 Sprint 11.1: same daily sweep, not a separate cron entry - see lib/server/account-growth.ts.
+    const growthSummary = await collectAccountGrowth();
     // TASK-5.4.3: same daily sweep, not a separate cron entry - see lib/server/telegram-notifications.ts.
     const sponsorshipSummary = await sendSponsorshipSignals();
     // Real coaching (2026-09-14): same daily sweep, gated to once/week by its own cooldown field.
@@ -61,6 +65,7 @@ async function handleGet(request: NextRequest) {
       sponsorshipSignalsSent: sponsorshipSummary.usersNotified,
       coachingCheckinsSent: coachingSummary.usersNotified,
       campaignRemindersSent: campaignReminderSummary.usersNotified,
+      followerSnapshotsUpdated: growthSummary.updated,
       processedAt: new Date().toISOString(),
     });
   } catch (error) {
