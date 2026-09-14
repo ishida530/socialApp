@@ -7,4 +7,4 @@ Zidentyfikowane, ale NIE zrobione: brak widoczności realnego kosztu/zużycia Cl
 Następne w kolejce: **konto właściciela musi zostać ponownie połączone** (Instagram/Facebook, Ustawienia → Konta social → rozłącz/połącz ponownie), żeby token faktycznie niósł nowe uprawnienia — dopiero wtedy funkcja komentarzy zadziała na żywo. Po realnym teście: decyzja właściciela, czy i kiedy złożyć formalny wniosek App Review u Meta. Poza tym: czy i kiedy założyć konto procesora płatności (EPIC 5), przegląd PR-ów od Dependabota, realna weryfikacja WSZYSTKICH funkcji zbudowanych w tej sesji przez prawdziwego bota (żadna nie była live-testowana całą tę sesję).
 Plik(i) w edycji: -
 Rozpoczęto krok: -
-Ostatnia aktualizacja: 09:45 (2026-09-14)
+Ostatnia aktualizacja: 09:58 (2026-09-14) — PR #84 zmergowany do main, wdrożenie produkcyjne potwierdzone (postfly.pl/api/health zielony).
