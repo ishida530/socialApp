@@ -2,10 +2,10 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { CampaignsPanel } from '@/components/CampaignsPanel';
+import { GrowthPanel } from '@/components/GrowthPanel';
 import { useAuth } from '@/contexts/auth-context';
 
-export default function CampaignsPage() {
+export default function GrowthPage() {
   const { isAuthenticated, isLoading, sessionError, retrySession } = useAuth();
   const router = useRouter();
 
@@ -40,8 +40,8 @@ export default function CampaignsPage() {
 
   return (
     <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 lg:pb-6">
-      <h1 className="text-2xl font-semibold text-foreground mb-6">Kampanie</h1>
-      <CampaignsPanel />
+      <h1 className="text-2xl font-semibold text-foreground mb-6">Rozwój konta</h1>
+      <GrowthPanel />
     </main>
   );
 }

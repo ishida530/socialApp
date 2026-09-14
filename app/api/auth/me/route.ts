@@ -11,9 +11,13 @@ export async function GET(request: NextRequest) {
     // reshaping `user`.
     const profile = await prisma.user.findUnique({
       where: { id: user.userId },
-      select: { businessDescription: true },
+      select: { businessDescription: true, autopilotEnabled: true },
     });
-    return NextResponse.json({ user, businessDescription: profile?.businessDescription ?? null });
+    return NextResponse.json({
+      user,
+      businessDescription: profile?.businessDescription ?? null,
+      autopilotEnabled: profile?.autopilotEnabled ?? false,
+    });
   } catch {
     return unauthorized();
   }
@@ -27,9 +31,10 @@ export async function PATCH(request: NextRequest) {
     const body = (await request.json()) as {
       defaultExplicitContent?: boolean;
       businessDescription?: string;
+      autopilotEnabled?: boolean;
     };
 
-    const data: { defaultExplicitContent?: boolean; businessDescription?: string | null } = {};
+    const data: { defaultExplicitContent?: boolean; businessDescription?: string | null; autopilotEnabled?: boolean } = {};
 
     if (body.defaultExplicitContent !== undefined) {
       if (typeof body.defaultExplicitContent !== 'boolean') {
@@ -53,6 +58,13 @@ export async function PATCH(request: NextRequest) {
       data.businessDescription = trimmed || null;
     }
 
+    if (body.autopilotEnabled !== undefined) {
+      if (typeof body.autopilotEnabled !== 'boolean') {
+        return badRequest('Validation failed', ['autopilotEnabled: wymagana wartość boolean']);
+      }
+      data.autopilotEnabled = body.autopilotEnabled;
+    }
+
     if (Object.keys(data).length === 0) {
       return badRequest('Validation failed', ['Brak pól do zapisania']);
     }
@@ -60,7 +72,7 @@ export async function PATCH(request: NextRequest) {
     const updated = await prisma.user.update({
       where: { id: user.userId },
       data,
-      select: { id: true, defaultExplicitContent: true, businessDescription: true },
+      select: { id: true, defaultExplicitContent: true, businessDescription: true, autopilotEnabled: true },
     });
 
     return NextResponse.json({ user: updated });

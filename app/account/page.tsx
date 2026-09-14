@@ -30,6 +30,11 @@ export default function AccountPage() {
   const [isSavingBusinessDescription, setIsSavingBusinessDescription] = useState(false);
   const BUSINESS_DESCRIPTION_MAX_LENGTH = 500;
 
+  // Web equivalent of the Telegram /autopilot on|off|status command - same User.autopilotEnabled
+  // field, so toggling here has the exact same effect as typing the command in the bot.
+  const [autopilotEnabled, setAutopilotEnabled] = useState(false);
+  const [isTogglingAutopilot, setIsTogglingAutopilot] = useState(false);
+
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.replace('/login');
@@ -53,8 +58,11 @@ export default function AccountPage() {
     }
 
     apiClient
-      .get<{ businessDescription: string | null }>('/auth/me')
-      .then((response) => setBusinessDescription(response.data.businessDescription ?? ''))
+      .get<{ businessDescription: string | null; autopilotEnabled: boolean }>('/auth/me')
+      .then((response) => {
+        setBusinessDescription(response.data.businessDescription ?? '');
+        setAutopilotEnabled(response.data.autopilotEnabled ?? false);
+      })
       .catch(() => {});
   }, [isAuthenticated]);
 
@@ -67,6 +75,21 @@ export default function AccountPage() {
       toast.error('Nie udało się zapisać. Spróbuj ponownie.');
     } finally {
       setIsSavingBusinessDescription(false);
+    }
+  };
+
+  const handleToggleAutopilot = async () => {
+    const next = !autopilotEnabled;
+
+    try {
+      setIsTogglingAutopilot(true);
+      await apiClient.patch('/auth/me', { autopilotEnabled: next });
+      setAutopilotEnabled(next);
+      toast.success(next ? 'Autopilot włączony.' : 'Autopilot wyłączony.');
+    } catch {
+      toast.error('Nie udało się zmienić ustawienia. Spróbuj ponownie.');
+    } finally {
+      setIsTogglingAutopilot(false);
     }
   };
 
@@ -198,6 +221,36 @@ export default function AccountPage() {
         >
           {isSavingBusinessDescription ? 'Zapisywanie...' : 'Zapisz'}
         </button>
+      </section>
+
+      <section className="bg-card border border-border rounded-xl p-6 space-y-4 max-w-2xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">🤖 Autopilot</h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Włączony: nowy materiał wysłany na Telegram planuje się automatycznie o najlepszej porze per
+              platforma, bez pytania o zgodę - poza sytuacjami wymagającymi ręcznej decyzji (np. wykryte ryzyko
+              w treści albo platforma jeszcze nie gotowa). Wyłączony: każdy post czeka na Twoje zatwierdzenie,
+              jak dotychczas.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={autopilotEnabled}
+            onClick={handleToggleAutopilot}
+            disabled={isTogglingAutopilot}
+            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
+              autopilotEnabled ? 'bg-primary' : 'bg-secondary'
+            }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                autopilotEnabled ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
+          </button>
+        </div>
       </section>
 
       <section className="bg-card border border-destructive/40 rounded-xl p-6 space-y-4 max-w-2xl">

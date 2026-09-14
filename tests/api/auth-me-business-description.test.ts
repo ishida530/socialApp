@@ -89,3 +89,42 @@ describe('GET/PATCH /api/auth/me — businessDescription', () => {
     expect(refreshed.defaultExplicitContent).toBe(true);
   });
 });
+
+// Web equivalent of Telegram's /autopilot on|off|status (2026-09-14) - the same
+// User.autopilotEnabled field, exposed here so the Account settings page can toggle it too.
+describe('GET/PATCH /api/auth/me — autopilotEnabled', () => {
+  it('GET returns false for a fresh account', async () => {
+    const { user, token } = await createTestUser();
+    cleanupUserId = user.id;
+
+    const response = await GET(getRequest(token));
+    const body = await response.json();
+    expect(body.autopilotEnabled).toBe(false);
+  });
+
+  it('PATCH toggles autopilotEnabled and GET reflects it afterwards', async () => {
+    const { user, token } = await createTestUser();
+    cleanupUserId = user.id;
+
+    const response = await PATCH(patchRequest(token, { autopilotEnabled: true }));
+    expect(response.status).toBe(200);
+
+    const refreshed = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
+    expect(refreshed.autopilotEnabled).toBe(true);
+
+    const getResponse = await GET(getRequest(token));
+    const getBody = await getResponse.json();
+    expect(getBody.autopilotEnabled).toBe(true);
+  });
+
+  it('PATCH rejects a non-boolean autopilotEnabled', async () => {
+    const { user, token } = await createTestUser();
+    cleanupUserId = user.id;
+
+    const response = await PATCH(patchRequest(token, { autopilotEnabled: 'yes' }));
+    expect(response.status).toBe(400);
+
+    const refreshed = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
+    expect(refreshed.autopilotEnabled).toBe(false);
+  });
+});
