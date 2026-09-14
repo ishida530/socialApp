@@ -77,15 +77,18 @@ function getNextPeriodStart(currentPeriodStart: Date) {
   );
 }
 
+// Robustness fix (2026-09-14): find-then-create had a genuine TOCTOU race - two concurrent
+// callers (e.g. a duplicate Telegram webhook delivery hitting enqueueDraftGroup twice, which both
+// go through getSubscriptionSnapshot -> here) could both see "no existing subscription" and both
+// attempt to create one, tripping the unique constraint on userId. upsert closes the window: the
+// database itself resolves the race instead of two racing application-level reads.
 export async function ensureUserSubscription(userId: string) {
-  const existing = await prisma.subscription.findUnique({ where: { userId } });
-  if (existing) {
-    return existing;
-  }
-
   const periodStart = getCurrentPeriodStart();
-  return prisma.subscription.create({
-    data: {
+
+  return prisma.subscription.upsert({
+    where: { userId },
+    update: {},
+    create: {
       userId,
       provider: resolveBillingMode(),
       plan: PlanTier.FREE,

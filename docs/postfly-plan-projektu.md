@@ -889,6 +889,20 @@ Status: [x] zaimplementowane (komentarze Instagram+Facebook w całości; DM/TikT
 
 ---
 
+### Audyt bezpieczeństwa agenta Telegram + hardening publikacji (2026-09-14)
+
+Użytkownik poprosił o analizę: czy agent na Telegramie jest odporny na hacking, i czego brakuje, żeby był niezależny (użytkownik wrzuca tylko media, agent publikuje/analizuje/dobiera strategię). Pełny audyt (bez zmian w kodzie na tym etapie): weryfikacja podpisu webhooka, rate limiting, izolacja wielu użytkowników, szyfrowanie tokenów AES-256-GCM, hardening przeciw prompt injection, bramki własności na każdej mutującej akcji — wszystko potwierdzone jako solidne. Dwie realne luki znalezione i domknięte w tej turze (patrz niżej); reszta ustaleń (brak widoczności kosztu Claude, brak automatycznego wyłącznika poza tym jednym mechanizmem, DM/YouTube nadal poza zakresem) zapisana jako znane, świadomie odłożone.
+
+**[Architekt]:** Dwa realne, powiązane ryzyka w ścieżce publikacji: (1) `enqueueDraftGroup` (DRAFT→PENDING) nie miało atomowej ochrony przed współbieżnym duplikatem wywołania — Telegram potrafi ponowić dostarczenie webhooka przy wolnej/błędnej odpowiedzi, więc dwa równoległe wywołania mogły oba przejść wstępny warunek i opublikować ten sam post dwa razy. Reszta pipeline'u (`claimDuePublishJobs`, `processPublishJobImmediately`) już miała ten wzorzec (`updateMany` z warunkiem statusu) — `enqueueDraftGroup` był jedynym brakującym ogniwem. (2) Podczas testowania współbieżności ujawniła się DRUGA, wcześniej nieznana realna luka: `ensureUserSubscription` (find-then-create, nie upsert) — ten sam scenariusz (dwa równoległe wywołania `enqueueDraftGroup`) powodował naruszenie unikalnego klucza na `Subscription.userId`. Nie teoria — złapane przez realny test współbieżności.
+
+**[Inżynier]:** `lib/server/publish-jobs.ts` — DRAFT→PENDING teraz wewnątrz jednej interaktywnej transakcji z warunkowym `updateMany({where:{id, status:'DRAFT'}})` per platforma; przegrana strona rzuca `AlreadyEnqueuedError` (rollback całości), zwracana jako czytelny błąd `"Ten post został już opublikowany albo zaplanowany"`. `lib/server/subscription.ts` — `ensureUserSubscription` zmienione z find-then-create na `upsert`. Nowy mechanizm: `checkAndApplyFailureCircuitBreaker` (`lib/server/telegram-notifications.ts`) — po 5 kolejnych terminalnych publikacjach ze statusem FAILED (bez żadnego SUCCESS pomiędzy) automatycznie ustawia `User.publishingPaused = true` (ten sam mechanizm co ręczne `/pause`, już filtrowany przez `claimDuePublishJobs`) i wysyła jasną wiadomość z instrukcją `/resume`. Wywoływane z jednego wspólnego miejsca — `processClaimedJob` w `publish-processor.ts` (cienki wrapper wokół przemianowanego `processClaimedJobCore`), więc działa identycznie niezależnie od tego, czy błąd przyszedł z crona czy z ręcznego tapnięcia "Publikuj". Celowo NIE blokuje ręcznego tapnięcia — pauza zatrzymuje tylko automatyczną/cronową ścieżkę, spójnie z dotychczasowym zachowaniem `/pause`.
+
+**[QA]:** `tests/api/publish-jobs-race-and-circuit-breaker.test.ts` (nowy, 6 testów) — dwa prawdziwie równoległe wywołania `enqueueDraftGroup` na tym samym `postGroupId` (jedno wygrywa, drugie dostaje czytelny błąd, zero duplikatów w bazie), sekwencyjna druga próba po sukcesie też odrzucona, circuit breaker: pauzuje po 5/5 FAILED, NIE pauzuje gdy w ostatnich 5 jest SUCCESS, nie pauzuje ponownie już spauzowanego użytkownika, nic nie robi przy < 5 terminalnych zadań. Pełna suita: **382/382 w obu trybach APP_MODE**, tsc/build czyste.
+
+Status: [x] zaimplementowane → [x] testy napisane i zielone → [x] zweryfikowane (tsc, build czyste) → [ ] zamknięte (PR w przygotowaniu)
+
+---
+
 ---
 
 **Definicja "gotowy projekt w 100%":** każdy checkbox w sekcjach 6 i 7 odhaczony, każdy z jawnym DoD spełnionym i potwierdzonym testem (nie deklaracją), **QA niezależnie zweryfikowało, nie tylko Inżynier**, Architekt podpisał się pod skalowalnością w sekcji 9 dla każdej nowej warstwy, i sekcja 8 (Review końcowy) przeszła bez zastrzeżeń blokujących.
