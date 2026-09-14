@@ -3,10 +3,12 @@ import { runMentorTurn } from '@/lib/server/telegram-mentor-agent';
 import { prisma } from '@/lib/server/prisma';
 import { createTestUser, deleteTestUser, createSocialAccount, createVideo } from '../helpers/fixtures';
 
-// Agent-mentor: free-form Telegram fallback. Tools are READ-ONLY by design (PO decision
-// 2026-09-13) - these tests assert the tool loop actually calls real, existing read functions
-// (not fakes), that history persists and is replayed, and that a failed/unconfigured turn
-// degrades to a safe message instead of throwing or silently losing the user's message.
+// Agent-mentor: free-form Telegram fallback. Most tools are READ-ONLY by design (PO decision
+// 2026-09-13); add_fan/record_sale are a deliberate, narrow write exception (2026-09-14, EPIC 5)
+// since they have no external/irreversible effect. These tests assert the tool loop actually
+// calls real, existing functions (not fakes), that history persists and is replayed, that a
+// failed/unconfigured turn degrades to a safe message, and that the write tools actually create
+// real rows.
 
 const ORIGINAL_KEY = process.env.ANTHROPIC_API_KEY;
 let cleanupUserId: string | null = null;
@@ -164,6 +166,102 @@ describe('runMentorTurn', () => {
 
     const parsed = JSON.parse(capturedToolResult as unknown as string);
     expect(parsed.note).toMatch(/brak jeszcze wystarczaj/i);
+  });
+
+  it('executes add_fan and creates a real Fan row, with the email surviving redaction', async () => {
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
+
+    let callCount = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init?: RequestInit) => {
+        callCount += 1;
+        const body = JSON.parse(init!.body as string);
+
+        if (callCount === 1) {
+          // The user's own message (with the real email) is the first entry - this is the
+          // regression check for redactPotentialPiiKeepingEmail: a blanket redaction would turn
+          // this into "[redacted-email]" and the tool call below could never happen correctly.
+          const firstUserMessage = body.messages[0].content;
+          expect(firstUserMessage).toContain('jan@example.com');
+
+          return {
+            ok: true,
+            json: async () => ({
+              content: [
+                { type: 'tool_use', id: 'tool-1', name: 'add_fan', input: { email: 'jan@example.com', name: 'Jan' } },
+              ],
+              stop_reason: 'tool_use',
+            }),
+          };
+        }
+
+        return textOnlyResponse('Dodano fana: jan@example.com (Jan).');
+      }),
+    );
+
+    const reply = await runMentorTurn(user.id, 'dodaj fana jan@example.com Jan');
+
+    expect(reply).toContain('jan@example.com');
+    const fan = await prisma.fan.findFirst({ where: { userId: user.id, email: 'jan@example.com' } });
+    expect(fan?.name).toBe('Jan');
+  });
+
+  it('add_fan rejects an invalid email instead of saving garbage', async () => {
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
+
+    let callCount = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        callCount += 1;
+        if (callCount === 1) {
+          return {
+            ok: true,
+            json: async () => ({
+              content: [{ type: 'tool_use', id: 'tool-1', name: 'add_fan', input: { email: 'not-an-email' } }],
+              stop_reason: 'tool_use',
+            }),
+          };
+        }
+        return textOnlyResponse('To nie wygląda na poprawny email.');
+      }),
+    );
+
+    await runMentorTurn(user.id, 'dodaj fana not-an-email');
+    expect(await prisma.fan.count({ where: { userId: user.id } })).toBe(0);
+  });
+
+  it('executes record_sale and creates a real Sale row', async () => {
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
+
+    let callCount = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        callCount += 1;
+        if (callCount === 1) {
+          return {
+            ok: true,
+            json: async () => ({
+              content: [{ type: 'tool_use', id: 'tool-1', name: 'record_sale', input: { product: 'Koszulka', amount: 80.5 } }],
+              stop_reason: 'tool_use',
+            }),
+          };
+        }
+        return textOnlyResponse('Zapisano sprzedaż: Koszulka za 80.50 PLN.');
+      }),
+    );
+
+    const reply = await runMentorTurn(user.id, 'zapisz sprzedaz 80,50 koszulka');
+
+    expect(reply).toContain('80.50');
+    const sale = await prisma.sale.findFirst({ where: { userId: user.id } });
+    expect(sale?.amountCents).toBe(8050);
+    expect(sale?.product).toBe('Koszulka');
   });
 
   it('persists user and assistant turns, and replays history on the next call', async () => {
