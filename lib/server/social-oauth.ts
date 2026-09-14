@@ -93,11 +93,25 @@ function resolveMetaApiVersion() {
 }
 
 function resolveFacebookScope() {
-  return process.env.FACEBOOK_OAUTH_SCOPES || 'public_profile,email,pages_show_list,pages_read_engagement,pages_manage_posts,business_management';
+  // EPIC 11 Sprint 11.2 (2026-09-14): pages_manage_engagement added - required to reply to
+  // comments on Page posts (pages_read_engagement only covers reading). Confirmed via the app's
+  // own Meta App Review "New requests" list, not guessed. An account connected BEFORE this
+  // change needs to be reconnected (Ustawienia -> Konta social -> rozłącz/połącz ponownie) to
+  // get a token that actually carries the new scope.
+  return (
+    process.env.FACEBOOK_OAUTH_SCOPES ||
+    'public_profile,email,pages_show_list,pages_read_engagement,pages_manage_engagement,pages_manage_posts,business_management'
+  );
 }
 
 function resolveInstagramScope() {
-  return process.env.INSTAGRAM_OAUTH_SCOPES || 'instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement,pages_manage_posts,business_management';
+  // EPIC 11 Sprint 11.2 (2026-09-14): instagram_manage_comments added - required to read/reply
+  // to comments on IG media (instagram_basic alone does not cover comments). Same reconnect
+  // requirement as Facebook above.
+  return (
+    process.env.INSTAGRAM_OAUTH_SCOPES ||
+    'instagram_basic,instagram_content_publish,instagram_manage_comments,pages_show_list,pages_read_engagement,pages_manage_posts,business_management'
+  );
 }
 
 function resolveMetaClientId(provider: 'facebook' | 'instagram') {

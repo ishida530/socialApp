@@ -48,6 +48,12 @@ enum SubscriptionStatus {
   PAST_DUE
 }
 
+enum CommentStatus {
+  PENDING
+  REPLIED
+  IGNORED
+}
+
 model User {
   id             String          @id @default(cuid())
   email          String          @unique
@@ -108,6 +114,11 @@ model User {
   syncPitches            SyncPitch[]
   goals                  Goal[]
   campaigns              Campaign[] @relation("UserCampaigns")
+  socialComments         SocialComment[]
+  // EPIC 11 Sprint 11.2 (2026-09-14): set while the bot is waiting for a free-text reply to the
+  // "✏️ Napisz własną" button on a detected comment - same free-text-turn pattern as
+  // telegramEditingJobId/telegramSchedulingPostGroupId above.
+  telegramReplyingToCommentId String?
 }
 
 model TelegramLinkCode {
@@ -232,6 +243,7 @@ model PublishJob {
   // that were part of it.
   campaignId      String?
   campaign        Campaign?     @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  socialComments  SocialComment[]
 
   @@index([videoId])
   @@index([socialAccountId])
@@ -239,6 +251,36 @@ model PublishJob {
   @@index([postGroupId])
   @@index([status, notifiedAt])
   @@index([campaignId])
+}
+
+// EPIC 11 Sprint 11.2 (2026-09-14): a comment detected on one of this app's own published posts
+// (Instagram/Facebook only for now - TikTok's comment-read API is gated to a separate Research
+// API tier per TASK-11.2.2, not available to a normal app; YouTube/DM out of scope for this pass,
+// see backlog). Deliberately scoped to comments on PublishJob-tracked posts only (reuses
+// remotePostId, same as PostMetric) rather than enumerating every post on the connected account -
+// this app only ever needs to react to comments on what IT published.
+// TASK-11.2.7: text is always DATA read by a human via Telegram buttons or passed as user content
+// to Claude for a reply suggestion - never interpreted as an instruction to this app or to Claude
+// (see SUGGEST_REPLY_SYSTEM_PROMPT in lib/server/social-comments.ts).
+model SocialComment {
+  id                String        @id @default(cuid())
+  userId            String
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  publishJobId      String
+  publishJob        PublishJob    @relation(fields: [publishJobId], references: [id], onDelete: Cascade)
+  platform          Platform
+  externalCommentId String
+  authorName        String?
+  text              String
+  status            CommentStatus @default(PENDING)
+  suggestedReply    String?
+  telegramChatId    String?
+  telegramMessageId Int?
+  detectedAt        DateTime      @default(now())
+  repliedAt         DateTime?
+
+  @@unique([publishJobId, externalCommentId])
+  @@index([userId, status])
 }
 
 // Latest known engagement snapshot for one published post, fetched read-only from each
