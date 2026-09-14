@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Link2, Image as ImageIcon, BarChart3, Layers, TriangleAlert } from 'lucide-react';
+import { LayoutDashboard, Link2, Image as ImageIcon, BarChart3, Layers, TrendingUp, Users, TriangleAlert } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { BrandLogo } from '@/components/BrandLogo';
@@ -14,6 +14,11 @@ import { isPersonalMode } from '@/lib/app-mode';
 const navItems = [
   { icon: LayoutDashboard, label: 'Pulpit', href: '/dashboard' },
   { icon: Layers, label: 'Kampanie', href: '/campaigns' },
+  // Rozwój/Społeczność (2026-09-14): web odpowiedniki funkcji zbudowanych wcześniej wyłącznie na
+  // Telegramie (/goal, /followers, /fan, /sale, moderacja komentarzy) - patrz components/GrowthPanel.tsx
+  // i components/CommunityPanel.tsx.
+  { icon: TrendingUp, label: 'Rozwój', href: '/growth' },
+  { icon: Users, label: 'Społeczność', href: '/community' },
   { icon: Link2, label: 'Połączone konta', href: '/social-accounts' },
   { icon: ImageIcon, label: 'Biblioteka mediów', href: '/media-library' },
   { icon: BarChart3, label: 'Analityka', href: '/analytics' },
@@ -180,7 +185,9 @@ export function Sidebar() {
       </aside>
 
       <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 border-t border-border bg-card/95 backdrop-blur-sm">
-        <div className="grid grid-cols-5 px-1 py-1">
+        {/* Rozwój/Społeczność (2026-09-14) pushed this past 5 items - a fixed grid-cols-5 would
+            crop labels, so this scrolls horizontally instead of shrinking every item further. */}
+        <div className="flex overflow-x-auto px-1 py-1 gap-1">
           {navItems.map((item) => {
             const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
 
@@ -188,7 +195,7 @@ export function Sidebar() {
               <Link
                 key={item.label}
                 href={item.href}
-                className={`flex flex-col items-center justify-center gap-1 rounded-lg px-1 py-2 text-[10px] transition-all ${
+                className={`flex flex-1 min-w-[64px] flex-col items-center justify-center gap-1 rounded-lg px-1 py-2 text-[10px] transition-all ${
                   isActive
                     ? 'bg-primary/10 text-primary'
                     : 'text-muted-foreground hover:bg-secondary/70 hover:text-foreground'

@@ -71,6 +71,13 @@ export async function recordSale(
   });
 }
 
+// Web dashboard (2026-09-14) - the Telegram /revenue command only ever needed the aggregate
+// summary below, never an individual sales list, so this didn't exist until the web "Community"
+// page needed something to actually render as a table.
+export async function getRecentSales(userId: string, limit = 20) {
+  return prisma.sale.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, take: limit });
+}
+
 function currentMonthStart() {
   const start = new Date();
   start.setUTCDate(1);

@@ -937,7 +937,21 @@ Użytkownik poprosił o domknięcie EPIC 6, potem o dostosowanie widoków webowy
 
 Świadomie NIE ruszone: nazwy kontenerów/wolumenów/bazy w `docker-compose.yml` lokalnego dev (`flowstate-postgres` itd.) - realny lokalny Postgres z danymi pod tą nazwą działał przez całą tę sesję; zmiana bez skoordynowanej migracji lokalnego `.env`/`.env.test` (pliki nieśledzone przez git, nie do bezpiecznego automatycznego dotknięcia) zepsułaby środowisko dev bez żadnej korzyści dla użytkownika - czysto kosmetyczna zmiana o realnym ryzyku. TASK-6.5 (feature flags) nie dotyczy jeszcze (EPIC 10 nie istnieje). TASK-6.6 to decyzja marketingowa właściciela, nie inżynierska.
 
-Status: [x] zaimplementowane → [x] zweryfikowane (tsc, testy 407/407 oba tryby, build czyste) → [ ] zamknięte (PR w przygotowaniu, deploy czeka na reset limitu Vercel)
+Status: [x] zaimplementowane → [x] zweryfikowane (tsc, testy 407/407 oba tryby, build czyste) → [x] zmergowane (PR #91) → [x] wdrożone (postfly.pl/api/health zielony)
+
+---
+
+### Widoki webowe odzwierciedlające funkcjonalności Telegrama (2026-09-14)
+
+Użytkownik poprosił, żeby panel webowy pokazywał te same funkcje co bot: kampanie, cele, wzrost obserwujących, fani/sprzedaże, moderacja komentarzy, autopilot - wszystko dotąd budowane wyłącznie pod Telegram.
+
+**[Architekt]:** Kluczowe odkrycie z audytu (subagent Explore): `app/campaigns/page.tsx` była CAŁA jednym `redirect('/schedule')` - zero prawdziwej funkcjonalności, mimo istniejącej nazwy w nawigacji. Druga rzecz: istniejący `app/api/campaigns/*` (weekly-plan) to zupełnie inna, niepowiązana funkcja (sugestie harmonogramu na bazie Video/PublishJob) - NIGDY nie dotykała modelu `Campaign`, mimo tej samej nazwy w URL-u. Żeby nie pogłębiać tej kolizji nazewniczej, nowe endpointy dla prawdziwego modelu `Campaign` dostały osobny namespace (`/api/account-campaigns`), a stronę `/campaigns` przepisano tak, żeby faktycznie pokazywała TEN model - zero regresji, bo stub nigdy nic realnie nie robił. Całość web'owo są to cienkie klienckie wrappery wołające nowe REST endpointy, które z kolei wołają DOKŁADNIE te same funkcje z `lib/server/*`, których już używa webhook Telegrama (`campaigns.ts`, `coaching.ts`, `monetization.ts`, `account-growth.ts`, `social-comments.ts`) - zero duplikacji logiki biznesowej, zachowanie identyczne niezależnie od kanału.
+
+**[Inżynier]:** 10 nowych route'ów API (`/api/account-campaigns` + `/end` + `/[id]/report`, `/api/goals` + `/[id]/complete`, `/api/fans`, `/api/sales`, `/api/growth`, `/api/comments` + `/[id]`), plus rozszerzenie istniejącego `PATCH /api/auth/me` o `autopilotEnabled` (zamiast nowego route'a - dokładnie ten sam wzorzec co istniejące `businessDescription`). Trzy nowe strony: `/campaigns` (realna funkcjonalność zamiast przekierowania), `/growth` (cele + wzrost obserwujących), `/community` (fani + sprzedaże + przychód + kolejka moderacji komentarzy z przyciskami Wyślij/Napisz własną/Ignoruj - identycznymi jak na Telegramie). Przełącznik autopilota dołożony do istniejącej strony `/account`. Nawigacja (`Sidebar.tsx`) rozszerzona z 5 do 7 pozycji - dolny pasek mobilny zmieniony z `grid-cols-5` (przycinałby etykiety) na poziomie przewijalny rząd.
+
+**[QA]:** 7 nowych plików testowych API (`account-campaigns-web`, `goals-web`, `fans-sales-web`, `growth-web`, `comments-web`, plus rozszerzenie `auth-me-business-description` o autopilot) - happy path, walidacja, bramka własności (obcy użytkownik nie może działać na cudzych celach/kampaniach/komentarzach), błędy platformy zostawiają komentarz PENDING. Pełna suita: **442/442 w obu trybach APP_MODE**, tsc/build czyste. Dodatkowo: lokalny serwer deweloperski uruchomiony i strony/endpointy przetestowane realnym żądaniem HTTP (wszystkie trzy nowe strony zwracają 200, wszystkie nowe API 401 bez tokenu - zero błędu 500). **Zastrzeżenie zgodnie z zasadą "type checking i testy weryfikują poprawność kodu, nie poprawność funkcji"**: brak w tym środowisku narzędzia do automatyzacji przeglądarki - wygląd i interakcje NIE zostały zweryfikowane wizualnie, tylko przez statusy HTTP. Właściciel powinien przejrzeć nowe strony w przeglądarce przed uznaniem za w pełni gotowe.
+
+Status: [x] zaimplementowane → [x] testy napisane i zielone (442/442) → [x] zweryfikowane (tsc, build czyste, smoke-test HTTP) → [~] NIE zweryfikowane wizualnie w przeglądarce → [ ] zamknięte (PR w przygotowaniu)
 
 ---
 
