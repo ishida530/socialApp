@@ -7,6 +7,7 @@
 import { prisma } from './prisma';
 import { callClaudeTool, CLAUDE_MODELS } from './anthropic-client';
 import { redactPotentialPii } from './smart-autopilot/safety';
+import { PLATFORM_ALGORITHM_KNOWLEDGE } from './platform-knowledge';
 
 export async function setGoal(userId: string, description: string) {
   return prisma.goal.create({ data: { userId, description: description.trim() } });
@@ -103,6 +104,7 @@ const COACH_SYSTEM_PROMPT = [
   'Jesli brakuje danych do jakiegos porownania (np. brak wczesniejszego tygodnia), pomin to zamiast zmyslac liczby.',
   'Jesli sa aktywne cele uzytkownika, nawiaz do nich wprost - czy widac postep, czy moze warto je dostosowac.',
   'Nie uzywaj ogolnikow typu "swietna robota" bez pokrycia w danych - badz konkretny.',
+  PLATFORM_ALGORITHM_KNOWLEDGE,
 ].join(' ');
 
 type CoachToolResult = { summary?: string; suggestion?: string };

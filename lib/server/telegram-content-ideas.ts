@@ -7,6 +7,7 @@
 // looks at what was posted, not how it did).
 import { callClaudeTool, CLAUDE_MODELS } from './anthropic-client';
 import { redactPotentialPii } from './smart-autopilot/safety';
+import { PLATFORM_ALGORITHM_KNOWLEDGE } from './platform-knowledge';
 import type { RecentContentSample } from './publish-jobs';
 
 const IDEAS_SYSTEM_PROMPT = [
@@ -15,6 +16,7 @@ const IDEAS_SYSTEM_PROMPT = [
   'Zaproponuj DOKLADNIE 2-3 pomysly. Kazdy pomysl to konkretny opis sceny/kadru/tresci do nagrania (nie ogolnik typu "nagraj cos ciekawego") - co pokazac, gdzie, jaki ma byc hook/pierwsza sekunda.',
   'Unikaj powtarzania motywow ktore juz widac w "recentPosts" - szukaj wariacji lub czegos nowego w tym samym stylu/branzy.',
   'Pisz po polsku, krotko i konkretnie - to ma byc gotowa podpowiedz do nagrania, nie esej.',
+  PLATFORM_ALGORITHM_KNOWLEDGE,
 ].join(' ');
 
 type IdeasToolResult = {

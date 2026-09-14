@@ -11,6 +11,7 @@ import { sendTelegramMessage } from './telegram';
 import { logError, logEvent } from './observability';
 import { checkSponsorshipGrowth } from './monetization';
 import { formatFallbackCoachingMessage, generateCoachingMessage, getWeeklyCoachingData, hasCoachableActivity } from './coaching';
+import { findStaleActiveCampaigns } from './campaigns';
 
 export async function notifyJobFailedImmediately(jobId: string): Promise<void> {
   const job = await prisma.publishJob.findUnique({
@@ -260,6 +261,34 @@ export async function sendWeeklyCoachingCheckins(): Promise<{ usersNotified: num
   }
 
   logEvent('telegram-notifications', 'coaching-checkins-sent', { usersNotified });
+
+  return { usersNotified };
+}
+
+// Campaigns (2026-09-14): the main risk of the "active campaign" model is forgetting to end one
+// - a rare, cooldown-gated question instead of a hard auto-end, so a genuinely long campaign is
+// never force-closed without the user's say. See findStaleActiveCampaigns in
+// lib/server/campaigns.ts for the exact thresholds.
+export async function sendStaleCampaignReminders(): Promise<{ usersNotified: number }> {
+  const stale = await findStaleActiveCampaigns();
+  let usersNotified = 0;
+
+  for (const { userId, telegramChatId, campaignName } of stale) {
+    try {
+      await sendTelegramMessage(
+        telegramChatId,
+        `🎯 Kampania "${campaignName}" jest aktywna już jakiś czas. Wciąż trwa, czy zakończyć (/campaign-end) i zobaczyć wyniki?`,
+      );
+      usersNotified += 1;
+    } catch (error) {
+      logError('telegram-notifications', 'campaign-reminder-send-error', error, { userId });
+      continue;
+    }
+
+    await prisma.user.update({ where: { id: userId }, data: { lastCampaignReminderSentAt: new Date() } });
+  }
+
+  logEvent('telegram-notifications', 'campaign-reminders-sent', { usersNotified });
 
   return { usersNotified };
 }

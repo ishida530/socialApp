@@ -405,4 +405,83 @@ describe('Telegram text commands (TASK-3.2.1)', () => {
     await POST(webhookRequest(chatId, '/goal-done not-a-real-id'));
     expect(mockSendTelegramMessage.mock.calls.at(-1)?.[1]).toMatch(/Nie udało się/);
   });
+
+  it('/campaign starts a campaign, a second /campaign auto-ends the first, /campaigns lists both', async () => {
+    const { user } = await createTestUser();
+    cleanupUserIds.push(user.id);
+    const chatId = '1000000017';
+    await linkChat(user.id, chatId);
+
+    await POST(webhookRequest(chatId, '/campaign Premiera singla'));
+    expect(mockSendTelegramMessage.mock.calls.at(-1)?.[1]).toMatch(/Kampania "Premiera singla" aktywna/);
+
+    await POST(webhookRequest(chatId, '/campaign Merch drop'));
+    const message = mockSendTelegramMessage.mock.calls.at(-1)?.[1] as string;
+    expect(message).toMatch(/Kampania "Merch drop" aktywna/);
+    expect(message).toContain('Zakończono poprzednią aktywną kampanię: "Premiera singla"');
+
+    await POST(webhookRequest(chatId, '/campaigns'));
+    const listMessage = mockSendTelegramMessage.mock.calls.at(-1)?.[1] as string;
+    expect(listMessage).toContain('Merch drop (aktywna)');
+    expect(listMessage).toContain('Premiera singla (zakończona)');
+  });
+
+  it('/campaign-report (no name) shows the active campaign\'s real aggregated results', async () => {
+    const { user } = await createTestUser();
+    cleanupUserIds.push(user.id);
+    const chatId = '1000000018';
+    await linkChat(user.id, chatId);
+    await createSocialAccount(user.id, 'INSTAGRAM');
+
+    await POST(webhookRequest(chatId, '/campaign Premiera EP'));
+
+    const fakeVideo = await createVideo(user.id);
+    const job = await prisma.publishJob.create({
+      data: {
+        status: 'SUCCESS',
+        postGroupId: `group-${fakeVideo.id}`,
+        caption: 'x',
+        hashtags: [],
+        scheduledFor: new Date(),
+        publishedAt: new Date(),
+        remotePostId: `remote-${fakeVideo.id}`,
+        videoId: fakeVideo.id,
+        socialAccountId: (await prisma.socialAccount.findFirstOrThrow({ where: { userId: user.id } })).id,
+      },
+    });
+
+    const { attachActiveCampaignToJobs } = await import('@/lib/server/campaigns');
+    await attachActiveCampaignToJobs(user.id, [job.id]);
+    await prisma.postMetric.create({ data: { publishJobId: job.id, views: 200, likes: 20, comments: 5, shares: 2 } });
+
+    await POST(webhookRequest(chatId, '/campaign-report'));
+    const message = mockSendTelegramMessage.mock.calls.at(-1)?.[1] as string;
+    expect(message).toContain('Premiera EP');
+    expect(message).toContain('Publikacje: 1');
+    expect(message).toContain('Wyświetlenia: 200');
+  });
+
+  it('/campaign-report with no active campaign and no name given asks for a name instead of guessing', async () => {
+    const { user } = await createTestUser();
+    cleanupUserIds.push(user.id);
+    const chatId = '1000000019';
+    await linkChat(user.id, chatId);
+
+    await POST(webhookRequest(chatId, '/campaign-report'));
+    expect(mockSendTelegramMessage.mock.calls.at(-1)?.[1]).toMatch(/Podaj nazwę kampanii/);
+  });
+
+  it('/campaign-end ends the active campaign, with an honest message when there is none', async () => {
+    const { user } = await createTestUser();
+    cleanupUserIds.push(user.id);
+    const chatId = '1000000020';
+    await linkChat(user.id, chatId);
+
+    await POST(webhookRequest(chatId, '/campaign-end'));
+    expect(mockSendTelegramMessage.mock.calls.at(-1)?.[1]).toBe('Nie masz aktywnej kampanii.');
+
+    await POST(webhookRequest(chatId, '/campaign Test'));
+    await POST(webhookRequest(chatId, '/campaign-end'));
+    expect(mockSendTelegramMessage.mock.calls.at(-1)?.[1]).toMatch(/Zakończono kampanię "Test"/);
+  });
 });

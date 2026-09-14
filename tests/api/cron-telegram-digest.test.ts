@@ -73,6 +73,8 @@ describe('GET /api/cron/telegram-digest (TASK-3.2.2)', () => {
     // about - one extra message beyond the digest itself (fallback template, no ANTHROPIC_API_KEY
     // configured in this test env).
     expect(body.coachingCheckinsSent).toBe(1);
+    // No active campaign for this user - the stale-campaign reminder never fires here.
+    expect(body.campaignRemindersSent).toBe(0);
     expect(mockSendTelegramMessage).toHaveBeenCalledTimes(2);
   });
 });

@@ -327,6 +327,73 @@ describe('runMentorTurn', () => {
     expect(parsed.goals).toEqual([{ id: goal.id, description: 'Zdobyć 50 fanów' }]);
   });
 
+  it('executes start_campaign and creates a real Campaign row, active for the user', async () => {
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
+
+    let callCount = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        callCount += 1;
+        if (callCount === 1) {
+          return {
+            ok: true,
+            json: async () => ({
+              content: [{ type: 'tool_use', id: 'tool-1', name: 'start_campaign', input: { name: 'Premiera singla' } }],
+              stop_reason: 'tool_use',
+            }),
+          };
+        }
+        return textOnlyResponse('Kampania "Premiera singla" aktywna.');
+      }),
+    );
+
+    const reply = await runMentorTurn(user.id, 'zaczynam kampanie premiera singla');
+
+    expect(reply).toContain('Premiera singla');
+    const refreshedUser = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
+    const campaign = await prisma.campaign.findFirst({ where: { userId: user.id } });
+    expect(refreshedUser.activeCampaignId).toBe(campaign?.id);
+  });
+
+  it('executes get_campaign_report against real data', async () => {
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
+    const { startCampaign } = await import('@/lib/server/campaigns');
+    await startCampaign(user.id, 'Premiera EP');
+
+    let callCount = 0;
+    let capturedToolResult: string | null = null;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init?: RequestInit) => {
+        callCount += 1;
+        if (callCount === 1) {
+          return {
+            ok: true,
+            json: async () => ({
+              content: [{ type: 'tool_use', id: 'tool-1', name: 'get_campaign_report', input: {} }],
+              stop_reason: 'tool_use',
+            }),
+          };
+        }
+        const body = JSON.parse(init!.body as string);
+        const lastMessage = body.messages[body.messages.length - 1];
+        const toolResultBlock = lastMessage.content.find((block: { type: string }) => block.type === 'tool_result');
+        capturedToolResult = toolResultBlock?.content ?? null;
+        return textOnlyResponse('Kampania Premiera EP: 0 publikacji jak dotąd.');
+      }),
+    );
+
+    await runMentorTurn(user.id, 'jak idzie moja kampania?');
+
+    const parsed = JSON.parse(capturedToolResult as unknown as string);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.report.name).toBe('Premiera EP');
+    expect(parsed.report.postsCount).toBe(0);
+  });
+
   it('persists user and assistant turns, and replays history on the next call', async () => {
     const { user } = await createTestUser();
     cleanupUserId = user.id;

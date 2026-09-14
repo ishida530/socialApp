@@ -3,6 +3,7 @@ import {
   sendInactivityNudges,
   sendMorningDigest,
   sendSponsorshipSignals,
+  sendStaleCampaignReminders,
   sendWeeklyCoachingCheckins,
 } from '@/lib/server/telegram-notifications';
 import { collectMetricsForRecentJobs } from '@/lib/server/post-metrics';
@@ -22,12 +23,12 @@ function isAuthorizedCronRequest(request: NextRequest) {
   return authorization === `Bearer ${secret}`;
 }
 
-// One daily sweep covering five related, non-urgent background jobs - the morning digest
+// One daily sweep covering six related, non-urgent background jobs - the morning digest
 // (TASK-3.2.2), the long-inactivity nudge (TASK-3.2.3), post-performance metrics collection, the
-// sponsorship growth signal (TASK-5.4.3), and the weekly coaching check-in (2026-09-14, gated to
-// once every 7 days via its own cooldown field, not by cron day-of-week). Kept on one route/cron
-// entry deliberately: free-tier Vercel cron slots are limited, and none of these are urgent
-// enough to need their own schedule.
+// sponsorship growth signal (TASK-5.4.3), the weekly coaching check-in, and the stale-campaign
+// reminder (both 2026-09-14, each gated by its own cooldown field, not by cron day-of-week).
+// Kept on one route/cron entry deliberately: free-tier Vercel cron slots are limited, and none of
+// these are urgent enough to need their own schedule.
 //
 // TASK-1.3.4: one requestId per sweep - see lib/server/request-context.ts.
 export async function GET(request: NextRequest) {
@@ -49,6 +50,8 @@ async function handleGet(request: NextRequest) {
     const sponsorshipSummary = await sendSponsorshipSignals();
     // Real coaching (2026-09-14): same daily sweep, gated to once/week by its own cooldown field.
     const coachingSummary = await sendWeeklyCoachingCheckins();
+    // Campaigns (2026-09-14): same daily sweep, gated to once/week by its own cooldown field.
+    const campaignReminderSummary = await sendStaleCampaignReminders();
 
     return NextResponse.json({
       ok: true,
@@ -57,6 +60,7 @@ async function handleGet(request: NextRequest) {
       metricsUpdated: metricsSummary.updated,
       sponsorshipSignalsSent: sponsorshipSummary.usersNotified,
       coachingCheckinsSent: coachingSummary.usersNotified,
+      campaignRemindersSent: campaignReminderSummary.usersNotified,
       processedAt: new Date().toISOString(),
     });
   } catch (error) {

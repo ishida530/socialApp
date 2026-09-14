@@ -12,6 +12,7 @@ import {
 } from './subscription';
 import { processPublishJobImmediately } from './publish-processor';
 import { cancelQStashMessage, scheduleQStashPublish } from './qstash';
+import { attachActiveCampaignToJobs } from './campaigns';
 
 // TASK-3.1.2: rdzeń logiki app/api/publish-jobs/drafts (POST) i
 // app/api/publish-jobs/enqueue (POST), wydzielony żeby webhook Telegrama (upload materiału,
@@ -142,6 +143,10 @@ export async function createDraftGroupForVideo(
       });
     }),
   );
+
+  // Campaigns: zero-extra-step auto-attach to whatever campaign is currently active for this
+  // user - no-op (one cheap lookup) when there isn't one, which is the common case.
+  await attachActiveCampaignToJobs(userId, updatedJobs.map((job) => job.id));
 
   return {
     ok: true,
@@ -550,12 +555,16 @@ export type TelegramStatusSnapshot = {
   draftCount: number;
   recentSuccess: number;
   recentFailed: Array<{ id: string; platform: string; errorMessage: string | null }>;
+  activeCampaignName: string | null;
 };
 
 // TASK-3.2.1: rdzeń komendy /status - wyłącznie odczyt, zero mutacji.
 export async function getTelegramStatusSnapshot(userId: string): Promise<TelegramStatusSnapshot> {
   const [user, pendingJobs, draftCount, recentSuccess, recentFailed] = await Promise.all([
-    prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { publishingPaused: true } }),
+    prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { publishingPaused: true, activeCampaign: { select: { name: true } } },
+    }),
     prisma.publishJob.findMany({
       where: { status: 'PENDING', video: { userId } },
       orderBy: { scheduledFor: 'asc' },
@@ -584,5 +593,6 @@ export async function getTelegramStatusSnapshot(userId: string): Promise<Telegra
       platform: job.socialAccount.platform,
       errorMessage: job.errorMessage,
     })),
+    activeCampaignName: user.activeCampaign?.name ?? null,
   };
 }

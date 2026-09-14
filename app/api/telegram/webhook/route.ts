@@ -26,6 +26,7 @@ import { runMentorTurn } from '@/lib/server/telegram-mentor-agent';
 import type { ScheduleSlot } from '@/lib/server/smart-autopilot/types';
 import { addFan, getFanCount, getRecentFans, getRevenueSummary, isValidEmail, parseAmountToCents, recordSale } from '@/lib/server/monetization';
 import { completeGoal, getActiveGoals, setGoal } from '@/lib/server/coaching';
+import { endActiveCampaign, getActiveCampaign, getCampaignReport, listRecentCampaigns, startCampaign, type CampaignReport } from '@/lib/server/campaigns';
 import { prisma } from '@/lib/server/prisma';
 import { unauthorized } from '@/lib/server/http';
 import { logError, logEvent } from '@/lib/server/observability';
@@ -525,6 +526,9 @@ function formatStatusMessage(snapshot: Awaited<ReturnType<typeof getTelegramStat
     `Zaplanowane: ${snapshot.pendingCount}${snapshot.nextScheduledFor ? ` (najbliższa: ${snapshot.nextScheduledFor.toLocaleString('pl-PL')})` : ''}`,
     `Szkice czekające na decyzję: ${snapshot.draftCount}`,
     `Opublikowane w ostatnich 7 dniach: ${snapshot.recentSuccess}`,
+    snapshot.activeCampaignName
+      ? `🎯 Aktywna kampania: ${snapshot.activeCampaignName} (nowe posty trafiają tu automatycznie)`
+      : '🎯 Brak aktywnej kampanii (/campaign <nazwa> żeby zacząć)',
   ];
 
   if (snapshot.recentFailed.length > 0) {
@@ -755,7 +759,92 @@ async function handleTextCommand(chatIdStr: string, userId: string, text: string
     return true;
   }
 
+  // Campaigns (2026-09-14): starting one auto-attaches every subsequent post with zero extra
+  // step per upload (attachActiveCampaignToJobs, wired into createDraftGroupForVideo) - see
+  // lib/server/campaigns.ts for the full "active campaign" reasoning.
+  const campaignMatch = trimmed.match(/^\/campaign\s+(.+)$/i);
+  if (campaignMatch) {
+    const result = await startCampaign(userId, campaignMatch[1]);
+    const lines = [`🎯 Kampania "${result.campaign.name}" aktywna. Każdy kolejny post trafi tu automatycznie, dopóki nie wpiszesz /campaign-end.`];
+    if (result.endedPrevious) {
+      lines.push(`(Zakończono poprzednią aktywną kampanię: "${result.endedPrevious.name}")`);
+    }
+    await sendTelegramMessage(chatIdStr, lines.join('\n')).catch((error) =>
+      logError('telegram', 'send-campaign-started-failed', error, { chatId: chatIdStr }),
+    );
+    return true;
+  }
+
+  if (trimmed === '/campaign-end') {
+    const ended = await endActiveCampaign(userId);
+    await sendTelegramMessage(
+      chatIdStr,
+      ended
+        ? `✅ Zakończono kampanię "${ended.name}". Zobacz wyniki: /campaign-report ${ended.name}`
+        : 'Nie masz aktywnej kampanii.',
+    ).catch((error) => logError('telegram', 'send-campaign-end-failed', error, { chatId: chatIdStr }));
+    return true;
+  }
+
+  if (trimmed === '/campaigns') {
+    const campaigns = await listRecentCampaigns(userId);
+    const lines =
+      campaigns.length === 0
+        ? ['🎯 Brak kampanii jeszcze. Zacznij: /campaign np. Premiera singla']
+        : [
+            '🎯 Kampanie:',
+            '',
+            ...campaigns.map((campaign) => `- ${campaign.name} (${campaign.endedAt ? 'zakończona' : 'aktywna'})`),
+          ];
+    await sendTelegramMessage(chatIdStr, lines.join('\n')).catch((error) =>
+      logError('telegram', 'send-campaigns-failed', error, { chatId: chatIdStr }),
+    );
+    return true;
+  }
+
+  const campaignReportMatch = trimmed.match(/^\/campaign-report(?:\s+(.+))?$/i);
+  if (campaignReportMatch) {
+    const nameOrId = campaignReportMatch[1]?.trim();
+    const target = nameOrId || (await getActiveCampaign(userId))?.name;
+
+    if (!target) {
+      await sendTelegramMessage(chatIdStr, 'Podaj nazwę kampanii: /campaign-report Premiera singla (albo zacznij jedną: /campaign).').catch(
+        (error) => logError('telegram', 'send-campaign-report-missing-name-failed', error, { chatId: chatIdStr }),
+      );
+      return true;
+    }
+
+    const result = await getCampaignReport(userId, target);
+    await sendTelegramMessage(chatIdStr, result.ok ? formatCampaignReportMessage(result.report) : result.error).catch(
+      (error) => logError('telegram', 'send-campaign-report-failed', error, { chatId: chatIdStr }),
+    );
+    return true;
+  }
+
   return false;
+}
+
+function formatCampaignReportMessage(report: CampaignReport): string {
+  const status = report.endedAt ? `zakończona ${report.endedAt.toLocaleDateString('pl-PL')}` : 'wciąż aktywna';
+  const lines = [
+    `📊 Kampania "${report.name}" (${status})`,
+    '',
+    `Publikacje: ${report.postsCount}${report.platforms.length > 0 ? ` (${report.platforms.join(', ')})` : ''}`,
+    `Wyświetlenia: ${report.totalViews}`,
+    `Polubienia: ${report.totalLikes} • Komentarze: ${report.totalComments} • Udostępnienia: ${report.totalShares}`,
+  ];
+
+  if (report.engagementRate !== null) {
+    lines.push(`Engagement rate: ${(report.engagementRate * 100).toFixed(1)}%`);
+  }
+  if (report.newFans > 0) {
+    lines.push(`Nowi fani w tym czasie: ${report.newFans}`);
+  }
+  if (report.salesCents > 0) {
+    lines.push(`Sprzedaże w tym czasie: ${(report.salesCents / 100).toFixed(2)} PLN`);
+  }
+
+  return lines.join('\n');
 }
 
 function formatPublishResultMessage(
