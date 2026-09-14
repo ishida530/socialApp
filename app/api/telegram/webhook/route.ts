@@ -25,6 +25,7 @@ import { generateContentIdeas, type ContentIdea } from '@/lib/server/telegram-co
 import { runMentorTurn } from '@/lib/server/telegram-mentor-agent';
 import type { ScheduleSlot } from '@/lib/server/smart-autopilot/types';
 import { addFan, getFanCount, getRecentFans, getRevenueSummary, isValidEmail, parseAmountToCents, recordSale } from '@/lib/server/monetization';
+import { completeGoal, getActiveGoals, setGoal } from '@/lib/server/coaching';
 import { prisma } from '@/lib/server/prisma';
 import { unauthorized } from '@/lib/server/http';
 import { logError, logEvent } from '@/lib/server/observability';
@@ -717,6 +718,40 @@ async function handleTextCommand(chatIdStr: string, userId: string, text: string
     await sendTelegramMessage(chatIdStr, lines.join('\n')).catch((error) =>
       logError('telegram', 'send-revenue-failed', error, { chatId: chatIdStr }),
     );
+    return true;
+  }
+
+  // Real coaching (2026-09-14): free-text goal, same philosophy as businessDescription - let the
+  // LLM/coach handle nuance instead of forcing a rigid metric structure.
+  const goalMatch = trimmed.match(/^\/goal\s+(.+)$/i);
+  if (goalMatch) {
+    const goal = await setGoal(userId, goalMatch[1]);
+    await sendTelegramMessage(chatIdStr, `🎯 Zapisano cel: ${goal.description}\n\nID: ${goal.id} (użyj /goal-done ${goal.id}, gdy go zrealizujesz)`).catch(
+      (error) => logError('telegram', 'send-goal-added-failed', error, { chatId: chatIdStr }),
+    );
+    return true;
+  }
+
+  if (trimmed === '/goals') {
+    const goals = await getActiveGoals(userId);
+    const lines =
+      goals.length === 0
+        ? ['🎯 Brak aktywnych celów. Dodaj: /goal np. Publikować 3x w tygodniu']
+        : ['🎯 Aktywne cele:', '', ...goals.map((goal) => `- ${goal.description} (ID: ${goal.id})`)];
+
+    await sendTelegramMessage(chatIdStr, lines.join('\n')).catch((error) =>
+      logError('telegram', 'send-goals-failed', error, { chatId: chatIdStr }),
+    );
+    return true;
+  }
+
+  const goalDoneMatch = trimmed.match(/^\/goal-done\s+(\S+)/i);
+  if (goalDoneMatch) {
+    const result = await completeGoal(userId, goalDoneMatch[1]);
+    await sendTelegramMessage(
+      chatIdStr,
+      result.ok ? `✅ Cel zrealizowany: ${result.goal.description}` : `Nie udało się: ${result.error}`,
+    ).catch((error) => logError('telegram', 'send-goal-done-failed', error, { chatId: chatIdStr }));
     return true;
   }
 

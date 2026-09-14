@@ -374,4 +374,35 @@ describe('Telegram text commands (TASK-3.2.1)', () => {
     await POST(webhookRequest(chatId, '/revenue'));
     expect(mockSendTelegramMessage.mock.calls.at(-1)?.[1]).toMatch(/Sprzedaże łącznie: 1 \(80\.50 PLN\)/);
   });
+
+  it('/goal sets a goal, /goals lists it, /goal-done completes it', async () => {
+    const { user } = await createTestUser();
+    cleanupUserIds.push(user.id);
+    const chatId = '1000000015';
+    await linkChat(user.id, chatId);
+
+    await POST(webhookRequest(chatId, '/goal Publikować 3x w tygodniu'));
+    expect(mockSendTelegramMessage.mock.calls.at(-1)?.[1]).toMatch(/Zapisano cel: Publikować 3x w tygodniu/);
+
+    const goal = await prisma.goal.findFirstOrThrow({ where: { userId: user.id } });
+
+    await POST(webhookRequest(chatId, '/goals'));
+    expect(mockSendTelegramMessage.mock.calls.at(-1)?.[1]).toContain('Publikować 3x w tygodniu');
+
+    await POST(webhookRequest(chatId, `/goal-done ${goal.id}`));
+    expect(mockSendTelegramMessage.mock.calls.at(-1)?.[1]).toMatch(/Cel zrealizowany/);
+
+    await POST(webhookRequest(chatId, '/goals'));
+    expect(mockSendTelegramMessage.mock.calls.at(-1)?.[1]).toMatch(/Brak aktywnych celów/);
+  });
+
+  it('/goal-done rejects an unknown goal ID instead of silently succeeding', async () => {
+    const { user } = await createTestUser();
+    cleanupUserIds.push(user.id);
+    const chatId = '1000000016';
+    await linkChat(user.id, chatId);
+
+    await POST(webhookRequest(chatId, '/goal-done not-a-real-id'));
+    expect(mockSendTelegramMessage.mock.calls.at(-1)?.[1]).toMatch(/Nie udało się/);
+  });
 });

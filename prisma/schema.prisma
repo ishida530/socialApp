@@ -80,6 +80,9 @@ model User {
   // EPIC 5 (TASK-5.4.3): last time the reach-growth sponsorship signal was sent - same
   // once-per-cooldown pattern as lastInactivityNudgeSentAt, see sendSponsorshipSignals.
   lastSponsorshipSignalSentAt DateTime?
+  // Real coaching (2026-09-14): last proactive weekly check-in - same cooldown pattern as the
+  // two fields above, see sendWeeklyCoachingCheckins in lib/server/telegram-notifications.ts.
+  lastCoachingCheckinSentAt DateTime?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   socialAccounts SocialAccount[]
@@ -94,6 +97,7 @@ model User {
   fanSubscriptions       FanSubscription[]
   royaltyRegistrations   RoyaltyRegistration[]
   syncPitches            SyncPitch[]
+  goals                  Goal[]
 }
 
 model TelegramLinkCode {
@@ -378,6 +382,22 @@ model SyncPitch {
   rightsConfirmed Boolean  @default(false)
   status          String   @default("DRAFT")
   createdAt       DateTime @default(now())
+
+  @@index([userId])
+}
+
+// Real coaching (2026-09-14): free-text goal the user set for themselves, same "let the LLM
+// handle nuance, don't force a rigid metric enum" philosophy as User.businessDescription. Read
+// by the weekly coaching check-in (lib/server/coaching.ts) and settable either via Telegram
+// commands (/goal, /goals, /goal-done) or directly in conversation with the agent-mentor
+// (set_goal/get_goals/complete_goal tools) - same safe-write-tool exception as Fan/Sale.
+model Goal {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  description String
+  createdAt   DateTime  @default(now())
+  achievedAt  DateTime?
 
   @@index([userId])
 }

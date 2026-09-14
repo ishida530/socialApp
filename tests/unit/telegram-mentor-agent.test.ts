@@ -264,6 +264,69 @@ describe('runMentorTurn', () => {
     expect(sale?.product).toBe('Koszulka');
   });
 
+  it('executes set_goal and creates a real Goal row', async () => {
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
+
+    let callCount = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        callCount += 1;
+        if (callCount === 1) {
+          return {
+            ok: true,
+            json: async () => ({
+              content: [{ type: 'tool_use', id: 'tool-1', name: 'set_goal', input: { description: 'Publikować 3x w tygodniu' } }],
+              stop_reason: 'tool_use',
+            }),
+          };
+        }
+        return textOnlyResponse('Zapisano cel: Publikować 3x w tygodniu.');
+      }),
+    );
+
+    const reply = await runMentorTurn(user.id, 'chce publikowac 3x w tygodniu');
+
+    expect(reply).toContain('Publikować 3x w tygodniu');
+    const goal = await prisma.goal.findFirst({ where: { userId: user.id } });
+    expect(goal?.description).toBe('Publikować 3x w tygodniu');
+  });
+
+  it('executes get_goals and complete_goal against real data', async () => {
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
+    const goal = await prisma.goal.create({ data: { userId: user.id, description: 'Zdobyć 50 fanów' } });
+
+    let callCount = 0;
+    let capturedToolResult: string | null = null;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init?: RequestInit) => {
+        callCount += 1;
+        if (callCount === 1) {
+          return {
+            ok: true,
+            json: async () => ({
+              content: [{ type: 'tool_use', id: 'tool-1', name: 'get_goals', input: {} }],
+              stop_reason: 'tool_use',
+            }),
+          };
+        }
+        const body = JSON.parse(init!.body as string);
+        const lastMessage = body.messages[body.messages.length - 1];
+        const toolResultBlock = lastMessage.content.find((block: { type: string }) => block.type === 'tool_result');
+        capturedToolResult = toolResultBlock?.content ?? null;
+        return textOnlyResponse('Masz jeden aktywny cel: Zdobyć 50 fanów.');
+      }),
+    );
+
+    await runMentorTurn(user.id, 'jakie mam cele?');
+
+    const parsed = JSON.parse(capturedToolResult as unknown as string);
+    expect(parsed.goals).toEqual([{ id: goal.id, description: 'Zdobyć 50 fanów' }]);
+  });
+
   it('persists user and assistant turns, and replays history on the next call', async () => {
     const { user } = await createTestUser();
     cleanupUserId = user.id;
