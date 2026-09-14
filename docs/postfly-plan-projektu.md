@@ -913,7 +913,7 @@ Druga część tej samej rozmowy: po audycie bezpieczeństwa użytkownik poprosi
 
 **[QA]:** `tests/api/enqueue-draft-group-optimally.test.ts` (nowy, 5 testów) - per-platformowe terminy, platforma niegotowa przetrwa jako DRAFT, platforma odznaczona nadal kasowana jak dotychczas, fallback gdy brak sugestii, błąd dla pustej grupy. `tests/api/telegram-media-upload.test.ts` (+7: autopilot planuje bez podglądu, cofa się do ręcznego podglądu przy krytycznym safety flagu, przycisk "🎯 Zaplanuj optymalnie" planuje gotowe platformy i pokazuje osobny podgląd dla platformy niegotowej, komenda `/autopilot` on/off/status, domyślnie wyłączony dla nowego konta). Zaktualizowano też istniejący test układu przycisków (nowy trzeci rząd). Pełna suita: **392/392 w obu trybach APP_MODE**, tsc/build czyste.
 
-Status: [x] zaimplementowane → [x] testy napisane i zielone → [x] zweryfikowane (tsc, build czyste) → [ ] zamknięte (PR w przygotowaniu)
+Status: [x] zaimplementowane → [x] testy napisane i zielone → [x] zweryfikowane (tsc, build czyste) → [x] zamknięte (PR #87 zmergowany, wdrożenie produkcyjne potwierdzone przez postfly.pl/api/health)
 
 ---
 
