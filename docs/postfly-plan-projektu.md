@@ -899,6 +899,20 @@ Użytkownik poprosił o analizę: czy agent na Telegramie jest odporny na hackin
 
 **[QA]:** `tests/api/publish-jobs-race-and-circuit-breaker.test.ts` (nowy, 6 testów) — dwa prawdziwie równoległe wywołania `enqueueDraftGroup` na tym samym `postGroupId` (jedno wygrywa, drugie dostaje czytelny błąd, zero duplikatów w bazie), sekwencyjna druga próba po sukcesie też odrzucona, circuit breaker: pauzuje po 5/5 FAILED, NIE pauzuje gdy w ostatnich 5 jest SUCCESS, nie pauzuje ponownie już spauzowanego użytkownika, nic nie robi przy < 5 terminalnych zadań. Pełna suita: **382/382 w obu trybach APP_MODE**, tsc/build czyste.
 
+Status: [x] zaimplementowane → [x] testy napisane i zielone → [x] zweryfikowane (tsc, build czyste) → [x] zamknięte (PR #86 zmergowany, wdrożenie produkcyjne potwierdzone przez postfly.pl/api/health)
+
+---
+
+### Sprint 11.3 — pętla zwrotna wydajność→harmonogram + autopilot (2026-09-14)
+
+Druga część tej samej rozmowy: po audycie bezpieczeństwa użytkownik poprosił o realizację rekomendowanego planu "po kolei" - najpierw domknięcie pętli zwrotnej (dane→harmonogram), potem opt-in autopilot.
+
+**[Architekt]:** `optimizeSchedule` (`lib/server/smart-autopilot/schedule.ts`) od dawna liczył realny, per-platformowy optymalny czas na podstawie `PostMetric` - problem nie był brakiem analizy, tylko tym że wynik ginął jako jedna linijka tekstu w podglądzie ("💡 Sugerowana pora") i nigdy nie był wykorzystywany do faktycznego zaplanowania. Zamiast dodawać nowy mechanizm, ta sesja domyka istniejący: `PublishJob.suggestedScheduledFor` persystuje wynik, `enqueueDraftGroup` (przerobiony, żeby obsłużyć per-platformowe terminy, nie tylko jeden wspólny) go faktycznie stosuje. Autopilot celowo NIE zmienia domyślnego zachowania appki - jest opt-in (`/autopilot on`), a orchestrator dalej wymusza ręczną decyzję przy krytycznym safety flagu, dokładnie tak jak dla konta bez autopilota. Platforma niegotowa (np. TikTok bez poziomu prywatności) nigdy nie jest cicho pomijana - zostaje jako DRAFT z normalnym podglądem, autopilot obsługuje tylko to, co faktycznie może.
+
+**[Inżynier]:** `EnqueueDraftGroupParams.scheduledDateByPlatform` (nadpisuje jeden wspólny `scheduledDate` per platforma) + `preserveAsDraftPlatforms` (platforma pomijana w tym wywołaniu NIE jest kasowana jak "odznaczona" - inny przypadek niż istniejące zachowanie "brak w targetPlatforms = skasuj"). `enqueueDraftGroupOptimally` - nowa funkcja odczytująca `suggestedScheduledFor` z każdego DRAFT jobu, wywołująca `enqueueDraftGroup` z per-platformową mapą. Telegram: przycisk **🎯 Zaplanuj optymalnie** (`scheduleoptimal:<postGroupId>`), komenda `/autopilot on|off|status`, `handleIncomingMedia` rozgałęzia się na ścieżkę zero-tap gdy `autopilotEnabled && !hasCriticalSafety`. `composer-drafts.ts`/`createDraftGroupForVideo` przekazują teraz `hasCriticalSafety` dalej (wcześniej ginęło, tak jak sama sugestia harmonogramu wcześniej).
+
+**[QA]:** `tests/api/enqueue-draft-group-optimally.test.ts` (nowy, 5 testów) - per-platformowe terminy, platforma niegotowa przetrwa jako DRAFT, platforma odznaczona nadal kasowana jak dotychczas, fallback gdy brak sugestii, błąd dla pustej grupy. `tests/api/telegram-media-upload.test.ts` (+7: autopilot planuje bez podglądu, cofa się do ręcznego podglądu przy krytycznym safety flagu, przycisk "🎯 Zaplanuj optymalnie" planuje gotowe platformy i pokazuje osobny podgląd dla platformy niegotowej, komenda `/autopilot` on/off/status, domyślnie wyłączony dla nowego konta). Zaktualizowano też istniejący test układu przycisków (nowy trzeci rząd). Pełna suita: **392/392 w obu trybach APP_MODE**, tsc/build czyste.
+
 Status: [x] zaimplementowane → [x] testy napisane i zielone → [x] zweryfikowane (tsc, build czyste) → [ ] zamknięte (PR w przygotowaniu)
 
 ---

@@ -119,6 +119,14 @@ model User {
   // "✏️ Napisz własną" button on a detected comment - same free-text-turn pattern as
   // telegramEditingJobId/telegramSchedulingPostGroupId above.
   telegramReplyingToCommentId String?
+  // Autopilot (2026-09-14): opt-in, per-user. When true, a new media upload on Telegram skips the
+  // manual "Publikuj" tap and is auto-scheduled at the data-driven optimal time per platform
+  // (PublishJob.suggestedScheduledFor) instead - UNLESS orchestrateContent flagged a critical
+  // safety issue, or a platform is missing a required field (e.g. TikTok privacy level not yet
+  // set), in which case that platform still falls back to the normal manual-approval preview.
+  // Off by default - "brak reakcji = nie publikuj" stays the default posture for every account
+  // that hasn't explicitly opted in.
+  autopilotEnabled Boolean @default(false)
 }
 
 model TelegramLinkCode {
@@ -244,6 +252,13 @@ model PublishJob {
   campaignId      String?
   campaign        Campaign?     @relation(fields: [campaignId], references: [id], onDelete: SetNull)
   socialComments  SocialComment[]
+  // Autopilot / data-driven scheduling (2026-09-14): the per-platform optimal time computed by
+  // optimizeSchedule at draft-creation time (lib/server/smart-autopilot/schedule.ts), persisted
+  // here so a LATER action (the "🎯 Zaplanuj optymalnie" button, or autopilot mode) can actually
+  // use it - previously this suggestion was shown as one line of text in the preview message and
+  // then discarded, never actionable. Null when orchestration failed entirely (rare, no
+  // suggestion to give).
+  suggestedScheduledFor DateTime?
 
   @@index([videoId])
   @@index([socialAccountId])

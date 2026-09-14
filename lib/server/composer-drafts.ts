@@ -36,6 +36,11 @@ export async function generatePlatformBundles(
       // caller of generatePlatformBundles, so the "popraw" step never had a way to reach the
       // user. Passed through so callers (Telegram preview) can show it, not just apply it.
       schedule: result.schedule as ScheduleSlot[],
+      // Autopilot (2026-09-14): the one signal that must survive the trip through this function -
+      // orchestrateContent already forces draft/manual-review mode when a critical safety flag
+      // fires (prompt-injection pattern, etc.), but that fact was previously discarded here too.
+      // A caller deciding whether to skip the manual approval tap needs to know this explicitly.
+      hasCriticalSafety: result.analysis?.safetyFlags.some((flag) => flag.severity === 'critical') ?? false,
     };
   } catch (error) {
     return {
@@ -43,6 +48,7 @@ export async function generatePlatformBundles(
       orchestrationWarning:
         error instanceof Error ? error.message : 'Nie udało się automatycznie wygenerować treści.',
       schedule: [] as ScheduleSlot[],
+      hasCriticalSafety: false,
     };
   }
 }

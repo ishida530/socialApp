@@ -191,6 +191,16 @@
 - [x] **TASK-11.2.7** [P0/S] Hardening przeciw prompt injection. Zamknięte 2026-09-14: system prompt jawnie stwierdza że treść komentarza to DANE, nigdy instrukcja (ten sam wzorzec co agent-mentor), treść zawsze przekazywana jako JSON w polu `commentText`, nigdy string-konkatenowana do system promptu. Test z próbą wstrzyknięcia w treści komentarza: `tests/api/social-comments.test.ts` ("treats comment text as data, not instructions...").
 - [x] **TASK-11.2.8** [P0/S] Bramka potwierdzenia CO, nie tylko CZY. Zamknięte 2026-09-14: "Wyślij" wysyła dokładnie tę sugestię, którą użytkownik przeczytał na przycisku (sam tap = potwierdzenie treści); "Napisz własną" ustawia sesję (`User.telegramReplyingToCommentId`, ten sam wzorzec co edycja/harmonogram) i wysyła DOKŁADNIE to, co użytkownik wpisze jako kolejną wiadomość — bez dodatkowego kroku "na pewno?", spójne z resztą appki.
 
+### Sprint 11.3 — Pętla zwrotna wydajność→harmonogram + autopilot (opt-in, zero-tap)
+*Odpowiada na pytanie użytkownika (2026-09-14) "czego brakuje żeby agent był niezależny (wrzucam tylko media, on publikuje/analizuje/dobiera strategię)". `optimizeSchedule` już liczył dane-driven sugestię czasu per platforma — była tylko tekstem w podglądzie, nigdy niewykorzystana. To domyka pętlę: sugestia staje się jednym tapem, a potem (opcjonalnie) całkiem automatyczna.*
+
+- [x] **TASK-11.3.1** [P1/M] `PublishJob.suggestedScheduledFor` (migracja `20260914083230_autopilot_and_suggested_schedule`) — per-platforma optymalny czas z `optimizeSchedule`, persystowany przy tworzeniu draftu zamiast wyrzucany po pokazaniu tekstu w podglądzie.
+- [x] **TASK-11.3.2** [P1/M] `enqueueDraftGroup` przerobiony żeby obsłużyć RÓŻNE czasy per platforma naraz (`scheduledDateByPlatform`), nie tylko jeden wspólny termin — konieczne, bo `optimizeSchedule` od początku liczył różne godziny per platforma, ale całe API enqueue zakładało jeden termin dla całej grupy. `preserveAsDraftPlatforms` — platforma jeszcze nie gotowa (np. TikTok bez wybranego poziomu prywatności) przetrwa jako DRAFT zamiast zostać skasowana jak "odznaczona".
+- [x] **TASK-11.3.3** [P1/S] Przycisk **🎯 Zaplanuj optymalnie** na podglądzie Telegrama — jeden tap zamiast czytania sugestii i ręcznego wpisywania pasującej daty w "📅 Zaplanuj".
+- [x] **TASK-11.3.4** [P1/L] Autopilot — `/autopilot on|off|status`, opt-in, domyślnie wyłączony ("brak reakcji = nie publikuj" zostaje domyślną postawą). Włączony: nowy upload pomija ręczny tap "Publikuj" i planuje się automatycznie o optymalnej porze per platforma — chyba że `orchestrateContent` zgłosił krytyczny safety flag (wtedy normalny ręczny podgląd, autopilot nigdy nie omija tej bramki) albo platforma nie jest jeszcze gotowa (wtedy TA platforma zostaje jako DRAFT z normalnym podglądem, reszta i tak leci automatycznie).
+
+**Sprint 11.3 — w pełni zamknięty.** Świadomie NIE zrobione w tej turze: autopilot nie zmienia CO się publikuje (treść/caption) na podstawie wyników — tylko KIEDY. Prawdziwe uczenie się "ten format/pora działa lepiej niż tamten" (nie tylko godzina) i automatyczne odpowiadanie na komentarze bez bramki (Sprint 11.2 ma ją celowo) pozostają nierozpoczęte — oba wymagałyby świadomej decyzji o dalszym zdjęciu nadzoru człowieka, nie tylko pracy inżynierskiej.
+
 ---
 
 ## Kolejność realizacji (zależności między epikami)
