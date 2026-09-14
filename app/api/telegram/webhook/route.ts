@@ -15,6 +15,7 @@ import {
   cancelPublishJob,
   createDraftGroupForVideo,
   enqueueDraftGroup,
+  enqueueDraftGroupOptimally,
   getRecentActivityForUser,
   getRecentContentForIdeas,
   getTelegramStatusSnapshot,
@@ -132,6 +133,12 @@ function buildPreviewButtons(postGroupId: string, jobs: PreviewJob[]) {
     [
       { text: '✅ Publikuj', callback_data: `publish:${postGroupId}` },
       { text: '📅 Zaplanuj', callback_data: `schedulestart:${postGroupId}` },
+    ],
+    [
+      // Autopilot / feedback loop (2026-09-14): applies the same per-platform data-driven time
+      // shown as "💡 Sugerowana pora" in the message text above - one tap instead of reading the
+      // suggestion and typing a matching date/time into "📅 Zaplanuj".
+      { text: '🎯 Zaplanuj optymalnie', callback_data: `scheduleoptimal:${postGroupId}` },
       { text: '❌ Anuluj', callback_data: `cancel:${postGroupId}` },
     ],
   ];
@@ -214,6 +221,25 @@ function buildPreviewMessage(jobs: PreviewJob[], schedule: ScheduleSlot[] = []) 
   ].join('\n');
 }
 
+// Autopilot (2026-09-14): the zero-tap confirmation - still sent, because "brak reakcji = nie
+// publikuj" is replaced here by an explicit opt-in (/autopilot on), not by silence. Each platform
+// gets its own line with its own data-driven time (PublishJob.scheduledFor after
+// enqueueDraftGroupOptimally), not one shared time for the whole post.
+function formatAutopilotScheduledMessage(scheduled: Array<{ socialAccount: { platform: string }; scheduledFor: Date }>): string {
+  const lines = scheduled.map((job) => {
+    const formatted = job.scheduledFor.toLocaleString('pl-PL', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Warsaw' });
+    return `✅ ${job.socialAccount.platform} — ${formatted}`;
+  });
+
+  return [
+    '🤖 Autopilot: zaplanowałem publikację na podstawie Twoich dotychczasowych wyników:',
+    '',
+    ...lines,
+    '',
+    'Żeby anulować dowolną z tych publikacji, użyj /logs żeby znaleźć ID, potem /cancel <id>. Autopilot wyłączysz przez /autopilot off.',
+  ].join('\n');
+}
+
 async function handleStartCommand(chatIdStr: string, code: string) {
   const result = await consumeTelegramLinkCode(code, chatIdStr);
 
@@ -256,6 +282,7 @@ async function handleIncomingMedia(
   chatIdStr: string,
   userId: string,
   media: { fileId: string; fileSize?: number; mediaType: 'VIDEO' | 'IMAGE'; caption?: string },
+  autopilotEnabled: boolean,
 ) {
   if (media.fileSize && media.fileSize > TELEGRAM_MAX_DOWNLOADABLE_FILE_BYTES) {
     await sendTelegramMessage(
@@ -304,6 +331,38 @@ async function handleIncomingMedia(
         where: { id: tiktokJob.id },
         data: { tiktokPrivacyLevel: 'SELF_ONLY' },
       });
+    }
+
+    // Autopilot (2026-09-14): opt-in zero-tap path - skips the manual preview entirely for
+    // whatever's ready, using the same data-driven per-platform schedule as "🎯 Zaplanuj
+    // optymalnie" below. Still respects the orchestrator's own critical-safety-flag rule (falls
+    // through to the normal manual preview in that case, same as a non-autopilot account would
+    // see) - autopilot never bypasses that gate, it only removes the routine tap.
+    if (autopilotEnabled && !draftResult.hasCriticalSafety) {
+      const optimalResult = await enqueueDraftGroupOptimally(userId, draftResult.postGroupId);
+
+      if (optimalResult.ok && optimalResult.scheduled.length > 0) {
+        await sendTelegramMessage(chatIdStr, formatAutopilotScheduledMessage(optimalResult.scheduled)).catch((error) =>
+          logError('telegram', 'send-autopilot-summary-failed', error, { chatId: chatIdStr }),
+        );
+
+        if (optimalResult.skippedPlatforms.length > 0) {
+          const remainingJobs = await prisma.publishJob.findMany({
+            where: { postGroupId: draftResult.postGroupId, status: 'DRAFT' },
+            include: { socialAccount: true, video: true },
+          });
+
+          if (remainingJobs.length > 0) {
+            await sendTelegramMessageWithButtons(
+              chatIdStr,
+              `⚠️ ${optimalResult.skippedPlatforms.join(', ')} wymaga ręcznej akceptacji (autopilot to pominął):\n\n${buildPreviewMessage(remainingJobs)}`,
+              buildPreviewButtons(draftResult.postGroupId, remainingJobs),
+            ).catch((error) => logError('telegram', 'send-autopilot-remainder-failed', error, { chatId: chatIdStr }));
+          }
+        }
+
+        return;
+      }
     }
 
     await sendTelegramMessageWithButtons(
@@ -544,6 +603,9 @@ function formatStatusMessage(snapshot: Awaited<ReturnType<typeof getTelegramStat
     snapshot.activeCampaignName
       ? `🎯 Aktywna kampania: ${snapshot.activeCampaignName} (nowe posty trafiają tu automatycznie)`
       : '🎯 Brak aktywnej kampanii (/campaign <nazwa> żeby zacząć)',
+    snapshot.autopilotEnabled
+      ? '🤖 Autopilot: włączony (/autopilot off żeby wyłączyć)'
+      : '🤖 Autopilot: wyłączony (/autopilot on żeby włączyć)',
   ];
 
   if (snapshot.recentFailed.length > 0) {
@@ -581,6 +643,36 @@ async function handleTextCommand(chatIdStr: string, userId: string, text: string
     await sendTelegramMessage(chatIdStr, '▶️ Publikacje wznowione.').catch((error) =>
       logError('telegram', 'send-resume-confirmation-failed', error, { chatId: chatIdStr }),
     );
+    return true;
+  }
+
+  // Autopilot (2026-09-14): opt-in, off by default - "brak reakcji = nie publikuj" stays true for
+  // every account that hasn't explicitly typed /autopilot on. When on, a new upload skips the
+  // manual "Publikuj" tap and auto-schedules at the data-driven optimal time per platform (see
+  // handleIncomingMedia), unless a critical safety flag or a not-yet-ready platform requires a
+  // human anyway - falls back to the normal preview in that case, per platform.
+  const autopilotMatch = trimmed.match(/^\/autopilot(?:\s+(on|off|status))?$/i);
+  if (autopilotMatch) {
+    const arg = autopilotMatch[1]?.toLowerCase();
+
+    if (!arg || arg === 'status') {
+      const user = await prisma.user.findUnique({ where: { id: userId }, select: { autopilotEnabled: true } });
+      await sendTelegramMessage(
+        chatIdStr,
+        user?.autopilotEnabled
+          ? '🤖 Autopilot: włączony. Nowy materiał publikuje się/planuje automatycznie bez pytania o zgodę.'
+          : '🤖 Autopilot: wyłączony. Każdy nowy materiał czeka na Twoje zatwierdzenie jak dotychczas. Włącz przez /autopilot on.',
+      ).catch((error) => logError('telegram', 'send-autopilot-status-failed', error, { chatId: chatIdStr }));
+      return true;
+    }
+
+    await prisma.user.update({ where: { id: userId }, data: { autopilotEnabled: arg === 'on' } });
+    await sendTelegramMessage(
+      chatIdStr,
+      arg === 'on'
+        ? '🤖 Autopilot włączony. Nowy materiał od teraz zaplanuje się automatycznie o najlepszej porze per platforma, bez pytania o zgodę - poza sytuacjami wymagającymi ręcznej decyzji (np. wykryte ryzyko w treści). Wyłączysz przez /autopilot off.'
+        : '🤖 Autopilot wyłączony. Wracamy do zatwierdzania każdego posta ręcznie.',
+    ).catch((error) => logError('telegram', 'send-autopilot-toggle-failed', error, { chatId: chatIdStr }));
     return true;
   }
 
@@ -1152,6 +1244,45 @@ async function handleCallbackQuery(update: NonNullable<TelegramUpdate['callback_
     return;
   }
 
+  if (action === 'scheduleoptimal') {
+    // Feedback loop (2026-09-14): the one-tap version of reading "💡 Sugerowana pora" and typing
+    // a matching date into "📅 Zaplanuj" - each platform gets scheduled at ITS OWN suggested time
+    // (see enqueueDraftGroupOptimally), not one shared time for the whole post.
+    const result = await enqueueDraftGroupOptimally(linkedUser.id, postGroupId);
+
+    if (!result.ok) {
+      await answerTelegramCallbackQuery(update.id, result.error).catch(() => {});
+      return;
+    }
+
+    if (result.scheduled.length === 0) {
+      await answerTelegramCallbackQuery(update.id, 'Nie ma czego zaplanować (wszystko odznaczone albo jeszcze nie gotowe).').catch(() => {});
+      return;
+    }
+
+    await answerTelegramCallbackQuery(update.id, 'Zaplanowano optymalnie.').catch(() => {});
+    await editTelegramMessage(chatIdStr, messageId, formatAutopilotScheduledMessage(result.scheduled)).catch((error) =>
+      logError('telegram', 'edit-message-scheduleoptimal-failed', error, { chatId: chatIdStr }),
+    );
+
+    if (result.skippedPlatforms.length > 0) {
+      const remainingJobs = await prisma.publishJob.findMany({
+        where: { postGroupId, status: 'DRAFT', video: { userId: linkedUser.id } },
+        include: { socialAccount: true, video: true },
+      });
+
+      if (remainingJobs.length > 0) {
+        await sendTelegramMessageWithButtons(
+          chatIdStr,
+          `⚠️ ${result.skippedPlatforms.join(', ')} wymaga ręcznej akceptacji:\n\n${buildPreviewMessage(remainingJobs)}`,
+          buildPreviewButtons(postGroupId, remainingJobs),
+        ).catch((error) => logError('telegram', 'send-scheduleoptimal-remainder-failed', error, { chatId: chatIdStr }));
+      }
+    }
+
+    return;
+  }
+
   if (action === 'publish') {
     const draftJobs = await prisma.publishJob.findMany({
       where: { postGroupId, status: 'DRAFT', video: { userId: linkedUser.id } },
@@ -1281,10 +1412,10 @@ async function handlePost(request: NextRequest) {
     }
 
     if (video) {
-      await handleIncomingMedia(chatIdStr, linkedUser.id, { fileId: video.file_id, fileSize: video.file_size, mediaType: 'VIDEO', caption });
+      await handleIncomingMedia(chatIdStr, linkedUser.id, { fileId: video.file_id, fileSize: video.file_size, mediaType: 'VIDEO', caption }, linkedUser.autopilotEnabled);
     } else if (photo && photo.length > 0) {
       const largest = photo[photo.length - 1];
-      await handleIncomingMedia(chatIdStr, linkedUser.id, { fileId: largest.file_id, fileSize: largest.file_size, mediaType: 'IMAGE', caption });
+      await handleIncomingMedia(chatIdStr, linkedUser.id, { fileId: largest.file_id, fileSize: largest.file_size, mediaType: 'IMAGE', caption }, linkedUser.autopilotEnabled);
     }
 
     return NextResponse.json({ ok: true });

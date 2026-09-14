@@ -37,11 +37,14 @@ export type CreateDraftGroupResult =
       jobs: PublishJobWithRelations[];
       askDefaultExplicit: boolean;
       orchestrationWarning: string | null;
-      // EPIC 4: the real schedule suggestion computed by orchestrateContent - informational only
-      // here (DRAFT jobs still get scheduledFor=now below; actual scheduling still happens via
-      // the existing enqueue/"📅 Zaplanuj" flow), so a caller can show WHY a time is suggested
-      // instead of the loop's output going nowhere.
+      // EPIC 4: the real schedule suggestion computed by orchestrateContent - shown as WHY a time
+      // is suggested, and (autopilot, 2026-09-14) now also persisted per-job as
+      // PublishJob.suggestedScheduledFor so it's actionable later, not just informational text.
       schedule: ScheduleSlot[];
+      // Autopilot (2026-09-14): lets a caller (the Telegram webhook) decide whether this group is
+      // even eligible for zero-tap auto-scheduling - orchestrateContent already refuses to
+      // auto-publish when this is true, so autopilot mode must respect the same rule.
+      hasCriticalSafety: boolean;
     }
   | { ok: false; error: string };
 
@@ -122,12 +125,14 @@ export async function createDraftGroupForVideo(
 
   const rawInputParts = [options.contentType?.trim(), options.songTitle?.trim()].filter(Boolean);
 
-  const { bundlesByPlatform, orchestrationWarning, schedule } = await generatePlatformBundles(userId, {
+  const { bundlesByPlatform, orchestrationWarning, schedule, hasCriticalSafety } = await generatePlatformBundles(userId, {
     rawInput: rawInputParts.join(' — '),
     targetPlatforms: connectedPlatforms,
     timezone: options.timezone || 'Europe/Warsaw',
     idempotencyKey: postGroupId,
   });
+
+  const suggestedTimeByPlatform = new Map(schedule.map((slot) => [slot.platform, new Date(slot.scheduledFor)]));
 
   const updatedJobs = await Promise.all(
     createdJobs.map(async (job) => {
@@ -142,6 +147,7 @@ export async function createDraftGroupForVideo(
           hashtags,
           title: bundle?.title ?? null,
           contentWarnings: collectContentWarnings(caption, job.socialAccount.platform),
+          suggestedScheduledFor: suggestedTimeByPlatform.get(job.socialAccount.platform) ?? null,
         },
         include: PUBLISH_JOB_INCLUDE,
       });
@@ -159,6 +165,7 @@ export async function createDraftGroupForVideo(
     askDefaultExplicit: dbUser?.defaultExplicitContent === null,
     orchestrationWarning: orchestrationWarning ?? null,
     schedule,
+    hasCriticalSafety,
   };
 }
 
@@ -177,9 +184,22 @@ export function normalizePublishPlatform(value: string): SocialPlatform {
 export type EnqueueDraftGroupParams = {
   postGroupId: string;
   scheduledDate?: string;
+  // Autopilot / "🎯 Zaplanuj optymalnie" (2026-09-14): when set, overrides scheduledDate on a
+  // per-platform basis (each platform's own data-driven optimal time from
+  // PublishJob.suggestedScheduledFor, rather than one uniform time for the whole post) - the
+  // uniform scheduledDate is still required as a fallback for any target platform missing an
+  // entry here. Ignored when publishNow is true.
+  scheduledDateByPlatform?: Record<string, string>;
   publishNow?: boolean;
   tiktokPostingConsent?: boolean;
   targetPlatforms: string[];
+  // Autopilot (2026-09-14): platform(s) whose DRAFT job should be left untouched - neither
+  // enqueued nor deleted - even though they're not in targetPlatforms. Every other platform not
+  // in targetPlatforms is still treated as "user excluded it, discard the draft" (unchanged
+  // behavior for every existing caller, which always passes exactly the non-excluded platforms).
+  // Used by enqueueDraftGroupOptimally so a platform that isn't ready yet (e.g. TikTok missing a
+  // privacy level) survives as DRAFT for later manual approval instead of being silently deleted.
+  preserveAsDraftPlatforms?: string[];
 };
 
 export type EnqueueDraftGroupResult =
@@ -194,20 +214,6 @@ export type EnqueueDraftGroupResult =
 export async function enqueueDraftGroup(userId: string, params: EnqueueDraftGroupParams): Promise<EnqueueDraftGroupResult> {
   const publishNow = params.publishNow === true;
 
-  let scheduledDate = new Date();
-  if (!publishNow) {
-    if (!params.scheduledDate) {
-      return { ok: false, error: 'scheduledDate jest wymagany' };
-    }
-
-    scheduledDate = new Date(params.scheduledDate);
-    if (Number.isNaN(scheduledDate.getTime())) {
-      return { ok: false, error: 'scheduledDate is invalid' };
-    }
-
-    await assertScheduleWindowAllowed(userId, scheduledDate);
-  }
-
   if (!Array.isArray(params.targetPlatforms) || params.targetPlatforms.length === 0) {
     return { ok: false, error: 'wymagane co najmniej 1 platforma' };
   }
@@ -218,6 +224,44 @@ export async function enqueueDraftGroup(userId: string, params: EnqueueDraftGrou
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : 'Nieobsługiwana platforma' };
   }
+
+  const scheduledDateByPlatform = new Map<SocialPlatform, Date>();
+
+  if (!publishNow) {
+    let fallbackDate: Date | null = null;
+    if (params.scheduledDate) {
+      fallbackDate = new Date(params.scheduledDate);
+      if (Number.isNaN(fallbackDate.getTime())) {
+        return { ok: false, error: 'scheduledDate is invalid' };
+      }
+    }
+
+    for (const platform of targetPlatforms) {
+      const raw = params.scheduledDateByPlatform?.[platform];
+      const resolved = raw ? new Date(raw) : fallbackDate;
+
+      if (!resolved) {
+        return { ok: false, error: 'scheduledDate jest wymagany' };
+      }
+      if (Number.isNaN(resolved.getTime())) {
+        return { ok: false, error: 'scheduledDate is invalid' };
+      }
+
+      scheduledDateByPlatform.set(platform, resolved);
+    }
+
+    // Validate every distinct date used (not just one) - a per-platform schedule can legitimately
+    // span several different times, each still subject to the same plan-based scheduling window.
+    const distinctDates = Array.from(new Set(Array.from(scheduledDateByPlatform.values()).map((date) => date.getTime())));
+    for (const timestamp of distinctDates) {
+      await assertScheduleWindowAllowed(userId, new Date(timestamp));
+    }
+  }
+
+  // publishNow / immediate path keeps a single uniform "now" for every job - resolved lazily
+  // below via resolveScheduledFor so the two code paths share one lookup.
+  const now = new Date();
+  const resolveScheduledFor = (platform: SocialPlatform) => (publishNow ? now : scheduledDateByPlatform.get(platform)!);
 
   if (targetPlatforms.includes('TIKTOK') && params.tiktokPostingConsent !== true) {
     return { ok: false, error: 'Dla publikacji TikTok wymagana jest akceptacja warunków publikacji.' };
@@ -264,8 +308,9 @@ export async function enqueueDraftGroup(userId: string, params: EnqueueDraftGrou
     await assertUsageAllowed(userId, 'publish_jobs');
   }
 
+  const preservePlatforms = new Set(params.preserveAsDraftPlatforms ?? []);
   const platformsToDelete = draftJobs
-    .filter((job) => !targetPlatforms.includes(job.socialAccount.platform))
+    .filter((job) => !targetPlatforms.includes(job.socialAccount.platform) && !preservePlatforms.has(job.socialAccount.platform))
     .map((job) => job.id);
 
   // Facebook Reels and a plain video post are genuinely separate publications (unlike Instagram,
@@ -296,7 +341,7 @@ export async function enqueueDraftGroup(userId: string, params: EnqueueDraftGrou
             where: { id: job.id, status: 'DRAFT' },
             data: {
               status: 'PENDING',
-              scheduledFor: scheduledDate,
+              scheduledFor: resolveScheduledFor(platform),
               ...(platform === 'TIKTOK' ? { tiktokConsentAt: new Date() } : {}),
               // Facebook "Oba" (BOTH) isn't a real Graph API value - see comment above.
               ...(job.metaPostFormat === 'BOTH' ? { metaPostFormat: 'REELS' } : {}),
@@ -322,7 +367,7 @@ export async function enqueueDraftGroup(userId: string, params: EnqueueDraftGrou
               isExplicit: job.isExplicit,
               contentWarnings: job.contentWarnings,
               metaPostFormat: 'FEED',
-              scheduledFor: scheduledDate,
+              scheduledFor: resolveScheduledFor('FACEBOOK'),
               videoId: job.videoId,
               socialAccountId: job.socialAccountId,
             },
@@ -362,7 +407,8 @@ export async function enqueueDraftGroup(userId: string, params: EnqueueDraftGrou
   if (!publishNow) {
     await Promise.all(
       allEnqueuedJobs.map(async (publishJob) => {
-        const messageId = await scheduleQStashPublish(publishJob.id, scheduledDate);
+        // Each job's own (possibly per-platform) resolved scheduledFor, not a single shared date.
+        const messageId = await scheduleQStashPublish(publishJob.id, publishJob.scheduledFor);
         if (messageId) {
           await prisma.publishJob.update({ where: { id: publishJob.id }, data: { qstashMessageId: messageId } }).catch(() => {});
         }
@@ -404,6 +450,60 @@ export async function enqueueDraftGroup(userId: string, params: EnqueueDraftGrou
     targetsCount: allEnqueuedJobs.length,
     immediateOutcome,
   };
+}
+
+export type EnqueueOptimallyResult =
+  | { ok: true; scheduled: PublishJobWithRelations[]; skippedPlatforms: SocialPlatform[] }
+  | { ok: false; error: string };
+
+// Autopilot / "🎯 Zaplanuj optymalnie" (2026-09-14): schedules every ready DRAFT platform in the
+// group at ITS OWN data-driven optimal time (PublishJob.suggestedScheduledFor from
+// createDraftGroupForVideo), one tap/call instead of the user reading the suggestion and typing a
+// matching time by hand. A platform toggled off (excludedFromPublish) is silently skipped, same
+// as the manual "Publikuj" flow - a platform that's ON but not actually ready yet (currently only
+// TikTok without a chosen privacy level) is reported back in skippedPlatforms so the caller can
+// still show it a normal manual-approval prompt, rather than failing the whole group over one
+// platform's missing setting.
+export async function enqueueDraftGroupOptimally(userId: string, postGroupId: string): Promise<EnqueueOptimallyResult> {
+  const draftJobs = await prisma.publishJob.findMany({
+    where: { postGroupId, status: 'DRAFT', video: { userId }, excludedFromPublish: false },
+    include: PUBLISH_JOB_INCLUDE,
+  });
+
+  if (draftJobs.length === 0) {
+    return { ok: false, error: 'Nie znaleziono niedokończonego posta dla podanego postGroupId.' };
+  }
+
+  const readyJobs = draftJobs.filter((job) => job.socialAccount.platform !== 'TIKTOK' || !!job.tiktokPrivacyLevel);
+  const skippedPlatforms = draftJobs
+    .filter((job) => !readyJobs.includes(job))
+    .map((job) => job.socialAccount.platform as SocialPlatform);
+
+  if (readyJobs.length === 0) {
+    return { ok: true, scheduled: [], skippedPlatforms };
+  }
+
+  const targetPlatforms = readyJobs.map((job) => job.socialAccount.platform as SocialPlatform);
+  const fallbackDate = new Date(Date.now() + 60 * 60 * 1000);
+  const scheduledDateByPlatform: Record<string, string> = {};
+
+  readyJobs.forEach((job) => {
+    scheduledDateByPlatform[job.socialAccount.platform] = (job.suggestedScheduledFor ?? fallbackDate).toISOString();
+  });
+
+  const result = await enqueueDraftGroup(userId, {
+    postGroupId,
+    scheduledDateByPlatform,
+    targetPlatforms,
+    tiktokPostingConsent: targetPlatforms.includes('TIKTOK'),
+    preserveAsDraftPlatforms: skippedPlatforms,
+  });
+
+  if (!result.ok) {
+    return result;
+  }
+
+  return { ok: true, scheduled: result.publishJobs, skippedPlatforms };
 }
 
 // TASK-3.2.1: rdzeń app/api/publish-jobs/[id]/trigger (POST) - publikacja natychmiastowa,
@@ -586,6 +686,7 @@ export type TelegramStatusSnapshot = {
   recentSuccess: number;
   recentFailed: Array<{ id: string; platform: string; errorMessage: string | null }>;
   activeCampaignName: string | null;
+  autopilotEnabled: boolean;
 };
 
 // TASK-3.2.1: rdzeń komendy /status - wyłącznie odczyt, zero mutacji.
@@ -593,7 +694,7 @@ export async function getTelegramStatusSnapshot(userId: string): Promise<Telegra
   const [user, pendingJobs, draftCount, recentSuccess, recentFailed] = await Promise.all([
     prisma.user.findUniqueOrThrow({
       where: { id: userId },
-      select: { publishingPaused: true, activeCampaign: { select: { name: true } } },
+      select: { publishingPaused: true, activeCampaign: { select: { name: true } }, autopilotEnabled: true },
     }),
     prisma.publishJob.findMany({
       where: { status: 'PENDING', video: { userId } },
@@ -624,5 +725,6 @@ export async function getTelegramStatusSnapshot(userId: string): Promise<Telegra
       errorMessage: job.errorMessage,
     })),
     activeCampaignName: user.activeCampaign?.name ?? null,
+    autopilotEnabled: user.autopilotEnabled,
   };
 }

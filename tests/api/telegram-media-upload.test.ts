@@ -97,7 +97,7 @@ describe('POST /api/telegram/webhook — media upload (TASK-3.1.2)', () => {
     const [, message, buttons] = mockSendTelegramMessageWithButtons.mock.calls[0];
     // Format type shown per platform (Reels is the sticky default for a fresh Meta account).
     expect(message).toContain('INSTAGRAM — Reels');
-    // Row 1: toggle + edit + Reels/post format buttons for the one connected platform (Instagram, video). Row 2: Publikuj/Anuluj.
+    // Row 1: toggle + edit + Reels/post format buttons for the one connected platform (Instagram, video). Row 2: Publikuj/Zaplanuj. Row 3: Zaplanuj optymalnie/Anuluj.
     expect(buttons[0]).toEqual([
       { text: '✅ INSTAGRAM', callback_data: `toggle:${createdJobs[0].postGroupId}:INSTAGRAM` },
       { text: '✏️ Edytuj', callback_data: `editstart:${createdJobs[0].postGroupId}:INSTAGRAM` },
@@ -106,6 +106,9 @@ describe('POST /api/telegram/webhook — media upload (TASK-3.1.2)', () => {
     expect(buttons[1]).toEqual([
       { text: '✅ Publikuj', callback_data: `publish:${createdJobs[0].postGroupId}` },
       { text: '📅 Zaplanuj', callback_data: `schedulestart:${createdJobs[0].postGroupId}` },
+    ]);
+    expect(buttons[2]).toEqual([
+      { text: '🎯 Zaplanuj optymalnie', callback_data: `scheduleoptimal:${createdJobs[0].postGroupId}` },
       { text: '❌ Anuluj', callback_data: `cancel:${createdJobs[0].postGroupId}` },
     ]);
   });
@@ -145,6 +148,7 @@ describe('POST /api/telegram/webhook — media upload (TASK-3.1.2)', () => {
           reason: 'Baseline + korekta historyczna z ograniczeniem odchylenia.',
         },
       ],
+      hasCriticalSafety: false,
     });
 
     const { user } = await createTestUser();
@@ -172,6 +176,7 @@ describe('POST /api/telegram/webhook — media upload (TASK-3.1.2)', () => {
       schedule: [
         { platform: 'INSTAGRAM', scheduledFor: new Date('2026-09-20T17:00:00.000Z').toISOString(), timezone: 'UTC', score: 0.7, reason: 'Baseline persona slot (brak danych historycznych).' },
       ],
+      hasCriticalSafety: false,
     });
 
     const { user } = await createTestUser();
@@ -324,6 +329,194 @@ describe('POST /api/telegram/webhook — media upload (TASK-3.1.2)', () => {
     expect(mockEditTelegramMessage).toHaveBeenCalledTimes(2);
     expect(mockEditTelegramMessage.mock.calls[0][2]).toMatch(/Publikuję/);
     expect(mockEditTelegramMessage.mock.calls.at(-1)?.[2]).not.toMatch(/poziom prywatności/);
+  });
+});
+
+// Autopilot (2026-09-14): opt-in zero-tap path - a new upload skips the manual preview entirely
+// when the account has /autopilot on, using the same data-driven per-platform schedule as
+// "🎯 Zaplanuj optymalnie". Off by default ("brak reakcji = nie publikuj" stays true for every
+// account that hasn't explicitly opted in) - covered by the existing tests above, which never
+// enable it and keep seeing the normal manual preview.
+describe('POST /api/telegram/webhook — autopilot (opt-in zero-tap scheduling)', () => {
+  afterEach(async () => {
+    if (cleanupUserId) {
+      await deleteTestUser(cleanupUserId);
+      cleanupUserId = null;
+    }
+    mockSendTelegramMessage.mockClear();
+    mockSendTelegramMessageWithButtons.mockClear();
+  });
+
+  it('auto-schedules a ready post at its data-driven time, without sending the manual preview', async () => {
+    const { generatePlatformBundles } = await import('@/lib/server/composer-drafts');
+    vi.mocked(generatePlatformBundles).mockResolvedValueOnce({
+      bundlesByPlatform: mockBundles as never,
+      orchestrationWarning: null,
+      schedule: [
+        { platform: 'INSTAGRAM', scheduledFor: new Date('2026-09-20T19:00:00.000Z').toISOString(), timezone: 'UTC', score: 0.9, reason: 'x' },
+      ],
+      hasCriticalSafety: false,
+    });
+
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
+    await prisma.user.update({ where: { id: user.id }, data: { autopilotEnabled: true } });
+    await createSocialAccount(user.id, 'INSTAGRAM');
+    const chatId = '777001';
+    await linkChat(user.id, chatId);
+
+    const fakeVideo = await createVideo(user.id);
+    mockUploadTelegramMediaAsVideo.mockResolvedValue(fakeVideo);
+
+    await POST(webhookRequest({ message: { chat: { id: Number(chatId) }, video: { file_id: 'tg-autopilot-1', file_size: 1024 } } }));
+
+    // No manual preview with buttons - only the acknowledgment + the autopilot summary.
+    expect(mockSendTelegramMessageWithButtons).not.toHaveBeenCalled();
+    expect(mockSendTelegramMessage).toHaveBeenCalledTimes(2);
+    expect(mockSendTelegramMessage.mock.calls[1][1]).toContain('🤖 Autopilot');
+    expect(mockSendTelegramMessage.mock.calls[1][1]).toContain('INSTAGRAM');
+
+    const job = await prisma.publishJob.findFirstOrThrow({ where: { videoId: fakeVideo.id } });
+    expect(job.status).toBe('PENDING');
+    expect(job.scheduledFor.toISOString()).toBe('2026-09-20T19:00:00.000Z');
+  });
+
+  it('falls back to the normal manual preview when a critical safety flag is present, even with autopilot on', async () => {
+    const { generatePlatformBundles } = await import('@/lib/server/composer-drafts');
+    vi.mocked(generatePlatformBundles).mockResolvedValueOnce({
+      bundlesByPlatform: mockBundles as never,
+      orchestrationWarning: null,
+      schedule: [],
+      hasCriticalSafety: true,
+    });
+
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
+    await prisma.user.update({ where: { id: user.id }, data: { autopilotEnabled: true } });
+    await createSocialAccount(user.id, 'INSTAGRAM');
+    const chatId = '777002';
+    await linkChat(user.id, chatId);
+
+    const fakeVideo = await createVideo(user.id);
+    mockUploadTelegramMediaAsVideo.mockResolvedValue(fakeVideo);
+
+    await POST(webhookRequest({ message: { chat: { id: Number(chatId) }, video: { file_id: 'tg-autopilot-2', file_size: 1024 } } }));
+
+    expect(mockSendTelegramMessageWithButtons).toHaveBeenCalledTimes(1);
+
+    const job = await prisma.publishJob.findFirstOrThrow({ where: { videoId: fakeVideo.id } });
+    expect(job.status).toBe('DRAFT');
+  });
+
+});
+
+// The "🎯 Zaplanuj optymalnie" button drives the exact same enqueueDraftGroupOptimally logic as
+// autopilot mode - exercised here via a manually-built draft group (bypassing the upload flow,
+// whose BUG-003 default already sets TikTok's privacy level, so a genuinely not-ready TikTok
+// draft can't occur through a real upload in practice) to confirm the remainder-preview behavior
+// end to end: a not-ready platform survives as DRAFT with its own manual preview/buttons, instead
+// of being silently dropped.
+describe('POST /api/telegram/webhook — 🎯 Zaplanuj optymalnie button', () => {
+  afterEach(async () => {
+    if (cleanupUserId) {
+      await deleteTestUser(cleanupUserId);
+      cleanupUserId = null;
+    }
+    mockSendTelegramMessage.mockClear();
+    mockSendTelegramMessageWithButtons.mockClear();
+    mockEditTelegramMessage.mockClear();
+    mockAnswerTelegramCallbackQuery.mockClear();
+  });
+
+  it('schedules the ready platform and shows a manual preview for the platform still missing a required field', async () => {
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
+    const chatId = '777200';
+    await linkChat(user.id, chatId);
+
+    const video = await createVideo(user.id);
+    const igAccount = await createSocialAccount(user.id, 'INSTAGRAM');
+    const tkAccount = await createSocialAccount(user.id, 'TIKTOK', { accessToken: encrypt('token') });
+    const postGroupId = `optimal-btn-${video.id}`;
+
+    const igJob = await prisma.publishJob.create({
+      data: {
+        status: 'DRAFT',
+        postGroupId,
+        caption: 'ig',
+        scheduledFor: new Date(),
+        videoId: video.id,
+        socialAccountId: igAccount.id,
+        suggestedScheduledFor: new Date('2026-09-20T19:00:00.000Z'),
+      },
+    });
+    await prisma.publishJob.create({
+      data: {
+        status: 'DRAFT',
+        postGroupId,
+        caption: 'tk',
+        scheduledFor: new Date(),
+        videoId: video.id,
+        socialAccountId: tkAccount.id,
+        tiktokPrivacyLevel: null,
+      },
+    });
+
+    const response = await POST(
+      webhookRequest({
+        callback_query: {
+          id: 'cbq-scheduleoptimal-1',
+          data: `scheduleoptimal:${postGroupId}`,
+          message: { chat: { id: Number(chatId) }, message_id: 61 },
+        },
+      }),
+    );
+    expect(response.status).toBe(200);
+
+    const updatedIg = await prisma.publishJob.findUniqueOrThrow({ where: { id: igJob.id } });
+    expect(updatedIg.status).toBe('PENDING');
+    expect(updatedIg.scheduledFor.toISOString()).toBe('2026-09-20T19:00:00.000Z');
+
+    expect(mockEditTelegramMessage).toHaveBeenCalledWith(chatId, 61, expect.stringContaining('🤖 Autopilot'));
+    expect(mockSendTelegramMessageWithButtons).toHaveBeenCalledTimes(1);
+    expect(mockSendTelegramMessageWithButtons.mock.calls[0][1]).toContain('TIKTOK wymaga ręcznej akceptacji');
+
+    const tkStillDraft = await prisma.publishJob.findFirstOrThrow({ where: { postGroupId, socialAccount: { platform: 'TIKTOK' } } });
+    expect(tkStillDraft.status).toBe('DRAFT');
+  });
+});
+
+describe('POST /api/telegram/webhook — /autopilot command', () => {
+  afterEach(async () => {
+    if (cleanupUserId) {
+      await deleteTestUser(cleanupUserId);
+      cleanupUserId = null;
+    }
+    mockSendTelegramMessage.mockClear();
+  });
+
+  it('/autopilot on enables it, /autopilot status reports it, /autopilot off disables it again', async () => {
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
+    const chatId = '777100';
+    await linkChat(user.id, chatId);
+
+    await POST(webhookRequest({ message: { chat: { id: Number(chatId) }, text: '/autopilot on' } }));
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).autopilotEnabled).toBe(true);
+    expect(mockSendTelegramMessage.mock.calls.at(-1)?.[1]).toContain('włączony');
+
+    await POST(webhookRequest({ message: { chat: { id: Number(chatId) }, text: '/autopilot status' } }));
+    expect(mockSendTelegramMessage.mock.calls.at(-1)?.[1]).toMatch(/włączony/);
+
+    await POST(webhookRequest({ message: { chat: { id: Number(chatId) }, text: '/autopilot off' } }));
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).autopilotEnabled).toBe(false);
+    expect(mockSendTelegramMessage.mock.calls.at(-1)?.[1]).toContain('wyłączony');
+  });
+
+  it('defaults to off for a fresh account', async () => {
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
+    expect(user.autopilotEnabled).toBe(false);
   });
 });
 
