@@ -156,6 +156,7 @@ model SocialAccount {
   lastTiktokAllowDuet    Boolean?
   lastTiktokAllowStitch  Boolean?
   lastMetaPostFormat     String?
+  growthSnapshots        AccountGrowthSnapshot[]
 
   @@index([userId])
   @@unique([platform, externalId])
@@ -255,6 +256,24 @@ model PostMetric {
   shares       Int?
   fetchedAt    DateTime   @default(now())
   createdAt    DateTime   @default(now())
+}
+
+// EPIC 11 Sprint 11.1 (2026-09-14): account-level growth, distinct from PostMetric (per-post).
+// Unlike PostMetric (one upserted row per post - only the latest snapshot matters), this is
+// deliberately a TIME SERIES - one new row per account per daily sweep, never upserted - because
+// "growth" only means anything as a trend (this week vs last week), which needs history, not a
+// single latest number. Zero new OAuth scopes needed - TikTok (user.info.stats), Instagram
+// (instagram_basic), Facebook (pages_read_engagement), YouTube (youtube.readonly) all already
+// cover the fields used here; verified against each platform's current docs before building.
+model AccountGrowthSnapshot {
+  id              String        @id @default(cuid())
+  socialAccountId String
+  socialAccount   SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+  followerCount   Int
+  fetchedAt       DateTime      @default(now())
+  createdAt       DateTime      @default(now())
+
+  @@index([socialAccountId, fetchedAt])
 }
 
 model Subscription {

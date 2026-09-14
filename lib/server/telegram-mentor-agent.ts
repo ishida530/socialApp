@@ -32,6 +32,7 @@ import { PLATFORM_ALGORITHM_KNOWLEDGE } from './platform-knowledge';
 import { addFan, isValidEmail, recordSale } from './monetization';
 import { completeGoal, getActiveGoals, setGoal } from './coaching';
 import { endActiveCampaign, getActiveCampaign, getCampaignReport, listRecentCampaigns, startCampaign } from './campaigns';
+import { getFollowerGrowth } from './account-growth';
 import { logError, logEvent } from './observability';
 
 // No per-user timezone is stored anywhere in this app today - every Telegram-sourced draft
@@ -48,7 +49,7 @@ const MAX_MESSAGE_CHARS = 2000;
 
 const MENTOR_SYSTEM_PROMPT = [
   'Jestes mentorem/asystentem uzytkownika appki Postfly (planowanie i publikacja tresci social media), rozmawiasz z nim na Telegramie po polsku, krotko i konkretnie.',
-  'Masz narzedzia odczytu (status, historia, pomysly na tresc, opis konta, wyniki publikacji, raport kampanii) ORAZ narzedzia zapisu: add_fan, record_sale, set_goal, get_goals, complete_goal, start_campaign, end_campaign.',
+  'Masz narzedzia odczytu (status, historia, pomysly na tresc, opis konta, wyniki publikacji, raport kampanii, wzrost obserwujacych) ORAZ narzedzia zapisu: add_fan, record_sale, set_goal, get_goals, complete_goal, start_campaign, end_campaign.',
   'add_fan/record_sale/set_goal/complete_goal/start_campaign/end_campaign: uzywaj ich WPROST (bez pytania o potwierdzenie) gdy uzytkownik jawnie podaje dane do zapisania - np. "dodaj fana jan@przyklad.com", "zapisz sprzedaz 80zl koszulka", "chce publikowac 3x w tygodniu", "zaczynam kampanie premiera singla". Po wywolaniu ZAWSZE potwierdz w odpowiedzi dokladnie co zapisales, zeby ewentualny blad byl od razu widoczny. Nie zgaduj danych (email/kwota/tresc celu/nazwa kampanii), jesli uzytkownik ich nie podal - dopytaj.',
   'Kampanie: start_campaign konczy automatycznie poprzednia aktywna - jesli uzytkownik pyta o wyniki bez podania nazwy, get_campaign_report bez argumentu bierze aktualnie aktywna kampanie.',
   'Jestes tez coachem - gdy uzytkownik pyta "jak mi idzie" albo o strategie, polacz get_performance_insights/get_recent_activity Z get_goals (jesli ma aktywne cele) i daj krotka, konkretna odpowiedz odnoszaca sie do jego celu, nie tylko suche liczby.',
@@ -161,6 +162,11 @@ const TOOLS = [
     description: 'Lista ostatnich kampanii uzytkownika (aktywne i zakonczone).',
     input_schema: { type: 'object', properties: {} },
   },
+  {
+    name: 'get_follower_growth',
+    description: 'Realna liczba obserwujacych/subskrybentow per platforma i jej zmiana (tydzien/miesiac temu). Uzyj przy pytaniach typu "ile mam obserwujacych" albo "jak rosnie moje konto".',
+    input_schema: { type: 'object', properties: {} },
+  },
 ] as const;
 
 type ToolBlock = Extract<AnthropicContentBlock, { type: 'tool_use' }>;
@@ -261,6 +267,11 @@ async function executeTool(userId: string, name: string, input: unknown): Promis
       return JSON.stringify({
         campaigns: campaigns.map((campaign) => ({ id: campaign.id, name: campaign.name, active: !campaign.endedAt })),
       });
+    }
+
+    if (name === 'get_follower_growth') {
+      const growth = await getFollowerGrowth(userId);
+      return JSON.stringify({ growth });
     }
 
     if (name === 'get_status') {

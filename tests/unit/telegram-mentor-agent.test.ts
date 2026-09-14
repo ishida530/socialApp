@@ -394,6 +394,41 @@ describe('runMentorTurn', () => {
     expect(parsed.report.postsCount).toBe(0);
   });
 
+  it('executes get_follower_growth against real AccountGrowthSnapshot data', async () => {
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
+    const account = await createSocialAccount(user.id, 'TIKTOK');
+    await prisma.accountGrowthSnapshot.create({ data: { socialAccountId: account.id, followerCount: 500 } });
+
+    let callCount = 0;
+    let capturedToolResult: string | null = null;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init?: RequestInit) => {
+        callCount += 1;
+        if (callCount === 1) {
+          return {
+            ok: true,
+            json: async () => ({
+              content: [{ type: 'tool_use', id: 'tool-1', name: 'get_follower_growth', input: {} }],
+              stop_reason: 'tool_use',
+            }),
+          };
+        }
+        const body = JSON.parse(init!.body as string);
+        const lastMessage = body.messages[body.messages.length - 1];
+        const toolResultBlock = lastMessage.content.find((block: { type: string }) => block.type === 'tool_result');
+        capturedToolResult = toolResultBlock?.content ?? null;
+        return textOnlyResponse('Masz 500 obserwujących na TikToku.');
+      }),
+    );
+
+    await runMentorTurn(user.id, 'ile mam obserwujacych?');
+
+    const parsed = JSON.parse(capturedToolResult as unknown as string);
+    expect(parsed.growth).toEqual([{ platform: 'TIKTOK', current: 500, weekAgo: null, monthAgo: null }]);
+  });
+
   it('persists user and assistant turns, and replays history on the next call', async () => {
     const { user } = await createTestUser();
     cleanupUserId = user.id;

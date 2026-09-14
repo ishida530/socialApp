@@ -855,7 +855,23 @@ Użytkownik zapytał "czego brakuje żeby mój główny agent prowadził z sukce
 
 Zapisane w `postfly-backlog-sprinty.md` jako EPIC 11 (Sprint 11.1 — 4 zadania, Sprint 11.2 — 8 zadań). `TASK-5.4.6` (stary placeholder Agenta społeczności w EPIC 5) oznaczony jako zastąpiony pełnym projektem w EPIC 11, nie "zrobiony" — sam agent nadal nie istnieje.
 
-Status: [x] przeanalizowane i zaprojektowane (PO/Architekt/UX, z realnym research API) → [x] zapisane w backlogu → [ ] TASK-11.2.1 (decyzja właściciela) niepodjęta → [ ] żadna implementacja jeszcze nie rozpoczęta
+Status: [x] przeanalizowane i zaprojektowane (PO/Architekt/UX, z realnym research API) → [x] zapisane w backlogu → [ ] TASK-11.2.1 (decyzja właściciela) niepodjęta → [x] Sprint 11.1 zaimplementowany, Sprint 11.2 wciąż niepodjęty (patrz wpis niżej)
+
+---
+
+### Sprint 11.1 — śledzenie followersów, zaimplementowane (2026-09-14)
+
+Użytkownik: "przeanalizuj i wykonaj sprint 11.2 oraz 11.1". Sprint 11.1 było bezpieczne do wykonania od razu (zero nowych zgód OAuth, już to ustalone przy projektowaniu epika); Sprint 11.2 NIE — jego blokery (TASK-11.2.1 zgoda właściciela na ponowne łączenie kont i składanie wniosków review, TASK-11.2.2 weryfikacja wykonalności TikToka) to akcje na zewnętrznych kontach dewelopera (Meta App Dashboard, Google Cloud Console), do których appka fizycznie nie ma dostępu — nie jest to coś, co można "wykonać" pisaniem kodu. Zakomunikowane wprost użytkownikowi zamiast cichego pominięcia albo budowania kodu pod nieistniejące jeszcze dane (dokładnie ten sam błąd, którego ten projekt unika od TASK-1.5.3/1.5.4).
+
+**[Architekt]:** przed implementacją zweryfikowano dokładny endpoint TikToka (`GET /v2/user/info/?fields=follower_count` — wcześniejszy projekt epika nie miał tej pewności, tylko nazwę scope'u). `AccountGrowthSnapshot` celowo NIE kopiuje wzorca `PostMetric` (upsert = tylko najnowszy stan) — to prawdziwa seria czasowa, bo "wzrost" wymaga historii do porównania (dziś vs tydzień temu). `getFollowerGrowth` szuka NAJBLIŻSZEGO snapshotu sprzed danej daty (nie dokładnie sprzed 7 dni) — odporne na to, że cron nie zawsze trafi dokładnie w tę samą godzinę/dzień.
+
+**[Inżynier]:** `lib/server/account-growth.ts` — 4 fetchery per platforma, każdy z własnym try/catch degradującym do `null` zamiast rzucać (ten sam wzorzec co `post-metrics.ts` — błąd jednej platformy nigdy nie blokuje drugiej). `collectAccountGrowth()` jako siódma funkcja w istniejącym dziennym cronie (`telegram-digest`), bez nowego slotu. `/followers` na Telegramie, narzędzie agenta-mentora `get_follower_growth`, i wpięcie do `WeeklyCoachingData` (nowe pole `followerGrowth`) — realny sygnał wzrostu CAŁEGO konta w cotygodniowym coachingu, nie tylko engagement pojedynczych postów.
+
+**[QA]:** `tests/unit/account-growth.test.ts` (nowy, 8 testów: parsing per platforma z prawdziwym externalId, błąd jednej platformy nie blokuje drugiej, konto bez tokenu pomijane bez rzucania, honest null gdy brak historycznego punktu odniesienia zamiast zmyślonego trendu). `tests/unit/coaching.test.ts` (+2: fallback zawiera realny wzrost, pomija platformę bez wystarczających danych). `tests/api/telegram-commands.test.ts` (+2: `/followers` bez historii vs z realnym trendem). `tests/unit/telegram-mentor-agent.test.ts` (+1). `tests/api/cron-telegram-digest.test.ts` (+1 asercja). Pełna suita: 359/359 w obu trybach APP_MODE, tsc/build czyste.
+
+**Sprint 11.2 pozostaje niepodjęty** — czeka na Twoją decyzję (TASK-11.2.1) i Twoją bezpośrednią weryfikację u TikToka (TASK-11.2.2), obie poza zasięgiem tego, co appka/ja możemy zrobić samodzielnie.
+
+Status: [x] zaimplementowane (Sprint 11.1 w całości) → [x] testy napisane i zielone → [x] zweryfikowane (tsc, build czyste) → [ ] zamknięte (PR w przygotowaniu) → [ ] weryfikacja żywych danych (wymaga realnie podłączonych kont i przynajmniej jednego dnia zbierania)
 
 ---
 

@@ -27,6 +27,7 @@ import type { ScheduleSlot } from '@/lib/server/smart-autopilot/types';
 import { addFan, getFanCount, getRecentFans, getRevenueSummary, isValidEmail, parseAmountToCents, recordSale } from '@/lib/server/monetization';
 import { completeGoal, getActiveGoals, setGoal } from '@/lib/server/coaching';
 import { endActiveCampaign, getActiveCampaign, getCampaignReport, listRecentCampaigns, startCampaign, type CampaignReport } from '@/lib/server/campaigns';
+import { getFollowerGrowth, type FollowerGrowthEntry } from '@/lib/server/account-growth';
 import { prisma } from '@/lib/server/prisma';
 import { unauthorized } from '@/lib/server/http';
 import { logError, logEvent } from '@/lib/server/observability';
@@ -821,7 +822,36 @@ async function handleTextCommand(chatIdStr: string, userId: string, text: string
     return true;
   }
 
+  // EPIC 11 Sprint 11.1: zero nowych zgód OAuth - patrz lib/server/account-growth.ts.
+  if (trimmed === '/followers') {
+    const growth = await getFollowerGrowth(userId);
+    await sendTelegramMessage(chatIdStr, formatFollowerGrowthMessage(growth)).catch((error) =>
+      logError('telegram', 'send-followers-failed', error, { chatId: chatIdStr }),
+    );
+    return true;
+  }
+
   return false;
+}
+
+function formatFollowerGrowthMessage(growth: FollowerGrowthEntry[]): string {
+  if (growth.length === 0) {
+    return '📈 Brak jeszcze wystarczających danych o obserwujących - wróć jutro, appka zbiera je raz dziennie.';
+  }
+
+  const lines = ['📈 Wzrost obserwujących:'];
+  growth.forEach((entry) => {
+    const delta = entry.weekAgo !== null ? entry.current - entry.weekAgo : null;
+    const deltaLabel =
+      delta === null
+        ? 'brak jeszcze wystarczających danych'
+        : delta === 0
+          ? 'bez zmian w tym tygodniu'
+          : `${delta > 0 ? '+' : ''}${delta} w tym tygodniu`;
+    lines.push(`${entry.platform}: ${entry.current} (${deltaLabel})`);
+  });
+
+  return lines.join('\n');
 }
 
 function formatCampaignReportMessage(report: CampaignReport): string {

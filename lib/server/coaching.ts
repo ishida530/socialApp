@@ -8,6 +8,7 @@ import { prisma } from './prisma';
 import { callClaudeTool, CLAUDE_MODELS } from './anthropic-client';
 import { redactPotentialPii } from './smart-autopilot/safety';
 import { PLATFORM_ALGORITHM_KNOWLEDGE } from './platform-knowledge';
+import { getFollowerGrowth, type FollowerGrowthEntry } from './account-growth';
 
 export async function setGoal(userId: string, description: string) {
   return prisma.goal.create({ data: { userId, description: description.trim() } });
@@ -42,6 +43,10 @@ export type WeeklyCoachingData = {
   newFansThisWeek: number;
   salesThisWeekCents: number;
   activeGoals: string[];
+  // EPIC 11 Sprint 11.1 (2026-09-14): real ACCOUNT-level growth (followers/subscribers), not
+  // just per-post engagement - previously the coach could only ever talk about individual posts,
+  // never whether the account itself is actually growing.
+  followerGrowth: FollowerGrowthEntry[];
 };
 
 async function getEngagementRateForWindow(userId: string, start: Date, end: Date): Promise<number | null> {
@@ -66,7 +71,7 @@ export async function getWeeklyCoachingData(userId: string): Promise<WeeklyCoach
   const weekStart = new Date(now.getTime() - WEEK_MS);
   const twoWeeksStart = new Date(now.getTime() - WEEK_MS * 2);
 
-  const [postsThisWeek, postsLastWeek, engagementRateThisWeek, engagementRateLastWeek, newFansThisWeek, salesThisWeek, activeGoals] =
+  const [postsThisWeek, postsLastWeek, engagementRateThisWeek, engagementRateLastWeek, newFansThisWeek, salesThisWeek, activeGoals, followerGrowth] =
     await Promise.all([
       prisma.publishJob.count({ where: { status: 'SUCCESS', video: { userId }, publishedAt: { gte: weekStart } } }),
       prisma.publishJob.count({
@@ -77,6 +82,7 @@ export async function getWeeklyCoachingData(userId: string): Promise<WeeklyCoach
       prisma.fan.count({ where: { userId, createdAt: { gte: weekStart } } }),
       prisma.sale.aggregate({ where: { userId, createdAt: { gte: weekStart } }, _sum: { amountCents: true } }),
       getActiveGoals(userId),
+      getFollowerGrowth(userId),
     ]);
 
   return {
@@ -86,6 +92,7 @@ export async function getWeeklyCoachingData(userId: string): Promise<WeeklyCoach
     engagementRateLastWeek,
     newFansThisWeek,
     salesThisWeekCents: salesThisWeek._sum.amountCents ?? 0,
+    followerGrowth,
     activeGoals: activeGoals.map((goal) => goal.description),
   };
 }
@@ -103,6 +110,7 @@ const COACH_SYSTEM_PROMPT = [
   'Struktura: 2-3 zdania podsumowania tego co realnie sie wydarzylo (na podstawie DANYCH, nie zgadywania), potem DOKLADNIE jedna konkretna, wykonalna sugestia na kolejny tydzien.',
   'Jesli brakuje danych do jakiegos porownania (np. brak wczesniejszego tygodnia), pomin to zamiast zmyslac liczby.',
   'Jesli sa aktywne cele uzytkownika, nawiaz do nich wprost - czy widac postep, czy moze warto je dostosowac.',
+  'followerGrowth to realny wzrost/spadek liczby obserwujacych/subskrybentow per platforma (nie mylic z engagement per post) - jesli sa dane, wspomnij o tym, bo to pokazuje czy CALE konto rosnie, nie tylko pojedyncze posty. Platforma bez danych (weekAgo null) - pomin ja, nie zgaduj trendu.',
   'Nie uzywaj ogolnikow typu "swietna robota" bez pokrycia w danych - badz konkretny.',
   PLATFORM_ALGORITHM_KNOWLEDGE,
 ].join(' ');
@@ -121,6 +129,7 @@ export async function generateCoachingMessage(data: WeeklyCoachingData, business
     newFansThisWeek: data.newFansThisWeek,
     salesThisWeekPLN: data.salesThisWeekCents / 100,
     activeGoals: data.activeGoals,
+    followerGrowth: data.followerGrowth,
   });
 
   const result = await callClaudeTool<CoachToolResult>({
@@ -162,6 +171,15 @@ export function formatFallbackCoachingMessage(data: WeeklyCoachingData): Coachin
   if (data.salesThisWeekCents > 0) {
     lines.push(`Sprzedaże w tym tygodniu: ${(data.salesThisWeekCents / 100).toFixed(2)} PLN.`);
   }
+  data.followerGrowth.forEach((entry) => {
+    if (entry.weekAgo === null) {
+      return;
+    }
+    const delta = entry.current - entry.weekAgo;
+    if (delta !== 0) {
+      lines.push(`${entry.platform}: ${delta > 0 ? '+' : ''}${delta} obserwujących w tym tygodniu.`);
+    }
+  });
 
   return {
     summary: lines.join(' '),
