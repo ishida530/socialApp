@@ -101,7 +101,7 @@
 - [x] **TASK-5.4.3** [P2/M] Agent sponsoringu/brand deals. **Domknięte 2026-09-13** (zakres: sygnał, nie pełna wycena): `checkSponsorshipGrowth`/`sendSponsorshipSignals` — rzadki sygnał na Telegramie gdy zasięg (dane `PostMetric` z EPIC 4) realnie rośnie (≥50% wzrost, próg szumu 1000 wyświetleń), wpięty w istniejący dzienny cron. Pomoc w przygotowaniu wyceny na bazie realnych stawek rynkowych NIE zbudowana — appka nie ma takich danych.
 - [~] **TASK-5.4.4** [P1/M] Dashboard finansowy rozszerzony o realny obraz majątku (nie tylko sumę przychodu). **Częściowo 2026-09-13**: `/revenue` na Telegramie zwraca teraz realne dane (fani, sprzedaże w tym miesiącu/łącznie) zamiast "nie istnieje jeszcze". Pełny "obraz majątku" (reinwestycje, rozdział środków) i osobna strona web NIE zbudowane — poza zakresem tej sesji, naturalne rozszerzenie na później.
 - [ ] **TASK-5.4.5** [P0/S] Bramka potwierdzenia rozszerzona na wszystkie wysyłki Monetyzacji, w tym agenta społeczności (sekcja 4.4). **Nie dotyczy jeszcze 2026-09-13**: żaden zbudowany w tej sesji mechanizm Monetyzacji nie wysyła niczego autonomicznie (agent fanów/sprzedaży to ręczne komendy twórcy, agent sponsoringu tylko informuje) — nie ma jeszcze czego bramkować. Ten sam wzorzec odłożenia co TASK-3.2.4 ("poczekaj aż powstanie pierwszy agent [wysyłający autonomicznie]").
-- [ ] **TASK-5.4.6** [P1/M] Agent społeczności — odpowiedzi na komentarze/DM z pełną bramką (sekcja 4.4). **Nie zbudowany 2026-09-13**: appka dziś ma tylko uprawnienia OAuth do publikacji i podstawowych statystyk (`social-oauth.ts`) — czytanie komentarzy/DM wymaga NOWYCH zgód OAuth, które wymagałyby ponownego połączenia każdego konta social przez właściciela; decyzja o rozszerzeniu uprawnień to jego wybór, nie coś do zdecydowania pod jego nieobecność.
+- [x] **TASK-5.4.6** [P1/M] ~~Agent społeczności — odpowiedzi na komentarze/DM z pełną bramką (sekcja 4.4).~~ **Zastąpiony pełnym projektem 2026-09-14** — patrz EPIC 11, Sprint 11.2 (TASK-11.2.1 do 11.2.8). Ten wpis zamknięty jako "przeniesiony", nie "zrobiony" — sam Agent społeczności nadal nie istnieje, ale ma teraz pełny projekt zamiast placeholdera z jednym zdaniem uzasadnienia.
 - [ ] **TASK-5.4.7** [P0/M] Dodatkowa weryfikacja poza czatem przy zmianie danych wypłat (sekcja 9.5) — nigdy na podstawie samej rozmowy w Telegramie. DoD: próba zmiany danych wypłaty przez Telegram wymaga potwierdzenia przez osobny kanał (np. link mailowy), test to potwierdza. **Nie dotyczy jeszcze 2026-09-13**: appka nie ma dziś żadnego mechanizmu wypłat do zabezpieczenia (TASK-5.2.2 pełne pozostaje niezbudowane) — budowanie zabezpieczenia dla nieistniejącego mechanizmu byłoby inżynierią pod hipotezę, dokładnie to czego ten projekt unika. Wraca razem z realnym mechanizmem wypłat.
 
 ---
@@ -164,11 +164,36 @@
 
 ---
 
+## EPIC 11 — Zaangażowanie i wzrost kont (skalowanie)
+*Odpowiada na pytanie użytkownika (2026-09-14) "czego brakuje żeby mój główny agent prowadził z sukcesem i skalował moje konta". Dwa niezależne tory o bardzo różnym profilu ryzyka — patrz uzasadnienie w log ról. TASK-11.2.x zastępuje/rozszerza wcześniejszy TASK-5.4.6 (ten sam Agent społeczności, pełny projekt zamiast placeholdera).*
+
+### Sprint 11.1 — Śledzenie wzrostu kont (followersi/subskrybenci)
+*Zero nowych zgód OAuth — wszystko mieści się w już przyznanych scope'ach. Niskie ryzyko, buduj pierwsze.*
+
+- [ ] **TASK-11.1.1** [P1/M] Nowy model `AccountGrowthSnapshot` (per `SocialAccount`: `followerCount`, `fetchedAt`) — codzienny snapshot, ten sam wzorzec "najnowszy stan, nie pełna historia" co `PostMetric`. Pola per platforma: TikTok `follower_count` (scope `user.info.stats`, już przyznany), Instagram `followers_count` (scope `instagram_basic`, już przyznany, pełny dostęp), Facebook odpowiednik na poziomie strony (scope `pages_read_engagement`, już przyznany — do zweryfikowania dokładna nazwa pola, Meta zmienia nazewnictwo Fans→Followers), YouTube `channels.list?part=statistics` → `subscriberCount` (scope `youtube.readonly`, już przyznany — dokładnie ta luka zidentyfikowana przy zamykaniu EPIC 4, teraz domykana). DoD: migracja przechodzi, dane zbierają się dla wszystkich 4 platform bez żadnej nowej zgody użytkownika.
+- [ ] **TASK-11.1.2** [P1/S] Zbieranie wpięte w istniejący dzienny cron (obok `collectMetricsForRecentJobs`) — bez nowego slotu crona, ten sam wzorzec co cała reszta tej sesji.
+- [ ] **TASK-11.1.3** [P1/S] `/followers` na Telegramie + narzędzie agenta-mentora `get_follower_growth` — trend per platforma (dziś vs tydzień temu vs miesiąc temu), uczciwie "brak danych" dla platformy bez wystarczającej historii zamiast zmyślonego trendu.
+- [ ] **TASK-11.1.4** [P2/S] Wpięcie realnego wzrostu followersów do cotygodniowego coachingu (już zbudowany mechanizm, `lib/server/coaching.ts`) — realny sygnał "publiczność rośnie/maleje", nie tylko engagement pojedynczych postów.
+
+### Sprint 11.2 — Agent społeczności: komentarze i DM (zastępuje TASK-5.4.6)
+*Wymaga NOWYCH zgód OAuth na KAŻDEJ platformie z osobna, z realnym, tygodniowym czasem oczekiwania na zatwierdzenie (ten sam typ procesu co trwający audyt TikTok Content Posting) — i jednym realnym pytaniem znakowym, czy to w ogóle wykonalne na TikToku dla zwykłej appki. Żaden kod nie powstaje przed TASK-11.2.1.*
+
+- [ ] **TASK-11.2.1** [P0/S] **Decyzja właściciela produktu** (nie inżynierska) — świadoma zgoda na: (a) ponowne połączenie WSZYSTKICH kont social z szerszymi uprawnieniami (obecne tokeny nie wystarczą), (b) złożenie nowych wniosków o app review u Meta i Google (realny czas oczekiwania, brak gwarancji zatwierdzenia), (c) zaakceptowanie że TikTok może się okazać niewykonalny (patrz TASK-11.2.2). DoD: pisemna zgoda w logu ról, nie domyślne założenie.
+- [ ] **TASK-11.2.2** [P0/S] **Weryfikacja wykonalności TikTok PRZED jakimkolwiek kodem.** Sprawdzone 2026-09-14: publicznie udokumentowany endpoint zapytania o komentarze (`vce-query-video-comments`) figuruje wyłącznie pod sekcją **Research API** (dostęp ograniczony do zakwalifikowanych badaczy non-profit), nie pod zwykłym Display/Login Kit API używanym przez tę appkę do publikacji. Bez oficjalnego potwierdzenia z TikTok for Developers, że zwykła appka może czytać komentarze na własnych filmach, TASK-11.2.x dla TikToka może być zwyczajnie niewykonalny — nie zakładaj, sprawdź wprost (support/dokumentacja), zanim zaplanujesz pracę.
+- [ ] **TASK-11.2.3** [P0/L] Nowe zgody OAuth per platforma (dopiero po TASK-11.2.1): Instagram/Facebook — `instagram_manage_comments` (potwierdzone 2026-09-14: pozwala pobierać/odpowiadać/ukrywać komentarze, ale to osobne uprawnienie Advanced Access wymagające nowego App Review u Meta, niezależnego od już zatwierdzonych `instagram_basic`/`instagram_content_publish`); YouTube — `youtube.force-ssl` (potwierdzone: szerszy scope niż obecny `youtube.readonly`, pełny odczyt/zapis na koncie, prawdopodobnie wymaga też weryfikacji bezpieczeństwa Google dla wrażliwych scope'ów, nie tylko zwykłego review).
+- [ ] **TASK-11.2.4** [P0/M] Nowe modele `SocialComment`/`SocialMessage` — nieprzeczytane komentarze/DM z podłączonych platform, wyłącznie jako DANE wejściowe (nigdy instrukcje — sekcja 9.1 głównego planu).
+- [ ] **TASK-11.2.5** [P1/M] Wykrywanie nowych komentarzy/DM — webhook gdzie platforma go realnie wspiera, w innym wypadku polling w cronie.
+- [ ] **TASK-11.2.6** [P1/M] Claude proponuje odpowiedź dopasowaną tonem do stylu użytkownika (ten sam mechanizm co `businessDescription`), wysyła na Telegram z przyciskami **Wyślij / Napisz własną / Ignoruj** — dokładnie zgodnie z sekcją 4.4 głównego planu (już zaprojektowane wcześniej, teraz faktycznie budowane).
+- [ ] **TASK-11.2.7** [P0/S] Hardening przeciw prompt injection (to jest przeniesiony, nie nowy wymóg — dawny TASK-3.2.4/5.4.6): treść komentarza/DM zawsze jako dane, nigdy jako polecenie dla agenta. Test z próbą wstrzyknięcia w treści komentarza.
+- [ ] **TASK-11.2.8** [P0/S] Bramka potwierdzenia obejmująca CO dokładnie zostanie wysłane, nie tylko CZY (sekcja 4.4) — jedyne miejsce w appce, gdzie bramka dotyczy treści, nie tylko akcji.
+
+---
+
 ## Kolejność realizacji (zależności między epikami)
 
 ```
 EPIC 1 (P0) → EPIC 2 → EPIC 3 ─┬→ EPIC 5 → EPIC 6 → EPIC 7
-                                 ├→ EPIC 4
+                                 ├→ EPIC 4 → EPIC 11 (Sprint 11.1 od razu, Sprint 11.2 po TASK-11.2.1)
                                  └→ EPIC 10 (równolegle od EPIC 3)
 EPIC 8 i EPIC 9 → równolegle od EPIC 1, niska zależność od reszty
 ```

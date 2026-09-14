@@ -837,7 +837,25 @@ Użytkownik: "a co z kampaniami i analizowaniem kampanii? [...] ten agent [...] 
 
 **[QA]:** `tests/unit/campaigns.test.ts` (nowy, 15 testów: nigdy dwóch aktywnych kampanii naraz, zero-step attach, raport nie przecieka danych innego użytkownika, kampania bez metryk raportuje zero a nie awarię, wykrywanie zastałych kampanii). `tests/api/telegram-campaign-reminder.test.ts` (nowy, 3 testy, wzorzec nudge/signal/coaching). `tests/api/telegram-commands.test.ts` (+4: pełny cykl `/campaign`/`/campaigns`/`/campaign-report`/`/campaign-end`). `tests/api/telegram-media-upload.test.ts` (+1: **realne, nie zamockowane** potwierdzenie że upload przez prawdziwy webhook faktycznie dostaje `campaignId` przy aktywnej kampanii — nie tylko testy jednostkowe funkcji attach w izolacji). `tests/unit/telegram-mentor-agent.test.ts` (+2). Pełna suita: 346/346 w obu trybach APP_MODE, tsc/build czyste.
 
-Status: [x] zaimplementowane → [x] testy napisane i zielone → [x] zweryfikowane (tsc, build czyste) → [ ] zamknięte (PR w przygotowaniu) → [ ] weryfikacja żywej kampanii (wymaga realnego uploadu/publikacji przez prawdziwego bota)
+Status: [x] zaimplementowane → [x] testy napisane i zielone → [x] zweryfikowane (tsc, build czyste) → [x] zamknięte (PR #78) → [ ] weryfikacja żywej kampanii (wymaga realnego uploadu/publikacji przez prawdziwego bota)
+
+---
+
+### EPIC 11 — zaprojektowany: zaangażowanie i wzrost kont (2026-09-14)
+
+Użytkownik zapytał "czego brakuje żeby mój główny agent prowadził z sukcesem i skalował moje konta" — odpowiedź (6 punktów, priorytetyzowane) wskazała dwa jako najbardziej dźwigniowe: komentarze/DM (agent nie widzi zaangażowania odbiorców w ogóle) i brak śledzenia liczby followersów/subskrybentów (appka śledzi wyniki POSTÓW, nigdy wzrostu SAMEGO KONTA). Użytkownik poprosił o przygotowanie epika z konsultacją PO/UX/specjalistów dla obu punktów.
+
+**[Architekt] — research PRZED projektowaniem, nie po:** zamiast zakładać że oba punkty mają podobny koszt wdrożenia, zweryfikowano realia API każdej platformy (WebSearch, źródła: TikTok for Developers, Meta for Developers, Google Developers). Wynik — **dwa punkty mają drastycznie różny profil ryzyka, nie powinny być jednym zadaniem**:
+- **Śledzenie followersów (punkt 5):** WSZYSTKIE 4 platformy już mają przyznane, wystarczające scope'y (`user.info.stats` TikTok, `instagram_basic` Instagram, `pages_read_engagement` Facebook, `youtube.readonly` YouTube — ten ostatni to dokładnie ta sama luka zanotowana jako "świadomie nie zaimplementowana" przy zamykaniu EPIC 4). Zero nowych zgód, zero ryzyka odrzucenia. Bezpieczne do zbudowania od razu.
+- **Komentarze/DM (punkt 3):** wymaga NOWYCH zgód OAuth na każdej platformie z osobna. Instagram: `instagram_manage_comments` to osobne uprawnienie Advanced Access, wymaga nowego App Review u Meta (appka ma dziś zatwierdzone inne uprawnienia, ale nie to). YouTube: `youtube.force-ssl` to znacznie szerszy scope niż obecny `youtube.readonly`, prawdopodobnie dodatkowa weryfikacja bezpieczeństwa Google dla wrażliwych uprawnień. **TikTok: realne ryzyko że to w ogóle niewykonalne** — jedyny publicznie udokumentowany endpoint zapytania o komentarze widoczny w wyszukiwaniu figuruje pod sekcją Research API (dostęp tylko dla zakwalifikowanych badaczy non-profit), nie pod zwykłym Display/Login Kit API używanym przez tę appkę — bez bezpośredniego potwierdzenia z TikTok nie ma pewności, że zwykła appka handlowa może to w ogóle zrobić.
+
+**[PO]:** rozdzielenie na dwa sprinty w jednym epiku (11.1 śledzenie wzrostu, 11.2 komentarze/DM), z jawnym blokerem na starcie 11.2 (TASK-11.2.1 — decyzja właściciela, nie inżyniera) i jawnym zadaniem weryfikacji wykonalności TikTok PRZED jakimkolwiek kodem (TASK-11.2.2) — dokładnie ta sama zasada co przy TikTok Content Posting API wcześniej w projekcie: nie zakładaj, sprawdź, i nie buduj pod hipotezę, która może się okazać fałszywa.
+
+**[UX]:** oba punkty dostają te same, już sprawdzone w tej sesji wzorce interakcji — komendy Telegram + odpowiedniki w rozmowie z agentem-mentorem dla odczytu wzrostu (11.1), pełna bramka potwierdzenia CO zostanie wysłane (nie tylko czy) dla odpowiedzi na komentarze (11.2, sekcja 4.4 głównego planu) — nic nowego architektonicznie, tylko nowy zakres danych.
+
+Zapisane w `postfly-backlog-sprinty.md` jako EPIC 11 (Sprint 11.1 — 4 zadania, Sprint 11.2 — 8 zadań). `TASK-5.4.6` (stary placeholder Agenta społeczności w EPIC 5) oznaczony jako zastąpiony pełnym projektem w EPIC 11, nie "zrobiony" — sam agent nadal nie istnieje.
+
+Status: [x] przeanalizowane i zaprojektowane (PO/Architekt/UX, z realnym research API) → [x] zapisane w backlogu → [ ] TASK-11.2.1 (decyzja właściciela) niepodjęta → [ ] żadna implementacja jeszcze nie rozpoczęta
 
 ---
 
