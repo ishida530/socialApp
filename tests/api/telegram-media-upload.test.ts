@@ -110,6 +110,26 @@ describe('POST /api/telegram/webhook — media upload (TASK-3.1.2)', () => {
     ]);
   });
 
+  it('auto-attaches a new upload to the active campaign, with zero extra step from the user (real end-to-end wiring, not a mocked call)', async () => {
+    const { startCampaign } = await import('@/lib/server/campaigns');
+
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
+    await createSocialAccount(user.id, 'INSTAGRAM');
+    const chatId = '111222337';
+    await linkChat(user.id, chatId);
+
+    const { campaign } = await startCampaign(user.id, 'Premiera EP');
+
+    const fakeVideo = await createVideo(user.id);
+    mockUploadTelegramMediaAsVideo.mockResolvedValue(fakeVideo);
+
+    await POST(webhookRequest({ message: { chat: { id: Number(chatId) }, video: { file_id: 'tg-file-campaign', file_size: 1024 } } }));
+
+    const createdJob = await prisma.publishJob.findFirstOrThrow({ where: { videoId: fakeVideo.id } });
+    expect(createdJob.campaignId).toBe(campaign.id);
+  });
+
   it('shows the computed schedule suggestion in the preview, instead of discarding it (EPIC 4 "popraw" step)', async () => {
     const { generatePlatformBundles } = await import('@/lib/server/composer-drafts');
     vi.mocked(generatePlatformBundles).mockResolvedValueOnce({

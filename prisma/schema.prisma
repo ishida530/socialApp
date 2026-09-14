@@ -83,6 +83,15 @@ model User {
   // Real coaching (2026-09-14): last proactive weekly check-in - same cooldown pattern as the
   // two fields above, see sendWeeklyCoachingCheckins in lib/server/telegram-notifications.ts.
   lastCoachingCheckinSentAt DateTime?
+  // Campaigns (2026-09-14): the "current" campaign - every new post created while this is set
+  // gets auto-attached (see attachActiveCampaignToJobs in lib/server/campaigns.ts), zero extra
+  // step per upload. Starting a new campaign auto-ends whichever one was active. Nullable, not
+  // required - most posts belong to no campaign at all.
+  activeCampaignId String?
+  activeCampaign   Campaign? @relation("ActiveCampaign", fields: [activeCampaignId], references: [id], onDelete: SetNull)
+  // Last time the "still running this campaign?" reminder fired for a long-running active
+  // campaign - same cooldown-field pattern as the nudges above.
+  lastCampaignReminderSentAt DateTime?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   socialAccounts SocialAccount[]
@@ -98,6 +107,7 @@ model User {
   royaltyRegistrations   RoyaltyRegistration[]
   syncPitches            SyncPitch[]
   goals                  Goal[]
+  campaigns              Campaign[] @relation("UserCampaigns")
 }
 
 model TelegramLinkCode {
@@ -215,12 +225,19 @@ model PublishJob {
   video           Video         @relation(fields: [videoId], references: [id], onDelete: Cascade)
   socialAccount   SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
   postMetric      PostMetric?
+  // Campaigns (2026-09-14): auto-attached at creation time from User.activeCampaignId when one
+  // is set (see attachActiveCampaignToJobs) - null for the common case of a post with no
+  // campaign. onDelete: SetNull, not Cascade - deleting a campaign should never delete the posts
+  // that were part of it.
+  campaignId      String?
+  campaign        Campaign?     @relation(fields: [campaignId], references: [id], onDelete: SetNull)
 
   @@index([videoId])
   @@index([socialAccountId])
   @@index([status, scheduledFor])
   @@index([postGroupId])
   @@index([status, notifiedAt])
+  @@index([campaignId])
 }
 
 // Latest known engagement snapshot for one published post, fetched read-only from each
@@ -398,6 +415,25 @@ model Goal {
   description String
   createdAt   DateTime  @default(now())
   achievedAt  DateTime?
+
+  @@index([userId])
+}
+
+// Campaigns (2026-09-14): a named push (e.g. "Premiera singla") spanning several posts over
+// days/weeks, so results can be reported collectively instead of post-by-post. PO/Architekt/UX
+// decision (user deferred to judgment): "active campaign" model - starting one auto-attaches
+// every subsequent post with zero extra step, no per-upload tagging prompt. See
+// lib/server/campaigns.ts.
+model Campaign {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation("UserCampaigns", fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  startedAt   DateTime  @default(now())
+  endedAt     DateTime?
+  createdAt   DateTime  @default(now())
+  publishJobs PublishJob[]
+  activeForUsers User[] @relation("ActiveCampaign")
 
   @@index([userId])
 }
