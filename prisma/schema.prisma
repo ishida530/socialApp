@@ -24,6 +24,12 @@ enum VideoStatus {
 enum MediaType {
   VIDEO
   IMAGE
+  // Proactive content suggestions (2026-09-14): a Facebook-only, media-less status post -
+  // Facebook's Graph API is the one platform of the four that accepts a plain /feed post with
+  // just a message, no attached video/image (Instagram/TikTok/YouTube all structurally require
+  // media). Never produced by a Telegram media upload - only by generateFacebookTextPostSuggestion
+  // (lib/server/content-suggestions.ts), attached to a placeholder Video row with no real file.
+  TEXT
 }
 
 enum PublishStatus {
@@ -127,6 +133,11 @@ model User {
   // Off by default - "brak reakcji = nie publikuj" stays the default posture for every account
   // that hasn't explicitly opted in.
   autopilotEnabled Boolean @default(false)
+  // Proactive content suggestions (2026-09-14): last time the agent sent an unprompted "here's a
+  // ready post" (Facebook text) or content-idea nudge - same cooldown-field pattern as every other
+  // proactive nudge in this app (lastInactivityNudgeSentAt etc.), see sendContentSuggestions in
+  // lib/server/telegram-notifications.ts.
+  lastContentSuggestionSentAt DateTime?
 }
 
 model TelegramLinkCode {

@@ -917,6 +917,20 @@ Status: [x] zaimplementowane → [x] testy napisane i zielone → [x] zweryfikow
 
 ---
 
+### Sprint 11.4 — proaktywne sugestie treści, CO nie tylko KIEDY (2026-09-14)
+
+**[PO]:** Po Sprint 11.3 właściciel doprecyzował pytanie o niezależność: agent ma móc sam wpaść na pomysł posta na bazie realnych wyników i przygotować go do zatwierdzenia - "sam wymysla, ale za moja zgoda". Wyraźnie odrzucone: generowanie mediów (obrazków/wideo) przez agenta - materiał zawsze dostarcza właściciel. Doprecyzowanie w kolejnej turze: posty tekstowe mają też zachęcać do komentowania, bo to realny sygnał dla algorytmu Facebooka - poproszono o konsultację "ze specjalistami" (research najlepszych praktyk) przed wdrożeniem, tak jak przy projektowaniu kampanii wcześniej w tej sesji.
+
+**[Architekt]:** Kluczowe ustalenie: spośród czterech platform TYLKO Facebook Graph API przyjmuje post bez żadnego materiału (`POST /{page-id}/feed` z samym `message`) - Instagram/TikTok/YouTube strukturalnie wymagają mediów w każdym publikowanym poście, więc "post tekstowy" jest z definicji funkcją Facebook-only. Zamiast robić `PublishJob.videoId` opcjonalnym (duży promień rażenia - dotknąłby każde miejsce zakładające istnienie `job.video`), dodano `MediaType.TEXT` + placeholder `Video` bez prawdziwego pliku - reszta appki (własność przez `video.userId`, kampanie, metryki) działa bez żadnej zmiany. Druga kluczowa decyzja: sugestia to zwykły `PublishJob` w statusie DRAFT na realnym `postGroupId` - dzięki temu cały istniejący mechanizm przycisków (Publikuj/Edytuj/Anuluj) obsługuje ją BEZ ŻADNEGO nowego kodu, tylko nowy sposób tworzenia takiego draftu (przez agenta zamiast przez upload). Specjalistyczne doprecyzowanie promptu: klasyczny "engagement bait" ("oznacz znajomego", "napisz TAK jeśli...") jest jawnie zakazany w prompcie - to nie jest neutralna stylistyka, Facebook aktywnie obniża zasięg za takie wzorce, więc wymuszenie tego byłoby szkodliwe dla użytkownika, nie pomocne.
+
+**[Inżynier]:** Migracja `20260914091741_proactive_content_suggestions` (`MediaType.TEXT`, `User.lastContentSuggestionSentAt`). `lib/server/content-suggestions.ts` - `generateFacebookTextPostSuggestion` (Claude, `callClaudeTool`, dane z `getWeeklyCoachingData`, honest decline zamiast zmyślonej treści). `publishToFacebookTextPost` w `publish-processor.ts` - nowa kategoria trwałego (nie-ponawianego) błędu dla próby użycia TEXT na platformie innej niż Facebook, ten sam wzorzec co istniejące `isPermanentTikTokConfigurationError`/`isPermanentFacebookPermissionError`. `sendContentSuggestions` (`telegram-notifications.ts`) - dziewiąta funkcja w dziennym cronie, dwie ścieżki (gotowy post Facebook vs pomysł na materiał przez `generateContentIdeas`, dotąd używane tylko na żądanie przez `/pomysl` - teraz też proaktywnie, koszt ograniczony tym samym cooldownem co reszta appki), pomijane przy `publishingPaused`.
+
+**[QA]:** `tests/unit/content-suggestions.test.ts` (4 testy - sugestia/honest decline/brak klucza/dane jako JSON nie string). `tests/api/telegram-content-suggestions.test.ts` (7 testów - ścieżka Facebook, fallback na pomysł, cooldown, pauza, brak powiązanego czatu). `tests/api/publish-processor-text-post.test.ts` (2 testy - realny request do `/feed` bez `file_url`, odrzucenie TEXT na innej platformie). `tests/api/telegram-content-suggestion-approval.test.ts` (2 testy, **potwierdzają empirycznie** że żaden nowy kod obsługi przycisków nie był potrzebny - tapnięcie Publikuj/Odrzuć na sugestii przechodzi przez ISTNIEJĄCE, niezmienione handlery). Pełna suita: **407/407 w obu trybach APP_MODE**, tsc/build czyste.
+
+Status: [x] zaimplementowane → [x] testy napisane i zielone → [x] zweryfikowane (tsc, build czyste) → [ ] zamknięte (PR w przygotowaniu)
+
+---
+
 ---
 
 **Definicja "gotowy projekt w 100%":** każdy checkbox w sekcjach 6 i 7 odhaczony, każdy z jawnym DoD spełnionym i potwierdzonym testem (nie deklaracją), **QA niezależnie zweryfikowało, nie tylko Inżynier**, Architekt podpisał się pod skalowalnością w sekcji 9 dla każdej nowej warstwy, i sekcja 8 (Review końcowy) przeszła bez zastrzeżeń blokujących.

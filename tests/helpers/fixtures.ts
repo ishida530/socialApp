@@ -42,13 +42,13 @@ export async function createSocialAccount(
 
 export async function createVideo(
   userId: string,
-  overrides: { mediaType?: 'VIDEO' | 'IMAGE'; title?: string; durationSec?: number | null } = {},
+  overrides: { mediaType?: 'VIDEO' | 'IMAGE' | 'TEXT'; title?: string; durationSec?: number | null; sourceUrl?: string } = {},
 ) {
   return prisma.video.create({
     data: {
       userId,
       title: overrides.title ?? 'test-video',
-      sourceUrl: 'https://example.com/fake.mp4',
+      sourceUrl: overrides.sourceUrl ?? 'https://example.com/fake.mp4',
       status: 'READY',
       mediaType: overrides.mediaType ?? 'VIDEO',
       durationSec: overrides.durationSec ?? null,

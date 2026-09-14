@@ -64,6 +64,14 @@ function isPermanentFacebookPermissionError(message: string) {
   );
 }
 
+// Proactive content suggestions (2026-09-14): a TEXT job on any platform but Facebook is a
+// configuration mistake, not a transient failure (the dispatch check in publishToPlatform throws
+// before any network call happens) - retrying it would just throw the identical error 3 more
+// times for nothing.
+function isUnsupportedTextPostPlatformError(message: string) {
+  return message.includes('wyłącznie na Facebooku');
+}
+
 const MAX_RETRY_ATTEMPTS = 3;
 const BASE_BACKOFF_SECONDS = 60;
 const TIKTOK_STATUS_POLL_SECONDS = 60;
@@ -430,7 +438,7 @@ type PublishInputJob = {
     title: string;
     sourceUrl: string;
     localPath: string | null;
-    mediaType: 'VIDEO' | 'IMAGE';
+    mediaType: 'VIDEO' | 'IMAGE' | 'TEXT';
   };
   caption: string;
   hashtags: string[];
@@ -805,6 +813,53 @@ async function publishToFacebook(job: PublishInputJob, accessToken: string): Pro
     : publishToFacebookReel(job, accessToken);
 }
 
+// Proactive content suggestions (2026-09-14): a plain status update, no attached media - the one
+// Facebook publish path that never touches job.video.sourceUrl/localPath at all, since there's no
+// real file behind a TEXT job (a placeholder Video row - see content-suggestions.ts). Standard
+// Graph API /feed with just `message`, no `file_url`.
+async function publishToFacebookTextPost(job: PublishInputJob, accessToken: string): Promise<PublishTransportResult> {
+  const pageId = job.socialAccount.externalId;
+  if (!pageId) {
+    throw new Error('Brak externalId strony Facebook dla konta social');
+  }
+
+  const version = resolveMetaApiVersion();
+  const params = new URLSearchParams({
+    access_token: accessToken,
+    message: composeCaption(job.caption, job.hashtags).slice(0, 5000),
+    published: 'true',
+  });
+
+  const response = await fetch(`https://graph.facebook.com/${version}/${pageId}/feed`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: params.toString(),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+
+    if (response.status === 401 || response.status === 403) {
+      throw new PublishAuthError(
+        `Facebook access token invalid/expired: ${errorBody || response.statusText}`,
+        response.status,
+      );
+    }
+
+    throw new Error(`Facebook text post publish failed: ${errorBody || response.statusText}`);
+  }
+
+  const payload = (await response.json()) as { id?: string };
+
+  return {
+    provider: 'FACEBOOK' as const,
+    remoteId: payload.id,
+    postUrl: payload.id ? `https://www.facebook.com/${payload.id}` : undefined,
+  };
+}
+
 async function publishToFacebookPhoto(job: PublishInputJob, accessToken: string): Promise<PublishTransportResult> {
   const pageId = job.socialAccount.externalId;
   if (!pageId) {
@@ -1017,6 +1072,14 @@ async function publishToInstagramPhoto(job: PublishInputJob, accessToken: string
 }
 
 async function publishToPlatform(job: PublishInputJob, accessToken: string): Promise<PublishTransportResult> {
+  if (job.video.mediaType === 'TEXT') {
+    if (job.socialAccount.platform !== 'FACEBOOK') {
+      throw new Error('Posty tekstowe bez materiału są obsługiwane wyłącznie na Facebooku.');
+    }
+
+    return publishToFacebookTextPost(job, accessToken);
+  }
+
   if (job.video.mediaType === 'IMAGE') {
     if (job.socialAccount.platform === 'YOUTUBE') {
       throw new Error('YouTube nie obsługuje publikacji zdjęć jako posta.');
@@ -1551,6 +1614,21 @@ async function processClaimedJobCore(jobId: string) {
         jobId: job.id,
         attempt: nextAttempt,
         reason: 'facebook-permission-missing',
+      });
+
+      return 'failed' as const;
+    }
+
+    if (isUnsupportedTextPostPlatformError(reason)) {
+      await prisma.publishJob.update({
+        where: { id: job.id },
+        data: { status: 'FAILED', errorMessage: reason },
+      });
+
+      logEvent('publish-processor', 'job-failed-final', {
+        jobId: job.id,
+        attempt: nextAttempt,
+        reason: 'text-post-unsupported-platform',
       });
 
       return 'failed' as const;
