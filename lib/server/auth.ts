@@ -6,7 +6,7 @@ export type AuthUser = {
   email: string;
 };
 
-export const TOKEN_COOKIE_NAME = 'flowstate_token';
+export const TOKEN_COOKIE_NAME = 'postfly_token';
 
 function requireJwtSecret() {
   const secret = process.env.JWT_SECRET;

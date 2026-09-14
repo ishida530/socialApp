@@ -1,4 +1,4 @@
-# Inwentaryzacja funkcjonalności — Postfly (FlowState)
+# Inwentaryzacja funkcjonalności — Postfly
 
 Systematyczne przejście po `app/` i `components/`, pogrupowane per funkcjonalność użytkownika (nie per plik). Punkt wyjścia dla `UX_AUDIT.md`.
 

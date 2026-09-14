@@ -1,6 +1,6 @@
 "use client";
 
-const TOKEN_KEY = 'flowstate_token';
+const TOKEN_KEY = 'postfly_token';
 
 export function getStoredToken() {
   if (typeof window === 'undefined') {

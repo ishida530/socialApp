@@ -1,4 +1,4 @@
-# FlowState – lokalne uruchomienie (Docker) + deploy Vercel/Supabase
+# Postfly – lokalne uruchomienie (Docker) + deploy Vercel/Supabase
 
 Projekt działa jako pojedyncza aplikacja runtime:
 - aplikacja: Next.js (root projektu) – UI + API routes
@@ -42,12 +42,12 @@ Tworzenie posta jest dwuetapowe: najpierw powstają DRAFT-owe `PublishJob`-y (po
 ```bash
 # Krok 1: draft dla wideo/zdjęcia (tworzy PublishJob w statusie DRAFT per platforma)
 curl -X POST http://localhost:3000/api/publish-jobs/drafts \
-  -H "Content-Type: application/json" -H "Cookie: flowstate_token=<token>" \
+  -H "Content-Type: application/json" -H "Cookie: postfly_token=<token>" \
   -d '{"videoId":"<id>","contentType":"Klip","songTitle":"Tytuł"}'
 
 # Krok 2: finalizacja - wybrane platformy -> PENDING, reszta draftów usunięta
 curl -X POST http://localhost:3000/api/publish-jobs/enqueue \
-  -H "Content-Type: application/json" -H "Cookie: flowstate_token=<token>" \
+  -H "Content-Type: application/json" -H "Cookie: postfly_token=<token>" \
   -d '{"postGroupId":"<id>","publishNow":true,"targetPlatforms":["INSTAGRAM"]}'
 ```
 

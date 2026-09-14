@@ -109,12 +109,12 @@
 ## EPIC 6 — Rebranding Postfly / postfly.pl
 *Odpowiada Fazie F.*
 
-- [ ] **TASK-6.1** [P1/S] Ujednolicenie nazewnictwa "FlowState" → "Postfly" w kodzie i dokumentach.
-- [ ] **TASK-6.2** [P1/S] Domena postfly.pl (`NEXT_PUBLIC_SITE_URL`).
-- [ ] **TASK-6.3** [P1/S] Aktualizacja `STRIPE_SUCCESS_URL`/`STRIPE_CANCEL_URL`.
-- [ ] **TASK-6.4** [P2/S] Branding: favicon/logo/meta tagi.
-- [ ] **TASK-6.5** [P2/M] Feature flags dla stopniowego udostępniania nowego UI z EPIC 10 (nie wszystkim naraz).
-- [ ] **TASK-6.6** [P2/-] Decyzja marketingowa: marka osobista vs osobna marka Postfly (sekcja Faza F głównego planu) — materiał tylko na realnych wynikach.
+- [x] **TASK-6.1** [P1/S] Ujednolicenie nazewnictwa "FlowState" → "Postfly" w kodzie i dokumentach. **Domknięte 2026-09-14**: branding widoczny dla użytkownika był już Postfly (metadata, logo, favicon — zbudowane wcześniej niż ten task); dziś domknięte `package.json`/`package-lock.json`, nazwa ciasteczka sesji, dokumentacja. Świadomie NIE ruszone: nazwy w `docker-compose.yml` lokalnego dev — patrz uzasadnienie w logu ról głównego planu.
+- [x] **TASK-6.2** [P1/S] Domena postfly.pl (`NEXT_PUBLIC_SITE_URL`). **Potwierdzone 2026-09-14, nie wymagało kodu**: `lib/site-url.ts` (`getSiteUrl`) już czyta `NEXT_PUBLIC_SITE_URL` ze zmiennych środowiskowych, appka realnie serwuje `postfly.pl` od wielu wdrożeń w tej sesji (`postfly.pl/api/health`) — zmienna już poprawnie ustawiona w Vercel.
+- [x] **TASK-6.3** [P1/S] Aktualizacja `STRIPE_SUCCESS_URL`/`STRIPE_CANCEL_URL`. **Potwierdzone 2026-09-14, nie wymagało kodu**: `lib/server/stripe.ts` już czyta te zmienne ze środowiska z fallbackiem na `getSiteUrl()` — ta sama poprawna domena co TASK-6.2.
+- [x] **TASK-6.4** [P2/S] Branding: favicon/logo/meta tagi. **Potwierdzone 2026-09-14, już gotowe**: `app/layout.tsx` (metadata "Panel Postfly", favicon/apple-icon), `components/BrandLogo.tsx` (domyślny alt "Postfly", `/logo.png`).
+- [ ] **TASK-6.5** [P2/M] Feature flags dla stopniowego udostępniania nowego UI z EPIC 10 (nie wszystkim naraz). **Nie dotyczy jeszcze**: EPIC 10 (redesign) nie został rozpoczęty — nie ma jeszcze nowego UI do flagowania.
+- [ ] **TASK-6.6** [P2/-] Decyzja marketingowa: marka osobista vs osobna marka Postfly (sekcja Faza F głównego planu) — materiał tylko na realnych wynikach. Decyzja właściciela, nie inżynierska — pozostaje otwarta.
 
 ---
 

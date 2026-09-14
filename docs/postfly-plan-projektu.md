@@ -931,6 +931,16 @@ Status: [x] zaimplementowane → [x] testy napisane i zielone → [x] zweryfikow
 
 ---
 
+### EPIC 6 — rebranding Postfly (2026-09-14)
+
+Użytkownik poprosił o domknięcie EPIC 6, potem o dostosowanie widoków webowych do funkcjonalności Telegrama (osobny wpis niżej). Przed startem sprawdzone empirycznie, nie założone: branding widoczny dla użytkownika (metadata w `app/layout.tsx`, `BrandLogo`, favicon) był już "Postfly" - zbudowany wcześniej niż ten epik formalnie ruszył. `NEXT_PUBLIC_SITE_URL`/Stripe success/cancel URL też już poprawnie skonfigurowane (appka realnie serwuje `postfly.pl` od wielu wdrożeń w tej sesji) - TASK-6.2/6.3 okazały się już spełnione, nie wymagały kodu. Rzeczywista luka: wewnętrzne identyfikatory nadal mówiące "flowstate" - `package.json`/`package-lock.json` (`name`), nazwa ciasteczka sesji (`flowstate_token`, zdublowana niezależnie w trzech plikach: `lib/auth-token.ts`, `middleware.ts`, `lib/server/auth.ts` - nie jedno źródło prawdy, warte osobnej uwagi kiedyś), boundary string multipart w `publish-processor.ts`, dokumentacja. Domknięte.
+
+Świadomie NIE ruszone: nazwy kontenerów/wolumenów/bazy w `docker-compose.yml` lokalnego dev (`flowstate-postgres` itd.) - realny lokalny Postgres z danymi pod tą nazwą działał przez całą tę sesję; zmiana bez skoordynowanej migracji lokalnego `.env`/`.env.test` (pliki nieśledzone przez git, nie do bezpiecznego automatycznego dotknięcia) zepsułaby środowisko dev bez żadnej korzyści dla użytkownika - czysto kosmetyczna zmiana o realnym ryzyku. TASK-6.5 (feature flags) nie dotyczy jeszcze (EPIC 10 nie istnieje). TASK-6.6 to decyzja marketingowa właściciela, nie inżynierska.
+
+Status: [x] zaimplementowane → [x] zweryfikowane (tsc, testy 407/407 oba tryby, build czyste) → [ ] zamknięte (PR w przygotowaniu, deploy czeka na reset limitu Vercel)
+
+---
+
 ---
 
 **Definicja "gotowy projekt w 100%":** każdy checkbox w sekcjach 6 i 7 odhaczony, każdy z jawnym DoD spełnionym i potwierdzonym testem (nie deklaracją), **QA niezależnie zweryfikowało, nie tylko Inżynier**, Architekt podpisał się pod skalowalnością w sekcji 9 dla każdej nowej warstwy, i sekcja 8 (Review końcowy) przeszła bez zastrzeżeń blokujących.
@@ -985,7 +995,7 @@ Recenzuje pracę UI Designera **zanim** trafi do Inżyniera — pod kątem: czy 
 - [ ] **Cron publikacji leci raz na dobę** — patrz sekcja 8.1, to jest teraz rozwiązywane architektonicznie, nie obchodzone.
 - [ ] **`npm audit` zgłasza 8 podatności moderate** (łańcuch zależności Prisma tooling).
 - [ ] **Status audytu/weryfikacji API TikTok i Meta** — sprawdź i udokumentuj. Dodatkowo: przed sprzedażą dostępu innym twórcom (Faza G) sprawdź, czy platformy mają osobne, wyższe wymagania weryfikacji dla narzędzi **odsprzedających publikację wielu różnym firmom** (SaaS resale) — inny poziom niż zwykła aplikacja na jedno konto.
-- [ ] **Niespójność nazewnictwa w kodzie** ("FlowState" vs "Postfly") — do ujednolicenia w Fazie E.
+- [x] **Niespójność nazewnictwa w kodzie** ("FlowState" vs "Postfly") — **domknięte 2026-09-14** (EPIC 6, patrz log ról "EPIC 6 — rebranding"): branding widoczny dla użytkownika (metadata, `BrandLogo`, favicon) był już Postfly; dziś domknięte `package.json`/`package-lock.json` (`postfly-web`), nazwa ciasteczka sesji (`postfly_token`, wcześniej `flowstate_token` w trzech miejscach), dokumentacja. Świadomie NIE ruszone: nazwy kontenerów/wolumenów/bazy w `docker-compose.yml` lokalnego dev (`flowstate-postgres` itd.) — realny lokalny Postgres z danymi już pod tą nazwą działa cały czas w tej sesji, zmiana bez skoordynowanej migracji lokalnego `.env`/`.env.test` (pliki nieśledzone przez git) zepsułaby środowisko bez żadnej korzyści dla użytkownika. Wraca razem ze świadomą decyzją właściciela o przebudowie lokalnego środowiska.
 
 ## 4. Delta do zbudowania
 
