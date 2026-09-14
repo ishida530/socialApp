@@ -951,7 +951,7 @@ Użytkownik poprosił, żeby panel webowy pokazywał te same funkcje co bot: kam
 
 **[QA]:** 7 nowych plików testowych API (`account-campaigns-web`, `goals-web`, `fans-sales-web`, `growth-web`, `comments-web`, plus rozszerzenie `auth-me-business-description` o autopilot) - happy path, walidacja, bramka własności (obcy użytkownik nie może działać na cudzych celach/kampaniach/komentarzach), błędy platformy zostawiają komentarz PENDING. Pełna suita: **442/442 w obu trybach APP_MODE**, tsc/build czyste. Dodatkowo: lokalny serwer deweloperski uruchomiony i strony/endpointy przetestowane realnym żądaniem HTTP (wszystkie trzy nowe strony zwracają 200, wszystkie nowe API 401 bez tokenu - zero błędu 500). **Zastrzeżenie zgodnie z zasadą "type checking i testy weryfikują poprawność kodu, nie poprawność funkcji"**: brak w tym środowisku narzędzia do automatyzacji przeglądarki - wygląd i interakcje NIE zostały zweryfikowane wizualnie, tylko przez statusy HTTP. Właściciel powinien przejrzeć nowe strony w przeglądarce przed uznaniem za w pełni gotowe.
 
-Status: [x] zaimplementowane → [x] testy napisane i zielone (442/442) → [x] zweryfikowane (tsc, build czyste, smoke-test HTTP) → [~] NIE zweryfikowane wizualnie w przeglądarce → [ ] zamknięte (PR w przygotowaniu)
+Status: [x] zaimplementowane → [x] testy napisane i zielone (442/442) → [x] zweryfikowane (tsc, build czyste, smoke-test HTTP) → [~] NIE zweryfikowane wizualnie w przeglądarce → [x] zmergowane (PR #92) → [x] wdrożone (postfly.pl/api/health zielony, /campaigns /growth /community zwracają 200 na produkcji)
 
 ---
 
