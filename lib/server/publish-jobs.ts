@@ -24,6 +24,10 @@ const PUBLISH_JOB_INCLUDE = {
   socialAccount: true,
 } as const;
 
+// Internal-only sentinel used to abort the enqueue transaction when a concurrent call already
+// won the DRAFT->PENDING race - never leaks past enqueueDraftGroup's own try/catch below.
+class AlreadyEnqueuedError extends Error {}
+
 type PublishJobWithRelations = Prisma.PublishJobGetPayload<{ include: typeof PUBLISH_JOB_INCLUDE }>;
 
 export type CreateDraftGroupResult =
@@ -264,24 +268,6 @@ export async function enqueueDraftGroup(userId: string, params: EnqueueDraftGrou
     .filter((job) => !targetPlatforms.includes(job.socialAccount.platform))
     .map((job) => job.id);
 
-  const updateOperations = targetPlatforms.map((platform) => {
-    const job = draftJobByPlatform.get(platform)!;
-
-    return prisma.publishJob.update({
-      where: { id: job.id },
-      data: {
-        status: 'PENDING',
-        scheduledFor: scheduledDate,
-        ...(platform === 'TIKTOK' ? { tiktokConsentAt: new Date() } : {}),
-        // Facebook "Oba" (BOTH) isn't a real Graph API value - it means "publish this job as a
-        // Reel, AND spin off an independent sibling job for the plain-post version" (below). The
-        // original job settles into a normal, unambiguous REELS job once split.
-        ...(job.metaPostFormat === 'BOTH' ? { metaPostFormat: 'REELS' } : {}),
-      },
-      include: PUBLISH_JOB_INCLUDE,
-    });
-  });
-
   // Facebook Reels and a plain video post are genuinely separate publications (unlike Instagram,
   // where a Reel with share_to_feed already appears in both places) - "Oba" is realized as a
   // second, independent PublishJob sharing the same content, created fresh here rather than as
@@ -290,37 +276,81 @@ export async function enqueueDraftGroup(userId: string, params: EnqueueDraftGrou
     .map((platform) => draftJobByPlatform.get(platform)!)
     .filter((job) => job.socialAccount.platform === 'FACEBOOK' && job.metaPostFormat === 'BOTH');
 
-  const siblingCreateOperations = bothFormatJobs.map((job) =>
-    prisma.publishJob.create({
-      data: {
-        status: 'PENDING',
-        postGroupId: job.postGroupId,
-        caption: job.caption,
-        hashtags: job.hashtags,
-        title: job.title,
-        mentions: job.mentions,
-        isExplicit: job.isExplicit,
-        contentWarnings: job.contentWarnings,
-        metaPostFormat: 'FEED',
-        scheduledFor: scheduledDate,
-        videoId: job.videoId,
-        socialAccountId: job.socialAccountId,
-      },
-      include: PUBLISH_JOB_INCLUDE,
-    }),
-  );
+  // Robustness fix (2026-09-14): the DRAFT->PENDING transition below is the one place in the
+  // publish pipeline that wasn't guarded against a concurrent duplicate call (Telegram can and
+  // does redeliver a webhook on a slow/5xx response, and a fast double-tap on "Publikuj" hits the
+  // same race) - unlike claimDuePublishJobs/processPublishJobImmediately, which both already use
+  // a conditional updateMany as their claim guard. Fixed the same way: each per-job update is
+  // conditioned on `status: 'DRAFT'` still being true, inside one interactive transaction so a
+  // losing update anywhere aborts the whole group instead of half-enqueuing it.
+  let updatedJobs: PublishJobWithRelations[];
+  let siblingJobs: PublishJobWithRelations[];
 
-  const transactionResults = await prisma.$transaction([
-    ...updateOperations,
-    ...siblingCreateOperations,
-    prisma.publishJob.deleteMany({ where: { id: { in: platformsToDelete } } }),
-  ]);
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      const updateCounts = await Promise.all(
+        targetPlatforms.map((platform) => {
+          const job = draftJobByPlatform.get(platform)!;
 
-  const updatedJobs = transactionResults.slice(0, updateOperations.length) as Array<Awaited<(typeof updateOperations)[number]>>;
-  const siblingJobs = transactionResults.slice(
-    updateOperations.length,
-    updateOperations.length + siblingCreateOperations.length,
-  ) as Array<Awaited<(typeof siblingCreateOperations)[number]>>;
+          return tx.publishJob.updateMany({
+            where: { id: job.id, status: 'DRAFT' },
+            data: {
+              status: 'PENDING',
+              scheduledFor: scheduledDate,
+              ...(platform === 'TIKTOK' ? { tiktokConsentAt: new Date() } : {}),
+              // Facebook "Oba" (BOTH) isn't a real Graph API value - see comment above.
+              ...(job.metaPostFormat === 'BOTH' ? { metaPostFormat: 'REELS' } : {}),
+            },
+          });
+        }),
+      );
+
+      if (updateCounts.some((updateResult) => updateResult.count === 0)) {
+        throw new AlreadyEnqueuedError();
+      }
+
+      const createdSiblingJobs = await Promise.all(
+        bothFormatJobs.map((job) =>
+          tx.publishJob.create({
+            data: {
+              status: 'PENDING',
+              postGroupId: job.postGroupId,
+              caption: job.caption,
+              hashtags: job.hashtags,
+              title: job.title,
+              mentions: job.mentions,
+              isExplicit: job.isExplicit,
+              contentWarnings: job.contentWarnings,
+              metaPostFormat: 'FEED',
+              scheduledFor: scheduledDate,
+              videoId: job.videoId,
+              socialAccountId: job.socialAccountId,
+            },
+            include: PUBLISH_JOB_INCLUDE,
+          }),
+        ),
+      );
+
+      await tx.publishJob.deleteMany({ where: { id: { in: platformsToDelete } } });
+
+      const updatedRows = await tx.publishJob.findMany({
+        where: { id: { in: targetPlatforms.map((platform) => draftJobByPlatform.get(platform)!.id) } },
+        include: PUBLISH_JOB_INCLUDE,
+      });
+
+      return { updatedRows, createdSiblingJobs };
+    });
+
+    updatedJobs = result.updatedRows;
+    siblingJobs = result.createdSiblingJobs;
+  } catch (error) {
+    if (error instanceof AlreadyEnqueuedError) {
+      return { ok: false, error: 'Ten post został już opublikowany albo zaplanowany (prawdopodobnie podwójne zatwierdzenie).' };
+    }
+
+    throw error;
+  }
+
   const allEnqueuedJobs = [...updatedJobs, ...siblingJobs];
 
   await incrementUsage(userId, 'publish_jobs', allEnqueuedJobs.length);

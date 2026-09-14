@@ -292,3 +292,51 @@ export async function sendStaleCampaignReminders(): Promise<{ usersNotified: num
 
   return { usersNotified };
 }
+
+// Robustness fix (2026-09-14): the pipeline had no automatic circuit breaker - a broken
+// integration (revoked token, platform policy change) could fail forever, silently, until the
+// user happened to notice. Reuses the existing User.publishingPaused field/enforcement (the same
+// one /pause already sets - see claimDuePublishJobs in publish-processor.ts, which already
+// filters the cron claim by it) rather than inventing a second pause mechanism. Deliberately does
+// NOT block a manual "Publikuj" tap - pausing stops the unattended/cron path, a deliberate human
+// action can still always override, same as /pause today.
+const CONSECUTIVE_FAILURE_THRESHOLD = 5;
+
+export async function checkAndApplyFailureCircuitBreaker(userId: string): Promise<{ paused: boolean }> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { publishingPaused: true, telegramChatId: true },
+  });
+
+  if (!user || user.publishingPaused) {
+    return { paused: false };
+  }
+
+  const recentTerminalJobs = await prisma.publishJob.findMany({
+    where: { video: { userId }, status: { in: ['SUCCESS', 'FAILED'] } },
+    orderBy: { updatedAt: 'desc' },
+    take: CONSECUTIVE_FAILURE_THRESHOLD,
+    select: { status: true },
+  });
+
+  const allFailed =
+    recentTerminalJobs.length === CONSECUTIVE_FAILURE_THRESHOLD &&
+    recentTerminalJobs.every((job) => job.status === 'FAILED');
+
+  if (!allFailed) {
+    return { paused: false };
+  }
+
+  await prisma.user.update({ where: { id: userId }, data: { publishingPaused: true } });
+
+  if (user.telegramChatId) {
+    await sendTelegramMessage(
+      user.telegramChatId,
+      `⏸️ Wstrzymałem automatyczne publikacje - ostatnie ${CONSECUTIVE_FAILURE_THRESHOLD} prób z rzędu zakończyło się błędem. To zwykle znaczy, że coś jest nie tak z połączeniem do platformy (token, uprawnienia). Sprawdź /logs, napraw połączenie w ustawieniach, potem wznów przez /resume.`,
+    ).catch((error) => logError('telegram-notifications', 'circuit-breaker-notify-error', error, { userId }));
+  }
+
+  logEvent('telegram-notifications', 'publishing-auto-paused', { userId });
+
+  return { paused: true };
+}

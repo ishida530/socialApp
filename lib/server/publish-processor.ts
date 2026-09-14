@@ -4,7 +4,7 @@ import { decryptToken, refreshSocialAccessToken } from './social-oauth';
 import { readFile } from 'fs/promises';
 import { buildSignedVideoSourceUrl } from './video-source-signature';
 import { cleanupMediaAfterFullPublish } from './media-lifecycle';
-import { notifyJobFailedImmediately } from './telegram-notifications';
+import { checkAndApplyFailureCircuitBreaker, notifyJobFailedImmediately } from './telegram-notifications';
 
 type ClaimedJobRow = {
   id: string;
@@ -1121,7 +1121,31 @@ async function claimDuePublishJobs(batchSizeRaw: number) {
   return rows.map((row) => row.id);
 }
 
+// Robustness fix (2026-09-14): thin wrapper around the actual processing logic (now
+// processClaimedJobCore) so a genuinely terminal failure - regardless of whether it came from the
+// cron sweep or an interactive "Publikuj" tap (processPublishJobImmediately delegates here too) -
+// always gets checked against the consecutive-failure circuit breaker. See
+// checkAndApplyFailureCircuitBreaker in telegram-notifications.ts.
 async function processClaimedJob(jobId: string) {
+  const outcome = await processClaimedJobCore(jobId);
+
+  if (outcome === 'failed') {
+    const job = await prisma.publishJob.findUnique({
+      where: { id: jobId },
+      select: { video: { select: { userId: true } } },
+    });
+
+    if (job) {
+      await checkAndApplyFailureCircuitBreaker(job.video.userId).catch((error) =>
+        logError('publish-processor', 'circuit-breaker-check-error', error, { jobId }),
+      );
+    }
+  }
+
+  return outcome;
+}
+
+async function processClaimedJobCore(jobId: string) {
   const job = await prisma.publishJob.findUnique({
     where: { id: jobId },
     include: {
