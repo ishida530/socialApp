@@ -927,7 +927,7 @@ Status: [x] zaimplementowane → [x] testy napisane i zielone → [x] zweryfikow
 
 **[QA]:** `tests/unit/content-suggestions.test.ts` (4 testy - sugestia/honest decline/brak klucza/dane jako JSON nie string). `tests/api/telegram-content-suggestions.test.ts` (7 testów - ścieżka Facebook, fallback na pomysł, cooldown, pauza, brak powiązanego czatu). `tests/api/publish-processor-text-post.test.ts` (2 testy - realny request do `/feed` bez `file_url`, odrzucenie TEXT na innej platformie). `tests/api/telegram-content-suggestion-approval.test.ts` (2 testy, **potwierdzają empirycznie** że żaden nowy kod obsługi przycisków nie był potrzebny - tapnięcie Publikuj/Odrzuć na sugestii przechodzi przez ISTNIEJĄCE, niezmienione handlery). Pełna suita: **407/407 w obu trybach APP_MODE**, tsc/build czyste.
 
-Status: [x] zaimplementowane → [x] testy napisane i zielone → [x] zweryfikowane (tsc, build czyste) → [ ] zamknięte (PR w przygotowaniu)
+Status: [x] zaimplementowane → [x] testy napisane i zielone → [x] zweryfikowane (tsc, build czyste) → [x] zmergowane (PR #89) → [ ] wdrożone na produkcję - **zablokowane dziennym limitem Vercel (100 wdrożeń/dzień na darmowym planie, reset po ~24h), nie błędem appki**. Kod jest bezpiecznie w `main`, czeka na kolejne `vercel --prod` po resecie limitu.
 
 ---
 
