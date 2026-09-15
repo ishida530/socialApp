@@ -25,7 +25,11 @@ afterEach(async () => {
   } else {
     process.env.ANTHROPIC_API_KEY = ORIGINAL_KEY;
   }
-  await prisma.claudeUsageLog.deleteMany();
+  // Scoped to this file's own two distinctive scope names - ClaudeUsageLog is a GLOBAL table
+  // (see lib/server/claude-usage.ts), and vitest runs test files in parallel workers sharing the
+  // same test database. An unscoped deleteMany() here would delete rows other, concurrently
+  // running test files just wrote and are about to assert on.
+  await prisma.claudeUsageLog.deleteMany({ where: { scope: { in: ['unit-test-scope', 'unit-test-agent-scope'] } } });
 });
 
 describe('callClaudeTool', () => {

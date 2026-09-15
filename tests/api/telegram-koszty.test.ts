@@ -39,7 +39,11 @@ let cleanupUserId: string | null = null;
 
 afterEach(async () => {
   mockSendTelegramMessage.mockClear();
-  await prisma.claudeUsageLog.deleteMany();
+  // Deliberately NOT clearing ClaudeUsageLog here - it's a GLOBAL table (see
+  // lib/server/claude-usage.ts) shared across parallel test-file workers hitting the same test
+  // database; an unscoped deleteMany() would race with other files' concurrent assertions. This
+  // file's own assertions only check substring-contains and call counts, never exact global
+  // totals, so leftover rows from this or other tests are harmless.
   if (ORIGINAL_ADMIN_EMAILS === undefined) {
     delete process.env.ADMIN_EMAILS;
   } else {
