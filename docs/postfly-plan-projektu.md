@@ -967,7 +967,7 @@ Użytkownik poprosił o domknięcie EPIC 7 (Produktyzacja i skalowanie) i EPIC 8
 
 **[QA]:** `tests/unit/claude-usage.test.ts` (5 testów - zapis, podział per scope, fallback pricing dla nieznanego modelu, wykluczenie spoza okresu, nigdy nie rzuca błędu), rozszerzenie `tests/unit/anthropic-client.test.ts` (+2: realne zapisanie zużycia po udanym wywołaniu obu funkcji), `tests/api/admin-claude-usage.test.ts` (3 testy), `tests/unit/admin.test.ts` (3 testy - `isAdminEmail`), `tests/api/telegram-koszty.test.ts` (2 testy - admin widzi, nie-admin nic nie dostaje). Pełna suita: **457/457 w obu trybach APP_MODE**, tsc/build czyste (w tym statyczne wygenerowanie `/terms`/`/privacy` bez błędów JSX).
 
-Status: [x] zaimplementowane (TASK-7.1/7.2/7.3, TASK-8.1/8.3/8.6 zamknięte; reszta świadomie udokumentowana jako odłożona z jasnym powodem) → [x] testy napisane i zielone → [x] zweryfikowane (tsc, build czyste) → [ ] zamknięte (PR w przygotowaniu)
+Status: [x] zaimplementowane (TASK-7.1/7.2/7.3, TASK-8.1/8.3/8.6 zamknięte; reszta świadomie udokumentowana jako odłożona z jasnym powodem) → [x] testy napisane i zielone → [x] zweryfikowane (tsc, build czyste) → [x] zmergowane (PR #94, po drodze złapany i naprawiony realny bug izolacji testów - `ClaudeUsageLog` jako tabela globalna kolidowała między równolegle uruchamianymi plikami testowymi) → [x] wdrożone (postfly.pl/api/health zielony, /privacy /terms zwracają 200, /admin/jobs poprawnie przekierowuje niezalogowanych)
 
 ---
 
