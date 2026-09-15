@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import QRCode from 'qrcode';
 import { useAuth } from '@/contexts/auth-context';
 import { apiClient } from '@/lib/api-client';
 import { CollapsibleSection } from '@/components/CollapsibleSection';
@@ -56,6 +57,7 @@ export default function AccountPage() {
   // EPIC 9 TASK-9.3 (2FA, 2026-09-15).
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
   const [twoFactorSetup, setTwoFactorSetup] = useState<{ secret: string; otpauthUrl: string } | null>(null);
+  const [twoFactorQrCodeDataUrl, setTwoFactorQrCodeDataUrl] = useState<string | null>(null);
   const [twoFactorEnableCode, setTwoFactorEnableCode] = useState('');
   const [isStartingTwoFactorSetup, setIsStartingTwoFactorSetup] = useState(false);
   const [isEnablingTwoFactor, setIsEnablingTwoFactor] = useState(false);
@@ -99,6 +101,33 @@ export default function AccountPage() {
       })
       .catch(() => {});
   }, [isAuthenticated]);
+
+  // Renders the otpauth:// URI as a scannable QR code - generated entirely client-side (the
+  // `qrcode` package does no network calls), never sent to any third-party QR-image service.
+  // The URI embeds the raw TOTP secret, so routing it through an external API would leak it.
+  useEffect(() => {
+    if (!twoFactorSetup) {
+      setTwoFactorQrCodeDataUrl(null);
+      return;
+    }
+
+    let cancelled = false;
+    QRCode.toDataURL(twoFactorSetup.otpauthUrl, { width: 220, margin: 1 })
+      .then((dataUrl) => {
+        if (!cancelled) {
+          setTwoFactorQrCodeDataUrl(dataUrl);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setTwoFactorQrCodeDataUrl(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [twoFactorSetup]);
 
   const handleSaveBusinessDescription = async () => {
     try {
@@ -423,13 +452,23 @@ export default function AccountPage() {
         ) : (
           <div className="space-y-3">
             <p className="text-sm text-foreground">
-              Dodaj to konto w aplikacji uwierzytelniającej - zeskanuj kod poniżej (wklej link do generatora QR)
-              albo wpisz klucz ręcznie, potem potwierdź kodem.
+              Dodaj to konto w aplikacji uwierzytelniającej - zeskanuj kod QR poniżej (albo wpisz klucz ręcznie,
+              jeśli nie masz jak skanować), potem potwierdź kodem.
             </p>
+            {twoFactorQrCodeDataUrl && (
+              <div className="flex justify-center bg-white rounded-lg p-4">
+                {/* eslint-disable-next-line @next/next/no-img-element -- a short-lived, per-session data: URI, not a static asset next/image can optimize */}
+                <img
+                  src={twoFactorQrCodeDataUrl}
+                  alt="Kod QR do zeskanowania w aplikacji uwierzytelniającej"
+                  width={220}
+                  height={220}
+                />
+              </div>
+            )}
             <div className="bg-secondary/30 border border-border rounded-lg p-3 space-y-2">
-              <p className="text-xs text-muted-foreground">Klucz do ręcznego wpisania:</p>
+              <p className="text-xs text-muted-foreground">Nie możesz zeskanować? Wpisz klucz ręcznie:</p>
               <p className="font-mono text-sm text-foreground break-all">{twoFactorSetup.secret}</p>
-              <p className="text-xs text-muted-foreground break-all">{twoFactorSetup.otpauthUrl}</p>
             </div>
             <div>
               <label className="block text-xs text-muted-foreground mb-1">Kod z aplikacji</label>
