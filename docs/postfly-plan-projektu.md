@@ -1027,7 +1027,21 @@ Użytkownik poprosił o przeprowadzenie ankiety, żeby podjąć kilka zawisłych
 
 **[Inżynier]:** `docs/ciaglosc-dzialania.md` (nowy) - 13 technicznych dostępów w kolejności krytyczności (Vercel, domena, Supabase, GitHub, Stripe, Anthropic, Google/Meta/TikTok dev console, Telegram/BotFather, Resend, Upstash, Sentry), z opisem wpływu braku dostępu do każdego. Żaden prawdziwy sekret nie jest zapisany w dokumencie - to mapa, nie skarbiec. Sekcja "komu nadać dostęp" celowo zostawiona pusta - to decyzja wyłącznie właściciela.
 
-Status: [x] zaimplementowane (decyzje zapisane w backlogu, lista techniczna ciągłości działania spisana) → [ ] zmergowane → [ ] wdrożone. Następny krok: EPIC 10 Faza 2 (`/schedule`).
+Status: [x] zaimplementowane (decyzje zapisane w backlogu, lista techniczna ciągłości działania spisana) → [x] zmergowane (PR #102) → [x] wdrożone
+
+---
+
+### EPIC 10 Faza 2 — /schedule za feature flagą (2026-09-15)
+
+Realizacja priorytetu z ankiety decyzyjnej wyżej: przebudowa `/schedule`, najgorszego wyniku audytu (`UX_AUDIT.md`, ~16+ niepowiązanych decyzji na jednym ekranie, 1187 linii).
+
+**[Architekt]:** Dwa niepowiązane narzędzia AI (planer kampanii tygodniowych i optymalizator już zaplanowanych zadań) były wizualnie zlepione w jeden blok, zawsze w pełni rozwinięty, nad głównym widokiem przeglądania kampanii (zakładki/filtr/siatka/paginacja) - czyli tym, po co realnie odwiedza się tę stronę. Rozdzielone na dwa niezależne, domyślnie zwinięte `CollapsibleSection` (ten sam komponent co Faza 1), bez zmiany żadnej logiki - czysto wizualna reorganizacja tego samego JSX-a (treść wydzielona do zmiennych `weeklyPlannerBody`/`aiOptimizerBody`, reużyta w obu wariantach zawijania). Główny widok przeglądania kampanii zostaje bez zmian, zawsze widoczny.
+
+**Kluczowa różnica względem Fazy 1: to jedyna zmiana z EPIC 10 wdrożona za `lib/feature-flags.ts`** (`new-schedule-ui`, domyślnie WYŁĄCZONA) - świadomie, bo to najbardziej złożony i biznesowo krytyczny ekran appki, a w tym środowisku nie ma sposobu na wizualną weryfikację zmiany UI. Właściciel włącza flagę sam, kiedy chce przejrzeć nowy układ, zanim stanie się domyślnym doświadczeniem - dokładnie ten scenariusz, dla którego mechanizm z Fazy 1 powstał, ale nie był jeszcze użyty.
+
+**[QA], realne odkrycie tej tury:** środowisko sesji MA działające narzędzie automatyzacji przeglądarki (headless Playwright) - wcześniej błędnie zakładano jego całkowity brak, co było nieprecyzyjne (poprawione już przy EPIC 10 Faza 1, potwierdzone ponownie tu). Dwutorowa weryfikacja: (1) nowy, zakomitowany `tests/e2e/schedule-page-smoke.spec.ts` pokrywa domyślny układ (flaga wyłączona) - realny test w CI, nie mock; (2) ręczna, niezakomitowana weryfikacja lokalna wersji za flagą (osobny build z `NEXT_PUBLIC_FEATURE_FLAGS=new-schedule-ui`) potwierdziła: obie sekcje zwinięte domyślnie, rozwijanie/zwijanie działa niezależnie, reszta strony nietknięta. Po drodze: CI złapało pojedynczy failing test (`publish-jobs-race-and-circuit-breaker.test.ts`, dotyczy współbieżności kolejki, zero związku ze zmianami tej tury) - potwierdzone jako pre-existing flaka znanej kategorii (dokumentowana wcześniej w projekcie) przez ponowne uruchomienie samego joba CI, które przeszło czysto.
+
+Status: [x] zaimplementowane → [x] testy napisane i zielone (521/521 + nowy e2e) → [x] zweryfikowane (tsc, build, realny e2e oba warianty flagi) → [x] zmergowane (PR #103) → [x] wdrożone (postfly.pl/schedule zwraca 200). Następny krok: właściciel przegląda wersję za flagą, potem decyzja o włączeniu domyślnie.
 
 ---
 
