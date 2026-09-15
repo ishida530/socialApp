@@ -955,6 +955,22 @@ Status: [x] zaimplementowane → [x] testy napisane i zielone (442/442) → [x] 
 
 ---
 
+### EPIC 7 i EPIC 8 (2026-09-15)
+
+Użytkownik poprosił o domknięcie EPIC 7 (Produktyzacja i skalowanie) i EPIC 8 (Warstwa operacyjna/agenci utrzymaniowi) - łącznie 13 zadań, przed jakąkolwiek realną komercjalizacją appki.
+
+**[PO]:** Kluczowe doprecyzowanie zakresu przed rozpoczęciem pracy: "Agent" w EPIC 8, inaczej niż w EPIC 5/11 (Agent fanów, Agent społeczności - realne oprogramowanie pomagające TWÓRCY), tu często oznacza coś innego - dokument prawny (Agent prawny), ręczny proces (śledzenie zmian polityk platform), albo coś co z definicji WYMAGA człowieka w pętli (Agent DevOps - jego własne DoD mówi "jawne zatwierdzenie człowieka przed każdym działaniem na produkcji", co wyklucza autonomię, nie tylko ją ogranicza). Budowanie pozorowanej autonomii tam, gdzie zadanie samo sobie zaprzecza, byłoby złą inżynierią - każda pozycja dostała uczciwą klasyfikację (zbudowane jako oprogramowanie / spisany proces / świadomie odłożone) zamiast jednolitego traktowania.
+
+**[Architekt]:** Trzy odkrycia zmieniające realny zakres pracy: (1) `/terms` i `/privacy` okazały się JUŻ realnie napisane, szczegółowe, z cytatami artykułów RODO - nie placeholdery, jak można by się spodziewać. Realna luka do zamknięcia to nie "napisz dokumenty od zera", tylko konkretne braki: appka wysyła dane do Anthropic (Claude AI) przy każdej sugestii, a Polityka Prywatności o tym nie wspominała - realne, nie kosmetyczne niedopatrzenie transparentności RODO. (2) Rate-limiting per-tenant (TASK-7.3) okazał się już wszędzie wdrożony (klucze `consumeRateLimit` są per-user/per-chat na każdym sprawdzonym endpoincie) - nie trzeba było nic dobudowywać, tylko to potwierdzić. (3) TASK-8.7 (agent diagnostyczny) jest w praktyce zablokowany na TASK-1.5.3 (audit trail) z EPIC 1, który nigdy nie powstał - logi appki lecą tylko do stdout/Vercel/Sentry, appka nie ma jak sama ich odpytać bez nowej tabeli albo nowych poświadczeń do zewnętrznych API. Budowanie czegoś pozorującego tę funkcję byłoby dokładnie tym, czego ten projekt unika - zablokowane, nie "zrobione połowicznie".
+
+**[Inżynier]:** `ClaudeUsageLog` (migracja `20260915045615_claude_usage_log`) - `callClaudeTool`/`callClaudeAgentTurn` w `anthropic-client.ts` teraz przyjmują `scope` i zapisują realne zużycie tokenów po każdym udanym wywołaniu (zaktualizowano wszystkie 7 miejsc wywołania w kodzie). `lib/server/claude-usage.ts` - agregacja + szacowany koszt USD (jawnie oznaczony jako szacunek, nie twarda liczba). Widoczność: `/api/admin/claude-usage` + sekcja w `/admin/jobs`, oraz `/koszty` na Telegramie (nowy `lib/server/admin.ts` z `isAdminEmail` - ten sam `ADMIN_EMAILS` co middleware.ts, koszt jest ogólnoaplikacyjny więc widoczny tylko dla admina, nie każdego użytkownika). `/privacy` - nowe sekcje "Wykorzystanie sztucznej inteligencji (AI)" i "Dane fanów/klientów Użytkownika (rola Postfly jako Procesora)", zaktualizowana lista odbiorców danych (Anthropic, Telegram, Meta wprost). `/terms` - jedno zdanie o odpowiedzialności za treści wspomagane przez AI.
+
+**[QA]:** `tests/unit/claude-usage.test.ts` (5 testów - zapis, podział per scope, fallback pricing dla nieznanego modelu, wykluczenie spoza okresu, nigdy nie rzuca błędu), rozszerzenie `tests/unit/anthropic-client.test.ts` (+2: realne zapisanie zużycia po udanym wywołaniu obu funkcji), `tests/api/admin-claude-usage.test.ts` (3 testy), `tests/unit/admin.test.ts` (3 testy - `isAdminEmail`), `tests/api/telegram-koszty.test.ts` (2 testy - admin widzi, nie-admin nic nie dostaje). Pełna suita: **457/457 w obu trybach APP_MODE**, tsc/build czyste (w tym statyczne wygenerowanie `/terms`/`/privacy` bez błędów JSX).
+
+Status: [x] zaimplementowane (TASK-7.1/7.2/7.3, TASK-8.1/8.3/8.6 zamknięte; reszta świadomie udokumentowana jako odłożona z jasnym powodem) → [x] testy napisane i zielone → [x] zweryfikowane (tsc, build czyste) → [ ] zamknięte (PR w przygotowaniu)
+
+---
+
 ---
 
 **Definicja "gotowy projekt w 100%":** każdy checkbox w sekcjach 6 i 7 odhaczony, każdy z jawnym DoD spełnionym i potwierdzonym testem (nie deklaracją), **QA niezależnie zweryfikowało, nie tylko Inżynier**, Architekt podpisał się pod skalowalnością w sekcji 9 dla każdej nowej warstwy, i sekcja 8 (Review końcowy) przeszła bez zastrzeżeń blokujących.

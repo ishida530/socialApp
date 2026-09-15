@@ -30,6 +30,8 @@ import { completeGoal, getActiveGoals, setGoal } from '@/lib/server/coaching';
 import { endActiveCampaign, getActiveCampaign, getCampaignReport, listRecentCampaigns, startCampaign, type CampaignReport } from '@/lib/server/campaigns';
 import { getFollowerGrowth, type FollowerGrowthEntry } from '@/lib/server/account-growth';
 import { acceptSuggestedReply, ignoreComment, sendCustomReply } from '@/lib/server/social-comments';
+import { getClaudeCostSummary } from '@/lib/server/claude-usage';
+import { isAdminEmail } from '@/lib/server/admin';
 import { prisma } from '@/lib/server/prisma';
 import { unauthorized } from '@/lib/server/http';
 import { logError, logEvent } from '@/lib/server/observability';
@@ -835,6 +837,37 @@ async function handleTextCommand(chatIdStr: string, userId: string, text: string
     ];
     await sendTelegramMessage(chatIdStr, lines.join('\n')).catch((error) =>
       logError('telegram', 'send-revenue-failed', error, { chatId: chatIdStr }),
+    );
+    return true;
+  }
+
+  // EPIC 8 TASK-8.3 (Agent kosztow/FinOps, 2026-09-15): admin-only, same ADMIN_EMAILS check as
+  // the web /admin/* routes (lib/server/admin.ts) - Claude cost is app-wide, not per-user, so
+  // this must not be visible to every linked account once there's more than one.
+  if (trimmed === '/koszty') {
+    const dbUser = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+    if (!isAdminEmail(dbUser?.email)) {
+      return true;
+    }
+
+    const cost = await getClaudeCostSummary(30);
+    const lines = [
+      `💸 Koszt Claude (ostatnie ${cost.periodDays} dni, szacunkowo - zweryfikuj z console.anthropic.com/settings/billing):`,
+      '',
+      `Szacowany koszt: $${cost.estimatedCostUsd.toFixed(2)}`,
+      `Wywołania: ${cost.totalCalls}`,
+      `Tokeny (wejście/wyjście): ${cost.totalInputTokens} / ${cost.totalOutputTokens}`,
+    ];
+
+    if (cost.byScope.length > 0) {
+      lines.push('', 'Per funkcja:');
+      cost.byScope.forEach((row) => {
+        lines.push(`${row.scope}: $${row.estimatedCostUsd.toFixed(2)} (${row.calls} wywołań)`);
+      });
+    }
+
+    await sendTelegramMessage(chatIdStr, lines.join('\n')).catch((error) =>
+      logError('telegram', 'send-koszty-failed', error, { chatId: chatIdStr }),
     );
     return true;
   }

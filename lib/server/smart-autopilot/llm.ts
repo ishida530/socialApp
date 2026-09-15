@@ -39,6 +39,7 @@ export async function refineClassificationWithLlm(input: {
   });
 
   return callClaudeTool<LlmRefinementResult>({
+    scope: 'smart-autopilot-classify',
     model: CLAUDE_MODELS.classification,
     system: CLASSIFY_SYSTEM_PROMPT,
     userContent,

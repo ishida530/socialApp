@@ -18,6 +18,15 @@ type PublishJob = {
   scheduledFor: string;
 };
 
+type ClaudeCostSummary = {
+  periodDays: number;
+  totalCalls: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  estimatedCostUsd: number;
+  byScope: Array<{ scope: string; calls: number; inputTokens: number; outputTokens: number; estimatedCostUsd: number }>;
+};
+
 type PublishOpsResponse = {
   overall: {
     success: number;
@@ -69,6 +78,7 @@ export default function AdminJobsPage() {
   const [totalCount, setTotalCount] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [ops, setOps] = useState<PublishOpsResponse | null>(null);
+  const [claudeCost, setClaudeCost] = useState<ClaudeCostSummary | null>(null);
   const pageSize = 20;
 
   useEffect(() => {
@@ -81,15 +91,17 @@ export default function AdminJobsPage() {
     const load = async () => {
       try {
         const offset = (page - 1) * pageSize;
-        const [response, opsResponse] = await Promise.all([
+        const [response, opsResponse, claudeCostResponse] = await Promise.all([
           apiClient.get<PaginatedAdminJobsResponse>(`/admin/jobs?limit=${pageSize}&offset=${offset}`),
           apiClient.get<PublishOpsResponse>('/admin/publish-ops'),
+          apiClient.get<ClaudeCostSummary>('/admin/claude-usage'),
         ]);
         setJobs(response.data.data);
         setSummary(response.data.summary);
         setTotalCount(response.data.totalCount);
         setHasMore(response.data.hasMore);
         setOps(opsResponse.data);
+        setClaudeCost(claudeCostResponse.data);
       } finally {
         setLoading(false);
       }
@@ -214,6 +226,50 @@ export default function AdminJobsPage() {
                     {!ops?.recentFailures.length && (
                       <p className="text-sm text-muted-foreground">Brak ostatnich błędów.</p>
                     )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+                <h3 className="text-sm font-medium text-foreground">
+                  Koszt Claude (ostatnie {claudeCost?.periodDays ?? 30} dni, szacunkowo)
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  Ceny publicznie znane z okresu budowy appki - mogą się zmienić, zweryfikuj z realnym rachunkiem
+                  na console.anthropic.com/settings/billing.
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="rounded-lg border border-border p-3">
+                    <p className="text-xs text-muted-foreground">Szacowany koszt</p>
+                    <p className="text-xl font-semibold text-foreground mt-1">
+                      ${(claudeCost?.estimatedCostUsd ?? 0).toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-border p-3">
+                    <p className="text-xs text-muted-foreground">Wywołania</p>
+                    <p className="text-xl font-semibold text-foreground mt-1">{claudeCost?.totalCalls ?? 0}</p>
+                  </div>
+                  <div className="rounded-lg border border-border p-3">
+                    <p className="text-xs text-muted-foreground">Tokeny (wejście/wyjście)</p>
+                    <p className="text-xl font-semibold text-foreground mt-1">
+                      {(claudeCost?.totalInputTokens ?? 0).toLocaleString('pl-PL')} / {(claudeCost?.totalOutputTokens ?? 0).toLocaleString('pl-PL')}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">Koszt per funkcja</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {(claudeCost?.byScope ?? []).map((row) => (
+                      <div key={row.scope} className="rounded-lg border border-border p-3">
+                        <p className="text-sm text-foreground font-medium">{row.scope}</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          ${row.estimatedCostUsd.toFixed(2)} ({row.calls} wywołań)
+                        </p>
+                      </div>
+                    ))}
+                    {!claudeCost?.byScope.length && <p className="text-sm text-muted-foreground">Brak wywołań Claude w tym okresie.</p>}
                   </div>
                 </div>
               </div>
