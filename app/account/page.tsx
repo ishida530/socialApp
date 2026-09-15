@@ -186,6 +186,27 @@ export default function AccountPage() {
     }
   };
 
+  const handleDownloadBackupCodes = () => {
+    if (!newBackupCodes) {
+      return;
+    }
+
+    const content =
+      `Postfly - kody zapasowe 2FA\n` +
+      `Wygenerowano: ${new Date().toLocaleString('pl-PL')}\n` +
+      `Każdy kod działa tylko raz.\n\n` +
+      `${newBackupCodes.join('\n')}\n`;
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'postfly-kody-zapasowe.txt';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const handleDisableTwoFactor = async () => {
     try {
       setIsDisablingTwoFactor(true);
@@ -376,13 +397,22 @@ export default function AccountPage() {
                 </span>
               ))}
             </div>
-            <button
-              type="button"
-              onClick={() => setNewBackupCodes(null)}
-              className="text-xs text-muted-foreground hover:text-foreground"
-            >
-              Zapisałem kody, ukryj
-            </button>
+            <div className="flex items-center gap-4">
+              <button
+                type="button"
+                onClick={handleDownloadBackupCodes}
+                className="text-xs text-primary hover:underline font-medium"
+              >
+                Pobierz jako plik
+              </button>
+              <button
+                type="button"
+                onClick={() => setNewBackupCodes(null)}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                Zapisałem kody, ukryj
+              </button>
+            </div>
           </div>
         )}
 
