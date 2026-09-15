@@ -10,7 +10,7 @@ import { BrandLogo } from '@/components/BrandLogo';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, isAuthenticated, isLoading } = useAuth();
+  const { login, completeTwoFactorLogin, isAuthenticated, isLoading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [hpWebsite, setHpWebsite] = useState('');
@@ -19,6 +19,11 @@ export default function LoginPage() {
   const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
   const [source, setSource] = useState('');
   const fromLanding = source === 'landing';
+
+  // EPIC 9 TASK-9.3 (2FA, 2026-09-15): set once the password step succeeds for an account with
+  // 2FA enabled - switches the form to the code-entry step instead of navigating to /dashboard.
+  const [pendingToken, setPendingToken] = useState<string | null>(null);
+  const [twoFactorCode, setTwoFactorCode] = useState('');
 
   useEffect(() => {
     if (isLoading) {
@@ -52,12 +57,17 @@ export default function LoginPage() {
 
     try {
       setIsSubmitting(true);
-      await login({
+      const result = await login({
         email,
         password,
         hpWebsite,
         formStartedAt,
       });
+
+      if (result.requiresTwoFactor) {
+        setPendingToken(result.pendingToken);
+        return;
+      }
 
       if (fromLanding) {
         trackLandingEvent({
@@ -71,6 +81,24 @@ export default function LoginPage() {
       router.replace('/dashboard');
     } catch {
       toast.error('Logowanie nie powiodło się. Sprawdź e-mail i hasło.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const onSubmitTwoFactor = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!pendingToken) {
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      await completeTwoFactorLogin(pendingToken, twoFactorCode);
+      toast.success('Zalogowano pomyślnie.');
+      router.replace('/dashboard');
+    } catch {
+      toast.error('Nieprawidłowy kod. Spróbuj ponownie.');
     } finally {
       setIsSubmitting(false);
     }
@@ -93,6 +121,61 @@ export default function LoginPage() {
       toast.error('Nie udało się rozpocząć logowania przez Google.');
     }
   };
+
+  if (pendingToken) {
+    return (
+      <main className="min-h-screen bg-background flex items-center justify-center p-6">
+        <form
+          onSubmit={onSubmitTwoFactor}
+          className="w-full max-w-md bg-card border border-border rounded-xl p-8 space-y-5"
+        >
+          <div className="flex justify-center">
+            <BrandLogo className="h-12 w-auto" priority />
+          </div>
+
+          <div>
+            <h1 className="text-2xl font-semibold text-foreground">Weryfikacja dwuetapowa</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Wpisz 6-cyfrowy kod z aplikacji uwierzytelniającej (albo jeden z zapasowych kodów).
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm text-foreground">Kod</label>
+            <input
+              autoFocus
+              value={twoFactorCode}
+              onChange={(event) => setTwoFactorCode(event.target.value)}
+              type="text"
+              inputMode="numeric"
+              required
+              className="w-full px-3 py-2 rounded-lg bg-background border border-border text-foreground text-center tracking-[0.3em]"
+              placeholder="123456"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="w-full py-2.5 rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-60"
+          >
+            {isSubmitting ? 'Weryfikacja...' : 'Zweryfikuj'}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setPendingToken(null);
+              setTwoFactorCode('');
+            }}
+            className="w-full text-sm text-muted-foreground hover:text-foreground text-center"
+          >
+            ← Wróć do logowania
+          </button>
+        </form>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-background flex items-center justify-center p-6">

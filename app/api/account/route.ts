@@ -6,6 +6,7 @@ import { verifyPassword } from '@/lib/server/crypto';
 import { consumeRateLimit } from '@/lib/server/rate-limit';
 import { resolveBillingMode } from '@/lib/server/billing-mode';
 import { getStripeClient } from '@/lib/server/stripe';
+import { recordAuditLog } from '@/lib/server/audit-log';
 
 export async function DELETE(request: NextRequest) {
   try {
@@ -59,6 +60,7 @@ export async function DELETE(request: NextRequest) {
       }
     }
 
+    await recordAuditLog({ userId: authUser.userId, actor: 'user', action: 'account.deleted' });
     await prisma.user.delete({ where: { id: authUser.userId } });
 
     const response = NextResponse.json({ success: true });

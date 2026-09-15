@@ -5,6 +5,7 @@ import { hasTrippedHoneypot } from '@/lib/server/honeypot';
 import { badRequest, serverError, tooManyRequests } from '@/lib/server/http';
 import { prisma } from '@/lib/server/prisma';
 import { consumeRateLimit, getRequestIp } from '@/lib/server/rate-limit';
+import { recordAuditLog } from '@/lib/server/audit-log';
 
 const MIN_PASSWORD_LENGTH = 8;
 
@@ -78,6 +79,8 @@ export async function POST(request: NextRequest) {
         },
       }),
     ]);
+
+    await recordAuditLog({ userId: resetToken.userId, actor: 'user', action: 'password.reset', ip });
 
     return NextResponse.json({ message: 'Hasło zostało zresetowane.' });
   } catch (error) {

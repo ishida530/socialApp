@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { issueAccessToken, TOKEN_COOKIE_NAME } from '@/lib/server/auth';
+import { issueAccessToken, issuePendingTwoFactorToken, TOKEN_COOKIE_NAME } from '@/lib/server/auth';
 import {
   badRequest,
   serverError,
@@ -10,6 +10,7 @@ import { prisma } from '@/lib/server/prisma';
 import { verifyPassword } from '@/lib/server/crypto';
 import { hasTrippedHoneypot } from '@/lib/server/honeypot';
 import { consumeRateLimit, getRequestIp } from '@/lib/server/rate-limit';
+import { recordAuditLog } from '@/lib/server/audit-log';
 
 function resolveCookieMaxAge() {
   const raw = Number(process.env.JWT_EXPIRES_IN ?? 3600);
@@ -74,8 +75,20 @@ export async function POST(request: NextRequest) {
 
     const isValid = verifyPassword(body.password, user.passwordHash);
     if (!isValid) {
+      await recordAuditLog({ userId: user.id, actor: 'user', action: 'login.failed', ip });
       return unauthorized('Invalid credentials');
     }
+
+    // EPIC 9 TASK-9.3 (2FA, 2026-09-15): password alone is not enough for an account with 2FA
+    // enabled - issue a short-lived pending token instead of a real session, and make the client
+    // collect a code before POST /api/auth/2fa/login actually logs the user in.
+    if (user.twoFactorEnabled) {
+      const pendingToken = issuePendingTwoFactorToken(user.id, user.email);
+      await recordAuditLog({ userId: user.id, actor: 'user', action: 'login.password_ok_2fa_required', ip });
+      return NextResponse.json({ requiresTwoFactor: true, pendingToken });
+    }
+
+    await recordAuditLog({ userId: user.id, actor: 'user', action: 'login.succeeded', ip });
 
     const accessToken = issueAccessToken(user.id, user.email);
     const response = NextResponse.json({

@@ -35,6 +35,18 @@ export default function AccountPage() {
   const [autopilotEnabled, setAutopilotEnabled] = useState(false);
   const [isTogglingAutopilot, setIsTogglingAutopilot] = useState(false);
 
+  // EPIC 9 TASK-9.3 (2FA, 2026-09-15).
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [twoFactorSetup, setTwoFactorSetup] = useState<{ secret: string; otpauthUrl: string } | null>(null);
+  const [twoFactorEnableCode, setTwoFactorEnableCode] = useState('');
+  const [isStartingTwoFactorSetup, setIsStartingTwoFactorSetup] = useState(false);
+  const [isEnablingTwoFactor, setIsEnablingTwoFactor] = useState(false);
+  const [newBackupCodes, setNewBackupCodes] = useState<string[] | null>(null);
+  const [showDisableTwoFactor, setShowDisableTwoFactor] = useState(false);
+  const [disablePassword, setDisablePassword] = useState('');
+  const [disableCode, setDisableCode] = useState('');
+  const [isDisablingTwoFactor, setIsDisablingTwoFactor] = useState(false);
+
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.replace('/login');
@@ -58,10 +70,11 @@ export default function AccountPage() {
     }
 
     apiClient
-      .get<{ businessDescription: string | null; autopilotEnabled: boolean }>('/auth/me')
+      .get<{ businessDescription: string | null; autopilotEnabled: boolean; twoFactorEnabled: boolean }>('/auth/me')
       .then((response) => {
         setBusinessDescription(response.data.businessDescription ?? '');
         setAutopilotEnabled(response.data.autopilotEnabled ?? false);
+        setTwoFactorEnabled(response.data.twoFactorEnabled ?? false);
       })
       .catch(() => {});
   }, [isAuthenticated]);
@@ -90,6 +103,51 @@ export default function AccountPage() {
       toast.error('Nie udało się zmienić ustawienia. Spróbuj ponownie.');
     } finally {
       setIsTogglingAutopilot(false);
+    }
+  };
+
+  const handleStartTwoFactorSetup = async () => {
+    try {
+      setIsStartingTwoFactorSetup(true);
+      const response = await apiClient.post<{ secret: string; otpauthUrl: string }>('/auth/2fa/setup');
+      setTwoFactorSetup(response.data);
+      setNewBackupCodes(null);
+    } catch {
+      toast.error('Nie udało się rozpocząć konfiguracji 2FA.');
+    } finally {
+      setIsStartingTwoFactorSetup(false);
+    }
+  };
+
+  const handleEnableTwoFactor = async () => {
+    try {
+      setIsEnablingTwoFactor(true);
+      const response = await apiClient.post<{ backupCodes: string[] }>('/auth/2fa/enable', { code: twoFactorEnableCode });
+      setTwoFactorEnabled(true);
+      setTwoFactorSetup(null);
+      setTwoFactorEnableCode('');
+      setNewBackupCodes(response.data.backupCodes);
+      toast.success('2FA włączone.');
+    } catch {
+      toast.error('Nieprawidłowy kod. Sprawdź godzinę w telefonie i spróbuj ponownie.');
+    } finally {
+      setIsEnablingTwoFactor(false);
+    }
+  };
+
+  const handleDisableTwoFactor = async () => {
+    try {
+      setIsDisablingTwoFactor(true);
+      await apiClient.post('/auth/2fa/disable', { password: disablePassword, code: disableCode });
+      setTwoFactorEnabled(false);
+      setShowDisableTwoFactor(false);
+      setDisablePassword('');
+      setDisableCode('');
+      toast.success('2FA wyłączone.');
+    } catch {
+      toast.error('Nie udało się wyłączyć 2FA - sprawdź hasło i kod.');
+    } finally {
+      setIsDisablingTwoFactor(false);
     }
   };
 
@@ -251,6 +309,144 @@ export default function AccountPage() {
             />
           </button>
         </div>
+      </section>
+
+      <section className="bg-card border border-border rounded-xl p-6 space-y-4 max-w-2xl">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">🔐 Weryfikacja dwuetapowa (2FA)</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Dodatkowe zabezpieczenie logowania - oprócz hasła, przy logowaniu poprosimy o kod z aplikacji
+            uwierzytelniającej (np. Google Authenticator, Authy, 1Password).
+          </p>
+        </div>
+
+        {newBackupCodes && (
+          <div className="bg-secondary/30 border border-primary/40 rounded-lg p-4 space-y-2">
+            <p className="text-sm font-medium text-foreground">
+              Zapisz te kody zapasowe w bezpiecznym miejscu - każdy działa tylko raz i pozwoli Ci się
+              zalogować, jeśli stracisz dostęp do aplikacji uwierzytelniającej. Nie pokażemy ich ponownie.
+            </p>
+            <div className="grid grid-cols-2 gap-2 font-mono text-sm text-foreground">
+              {newBackupCodes.map((code) => (
+                <span key={code} className="bg-background border border-border rounded px-2 py-1 text-center">
+                  {code}
+                </span>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setNewBackupCodes(null)}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              Zapisałem kody, ukryj
+            </button>
+          </div>
+        )}
+
+        {twoFactorEnabled ? (
+          <div className="space-y-3">
+            <p className="text-sm text-emerald-500 font-medium">Włączone ✓</p>
+
+            {!showDisableTwoFactor ? (
+              <button
+                type="button"
+                onClick={() => setShowDisableTwoFactor(true)}
+                className="px-4 py-2 rounded-lg border border-destructive text-destructive hover:bg-destructive/10 transition-colors text-sm font-medium"
+              >
+                Wyłącz 2FA
+              </button>
+            ) : (
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">Hasło</label>
+                  <input
+                    type="password"
+                    value={disablePassword}
+                    onChange={(event) => setDisablePassword(event.target.value)}
+                    className="w-full rounded-lg border border-border bg-secondary/30 px-3 py-2 text-sm text-foreground"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">Kod z aplikacji uwierzytelniającej</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={disableCode}
+                    onChange={(event) => setDisableCode(event.target.value)}
+                    className="w-full rounded-lg border border-border bg-secondary/30 px-3 py-2 text-sm text-foreground"
+                    placeholder="123456"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowDisableTwoFactor(false)}
+                    className="px-4 py-2 rounded-lg border border-border text-foreground text-sm"
+                  >
+                    Anuluj
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDisableTwoFactor}
+                    disabled={isDisablingTwoFactor || !disablePassword || !disableCode}
+                    className="px-4 py-2 rounded-lg bg-destructive text-destructive-foreground text-sm font-medium disabled:opacity-50"
+                  >
+                    {isDisablingTwoFactor ? 'Wyłączanie...' : 'Wyłącz 2FA'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : !twoFactorSetup ? (
+          <button
+            type="button"
+            onClick={handleStartTwoFactorSetup}
+            disabled={isStartingTwoFactorSetup}
+            className="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-secondary/40 transition-colors text-sm font-medium disabled:opacity-50"
+          >
+            {isStartingTwoFactorSetup ? 'Generowanie...' : 'Włącz 2FA'}
+          </button>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-sm text-foreground">
+              Dodaj to konto w aplikacji uwierzytelniającej - zeskanuj kod poniżej (wklej link do generatora QR)
+              albo wpisz klucz ręcznie, potem potwierdź kodem.
+            </p>
+            <div className="bg-secondary/30 border border-border rounded-lg p-3 space-y-2">
+              <p className="text-xs text-muted-foreground">Klucz do ręcznego wpisania:</p>
+              <p className="font-mono text-sm text-foreground break-all">{twoFactorSetup.secret}</p>
+              <p className="text-xs text-muted-foreground break-all">{twoFactorSetup.otpauthUrl}</p>
+            </div>
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1">Kod z aplikacji</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={twoFactorEnableCode}
+                onChange={(event) => setTwoFactorEnableCode(event.target.value)}
+                className="w-full rounded-lg border border-border bg-secondary/30 px-3 py-2 text-sm text-foreground"
+                placeholder="123456"
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setTwoFactorSetup(null)}
+                className="px-4 py-2 rounded-lg border border-border text-foreground text-sm"
+              >
+                Anuluj
+              </button>
+              <button
+                type="button"
+                onClick={handleEnableTwoFactor}
+                disabled={isEnablingTwoFactor || !twoFactorEnableCode}
+                className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50"
+              >
+                {isEnablingTwoFactor ? 'Weryfikacja...' : 'Potwierdź i włącz'}
+              </button>
+            </div>
+          </div>
+        )}
       </section>
 
       <section className="bg-card border border-destructive/40 rounded-xl p-6 space-y-4 max-w-2xl">
