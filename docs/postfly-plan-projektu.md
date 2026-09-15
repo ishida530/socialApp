@@ -1001,7 +1001,33 @@ Użytkownik poprosił o wykonanie EPIC 10 zaraz po zamknięciu EPIC 9, mimo wcze
 
 **[QA]:** Pełna suita: **521/521 w obu trybach APP_MODE**, tsc/build czyste. Dodatkowo, po raz pierwszy w tej sesji: **realny e2e test (Playwright) uruchomiony lokalnie** (`tests/e2e/account-deletion.spec.ts`, zaktualizowany pod nowy akordeon) - odkryto, że to środowisko MA realne narzędzie automatyzacji przeglądarki (headless Playwright), wcześniej błędnie zakładano jego całkowity brak. Napotkana i zdiagnozowana pozorna niestabilność: pod `next dev` (kompilacja na żądanie) test czasem wisł na przekierowaniu po usunięciu konta - zweryfikowane jako artefakt lokalnego trybu dev (identyczny wzorzec awarii wystąpił na `tests/e2e/login-happy-path.spec.ts`, pliku w ogóle nietkniętym w tej turze), nie regresja - CI używa builda produkcyjnego (`next build` + `next start`), który tego problemu strukturalnie nie ma (już udokumentowane w komentarzu CI). Realna próba uruchomienia lokalnego serwera produkcyjnego napotkała świadomą blokadę `prod-db-guard` (BUG-001) chroniącą przed przypadkowym połączeniem lokalnego `next start` z prawdziwą bazą Supabase - poprawnie zadziałała, użyto `npm run start:test` jako alternatywy tam gdzie to możliwe.
 
-Status: [x] zaimplementowane (TASK-10.1/10.2 (częściowo)/10.3/10.4 (infrastruktura) - patrz backlog po szczegóły zakresu) → [x] testy napisane i zielone (521/521) → [x] zweryfikowane (tsc, build czyste, realny e2e lokalnie) → [ ] zmergowane → [ ] wdrożone
+Status: [x] zaimplementowane (TASK-10.1/10.2 (częściowo)/10.3/10.4 (infrastruktura) - patrz backlog po szczegóły zakresu) → [x] testy napisane i zielone (521/521) → [x] zweryfikowane (tsc, build czyste, realny e2e lokalnie) → [x] zmergowane (PR #98) → [x] wdrożone (postfly.pl/account i /community zwracają 200 na produkcji)
+
+---
+
+### 2FA UX — kod QR i pobieranie kodów zapasowych (2026-09-15)
+
+Użytkownik zauważył, że konfiguracja 2FA pokazywała tylko surowy tekst (sekret + `otpauth://` URI) zamiast realnego kodu QR do zeskanowania, i zapytał wprost, czego zabrakło, żeby wpaść na to samodzielnie — uczciwa odpowiedź: `otpauthUrl` był budowany w backendzie właśnie po to, żeby być renderowany jako QR (to jedyny sensowny powód jego istnienia w tym formacie), ale przy budowie frontendu skupienie było na tym, czy dane docierają, nie na tym, jak appka faktycznie wygląda z perspektywy człowieka z telefonem w ręku - luka w wyobraźni użytkownika, nie w wiedzy technicznej.
+
+**[Inżynier]:** `qrcode` (nowa zależność npm, celowo - nie da się bezpiecznie odtworzyć generowania QR od zera w rozsądnym czasie, w przeciwieństwie do TOTP) generuje kod **wyłącznie lokalnie w przeglądarce**, bez żadnego zapytania sieciowego - `otpauthUrl` zawiera surowy sekret 2FA, więc przepuszczenie go przez zewnętrzne API do renderowania QR (typowy "darmowy" wzorzec) wysłałoby ten sekret na cudzy serwer. Sekret do ręcznego wpisania zostaje jako fallback pod kodem QR. Osobna, mniejsza tura (na prośbę użytkownika, po pytaniu o standardy UX dla kodów zapasowych): przycisk "Pobierz jako plik" przy kodach zapasowych (Blob + `<a download>`, bez zapytania do serwera - kody już są w przeglądarce), obok istniejącego "Zapisałem kody, ukryj".
+
+**[QA]:** tsc/build czyste, 521/521 w obu trybach APP_MODE dla obu zmian.
+
+Status: [x] zaimplementowane → [x] zweryfikowane (tsc, testy, build) → [x] zmergowane (PR #100, PR #101) → [x] wdrożone (postfly.pl/account zwraca 200)
+
+---
+
+### Ankieta decyzyjna: priorytet, procesor płatności, marka, ciągłość działania (2026-09-15)
+
+Użytkownik poprosił o przeprowadzenie ankiety, żeby podjąć kilka zawisłych decyzji właścicielskich naraz, i wykonanie zgodnie z wynikiem (`AskUserQuestion`, 4 pytania).
+
+**Wyniki:** (1) Priorytet dalszej pracy: **EPIC 10 Faza 2** (przebudowa `/schedule`) - nie pauza na testowanie. (2) Procesor płatności dla EPIC 5: **Stripe Connect** - kierunek zdecydowany, implementacja NIE rozpoczęta w tej turze (priorytet to (1)), patrz TASK-5.2.2. (3) Marka: Postfly to produkt SaaS firmy właściciela **code94.pl**, nie marka osobista. (4) Ciągłość działania: właściciel chce mieć teraz spisaną listę TECHNICZNYCH dostępów.
+
+**[Architekt], realne odkrycie zmieniające zakres punktu (3):** doprecyzowanie ujawniło, że działalność gospodarcza code94.pl (NIP 7394015517) jest dziś **zawieszona** - zawieszenie w polskim prawie z zasady wyklucza aktywną sprzedaż nowych usług komercyjnych. Obecny `/terms` poprawnie opisuje inny, nieaktualny już stan ("Paweł Sawczuk, działalność nierejestrowana"). **Świadoma decyzja: `/terms`/`/privacy` NIE zostały zmienione w tej turze** - nazwanie code94.pl aktywnym Usługodawcą byłoby dziś prawnie nieprawdziwe. Appka i tak działa w trybie `personal` bez realnych płatności, więc nic nie jest tym zablokowane na już; realny start sprzedaży wymaga najpierw wznowienia działalności (konsultacja z księgowym), potem aktualizacji dokumentów prawnych.
+
+**[Inżynier]:** `docs/ciaglosc-dzialania.md` (nowy) - 13 technicznych dostępów w kolejności krytyczności (Vercel, domena, Supabase, GitHub, Stripe, Anthropic, Google/Meta/TikTok dev console, Telegram/BotFather, Resend, Upstash, Sentry), z opisem wpływu braku dostępu do każdego. Żaden prawdziwy sekret nie jest zapisany w dokumencie - to mapa, nie skarbiec. Sekcja "komu nadać dostęp" celowo zostawiona pusta - to decyzja wyłącznie właściciela.
+
+Status: [x] zaimplementowane (decyzje zapisane w backlogu, lista techniczna ciągłości działania spisana) → [ ] zmergowane → [ ] wdrożone. Następny krok: EPIC 10 Faza 2 (`/schedule`).
 
 ---
 
