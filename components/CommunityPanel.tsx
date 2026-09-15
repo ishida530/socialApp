@@ -40,10 +40,12 @@ export function CommunityPanel() {
   const [fanEmail, setFanEmail] = useState('');
   const [fanName, setFanName] = useState('');
   const [isAddingFan, setIsAddingFan] = useState(false);
+  const [showAddFan, setShowAddFan] = useState(false);
 
   const [saleProduct, setSaleProduct] = useState('');
   const [saleAmount, setSaleAmount] = useState('');
   const [isAddingSale, setIsAddingSale] = useState(false);
+  const [showAddSale, setShowAddSale] = useState(false);
 
   const [replyDraft, setReplyDraft] = useState<Record<string, string>>({});
   const [actingCommentId, setActingCommentId] = useState<string | null>(null);
@@ -81,6 +83,7 @@ export function CommunityPanel() {
       await apiClient.post('/fans', { email, name: fanName.trim() || undefined });
       setFanEmail('');
       setFanName('');
+      setShowAddFan(false);
       toast.success('Fan dodany.');
       await load();
     } catch {
@@ -101,6 +104,7 @@ export function CommunityPanel() {
       await apiClient.post('/sales', { product, amount: saleAmount.trim() });
       setSaleProduct('');
       setSaleAmount('');
+      setShowAddSale(false);
       toast.success('Sprzedaż zapisana.');
       await load();
     } catch {
@@ -228,31 +232,45 @@ export function CommunityPanel() {
       )}
 
       <section className="bg-card border border-border rounded-xl p-6 space-y-4 max-w-2xl">
-        <h2 className="text-lg font-semibold text-foreground">Dodaj sprzedaż</h2>
-        <div className="flex flex-col sm:flex-row gap-2">
-          <input
-            type="text"
-            value={saleProduct}
-            onChange={(event) => setSaleProduct(event.target.value)}
-            placeholder="Produkt, np. Koszulka czarna M"
-            className="flex-1 rounded-lg border border-border bg-secondary/30 px-3 py-2 text-sm text-foreground"
-          />
-          <input
-            type="text"
-            value={saleAmount}
-            onChange={(event) => setSaleAmount(event.target.value)}
-            placeholder="Kwota, np. 80"
-            className="w-full sm:w-32 rounded-lg border border-border bg-secondary/30 px-3 py-2 text-sm text-foreground"
-          />
-          <button
-            type="button"
-            onClick={addSale}
-            disabled={isAddingSale || !saleProduct.trim() || !saleAmount.trim()}
-            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50"
-          >
-            {isAddingSale ? 'Zapisywanie...' : 'Dodaj'}
-          </button>
+        <div className="flex items-center justify-between gap-4">
+          <h2 className="text-lg font-semibold text-foreground">Sprzedaże</h2>
+          {!showAddSale && (
+            <button
+              type="button"
+              onClick={() => setShowAddSale(true)}
+              className="px-3 py-1.5 rounded-lg border border-border text-xs text-foreground hover:bg-secondary/40 transition-colors"
+            >
+              + Dodaj sprzedaż
+            </button>
+          )}
         </div>
+
+        {showAddSale && (
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input
+              type="text"
+              value={saleProduct}
+              onChange={(event) => setSaleProduct(event.target.value)}
+              placeholder="Produkt, np. Koszulka czarna M"
+              className="flex-1 rounded-lg border border-border bg-secondary/30 px-3 py-2 text-sm text-foreground"
+            />
+            <input
+              type="text"
+              value={saleAmount}
+              onChange={(event) => setSaleAmount(event.target.value)}
+              placeholder="Kwota, np. 80"
+              className="w-full sm:w-32 rounded-lg border border-border bg-secondary/30 px-3 py-2 text-sm text-foreground"
+            />
+            <button
+              type="button"
+              onClick={addSale}
+              disabled={isAddingSale || !saleProduct.trim() || !saleAmount.trim()}
+              className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50"
+            >
+              {isAddingSale ? 'Zapisywanie...' : 'Dodaj'}
+            </button>
+          </div>
+        )}
 
         {sales.length > 0 && (
           <ul className="divide-y divide-border">
@@ -267,31 +285,45 @@ export function CommunityPanel() {
       </section>
 
       <section className="bg-card border border-border rounded-xl p-6 space-y-4 max-w-2xl">
-        <h2 className="text-lg font-semibold text-foreground">Fani</h2>
-        <div className="flex flex-col sm:flex-row gap-2">
-          <input
-            type="email"
-            value={fanEmail}
-            onChange={(event) => setFanEmail(event.target.value)}
-            placeholder="email@przyklad.com"
-            className="flex-1 rounded-lg border border-border bg-secondary/30 px-3 py-2 text-sm text-foreground"
-          />
-          <input
-            type="text"
-            value={fanName}
-            onChange={(event) => setFanName(event.target.value)}
-            placeholder="Imię (opcjonalnie)"
-            className="w-full sm:w-40 rounded-lg border border-border bg-secondary/30 px-3 py-2 text-sm text-foreground"
-          />
-          <button
-            type="button"
-            onClick={addFan}
-            disabled={isAddingFan || !fanEmail.trim()}
-            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50"
-          >
-            {isAddingFan ? 'Zapisywanie...' : 'Dodaj'}
-          </button>
+        <div className="flex items-center justify-between gap-4">
+          <h2 className="text-lg font-semibold text-foreground">Fani</h2>
+          {!showAddFan && (
+            <button
+              type="button"
+              onClick={() => setShowAddFan(true)}
+              className="px-3 py-1.5 rounded-lg border border-border text-xs text-foreground hover:bg-secondary/40 transition-colors"
+            >
+              + Dodaj fana
+            </button>
+          )}
         </div>
+
+        {showAddFan && (
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input
+              type="email"
+              value={fanEmail}
+              onChange={(event) => setFanEmail(event.target.value)}
+              placeholder="email@przyklad.com"
+              className="flex-1 rounded-lg border border-border bg-secondary/30 px-3 py-2 text-sm text-foreground"
+            />
+            <input
+              type="text"
+              value={fanName}
+              onChange={(event) => setFanName(event.target.value)}
+              placeholder="Imię (opcjonalnie)"
+              className="w-full sm:w-40 rounded-lg border border-border bg-secondary/30 px-3 py-2 text-sm text-foreground"
+            />
+            <button
+              type="button"
+              onClick={addFan}
+              disabled={isAddingFan || !fanEmail.trim()}
+              className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50"
+            >
+              {isAddingFan ? 'Zapisywanie...' : 'Dodaj'}
+            </button>
+          </div>
+        )}
 
         {fans.length > 0 && (
           <ul className="divide-y divide-border">

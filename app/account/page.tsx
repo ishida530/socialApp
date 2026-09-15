@@ -5,6 +5,24 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/auth-context';
 import { apiClient } from '@/lib/api-client';
+import { CollapsibleSection } from '@/components/CollapsibleSection';
+
+// EPIC 10 TASK-10.2 (2026-09-15): single-open accordion state for the 5 sections below - opening
+// one collapses the others, so this screen asks one decision at a time instead of showing all 5
+// (Telegram, profil, autopilot, 2FA, usuń konto) expanded at once (the "1 screen = 1 decision"
+// principle from docs/postfly-plan-projektu.md section 0.1, flagged as violated in docs/UX_AUDIT.md).
+type AccountSection = 'telegram' | 'profile' | 'autopilot' | 'twoFactor' | 'delete';
+
+function StatusBadge({ on, onLabel, offLabel }: { on: boolean; onLabel: string; offLabel?: string }) {
+  if (!on && !offLabel) {
+    return null;
+  }
+  return (
+    <span className={`text-xs font-medium ${on ? 'text-emerald-500' : 'text-muted-foreground'}`}>
+      {on ? onLabel : offLabel}
+    </span>
+  );
+}
 
 const CONFIRM_PHRASE = 'usuń moje konto';
 
@@ -46,6 +64,9 @@ export default function AccountPage() {
   const [disablePassword, setDisablePassword] = useState('');
   const [disableCode, setDisableCode] = useState('');
   const [isDisablingTwoFactor, setIsDisablingTwoFactor] = useState(false);
+
+  const [openSection, setOpenSection] = useState<AccountSection | null>(null);
+  const toggleSection = (section: AccountSection) => (open: boolean) => setOpenSection(open ? section : null);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -127,6 +148,7 @@ export default function AccountPage() {
       setTwoFactorSetup(null);
       setTwoFactorEnableCode('');
       setNewBackupCodes(response.data.backupCodes);
+      setOpenSection('twoFactor');
       toast.success('2FA włączone.');
     } catch {
       toast.error('Nieprawidłowy kod. Sprawdź godzinę w telefonie i spróbuj ponownie.');
@@ -203,18 +225,13 @@ export default function AccountPage() {
         <p className="text-sm text-muted-foreground">Zalogowano jako {user?.email}.</p>
       </section>
 
-      <section className="bg-card border border-border rounded-xl p-6 space-y-4 max-w-2xl">
-        <div>
-          <h2 className="text-lg font-semibold text-foreground">Telegram</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Połącz konto Telegram, żeby otrzymywać powiadomienia i zatwierdzać publikacje z telefonu.
-          </p>
-        </div>
-
-        {telegramLinked && (
-          <p className="text-sm text-emerald-500 font-medium">Połączono ✓</p>
-        )}
-
+      <CollapsibleSection
+        title="Telegram"
+        description="Połącz konto Telegram, żeby otrzymywać powiadomienia i zatwierdzać publikacje z telefonu."
+        badge={<StatusBadge on={!!telegramLinked} onLabel="Połączono ✓" />}
+        open={openSection === 'telegram'}
+        onOpenChange={toggleSection('telegram')}
+      >
         {!telegramLinkCode ? (
           <button
             type="button"
@@ -245,18 +262,14 @@ export default function AccountPage() {
             </p>
           </div>
         )}
-      </section>
+      </CollapsibleSection>
 
-      <section className="bg-card border border-border rounded-xl p-6 space-y-4 max-w-2xl">
-        <div>
-          <h2 className="text-lg font-semibold text-foreground">Profil konta</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Opisz w 1-2 zdaniach czym zajmuje się to konto (np. &quot;Jestem raperem, publikuję freestyle&quot;
-            albo &quot;Prowadzę salon kosmetyczny, oferujemy paznokcie i rzęsy&quot;) - AI dopasuje ton i styl
-            generowanych opisów/hashtagów do tego kontekstu, zamiast pisać neutralnie.
-          </p>
-        </div>
-
+      <CollapsibleSection
+        title="Profil konta"
+        description="Opisz w 1-2 zdaniach czym zajmuje się to konto - AI dopasuje ton i styl generowanych opisów/hashtagów do tego kontekstu, zamiast pisać neutralnie."
+        open={openSection === 'profile'}
+        onOpenChange={toggleSection('profile')}
+      >
         <div>
           <textarea
             value={businessDescription}
@@ -279,19 +292,22 @@ export default function AccountPage() {
         >
           {isSavingBusinessDescription ? 'Zapisywanie...' : 'Zapisz'}
         </button>
-      </section>
+      </CollapsibleSection>
 
-      <section className="bg-card border border-border rounded-xl p-6 space-y-4 max-w-2xl">
+      <CollapsibleSection
+        title="🤖 Autopilot"
+        description="Włączony: nowy materiał planuje się automatycznie bez pytania o zgodę. Wyłączony: każdy post czeka na Twoje zatwierdzenie."
+        badge={<StatusBadge on={autopilotEnabled} onLabel="Włączony" offLabel="Wyłączony" />}
+        open={openSection === 'autopilot'}
+        onOpenChange={toggleSection('autopilot')}
+      >
         <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-semibold text-foreground">🤖 Autopilot</h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              Włączony: nowy materiał wysłany na Telegram planuje się automatycznie o najlepszej porze per
-              platforma, bez pytania o zgodę - poza sytuacjami wymagającymi ręcznej decyzji (np. wykryte ryzyko
-              w treści albo platforma jeszcze nie gotowa). Wyłączony: każdy post czeka na Twoje zatwierdzenie,
-              jak dotychczas.
-            </p>
-          </div>
+          <p className="text-sm text-muted-foreground">
+            Włączony: nowy materiał wysłany na Telegram planuje się automatycznie o najlepszej porze per
+            platforma, bez pytania o zgodę - poza sytuacjami wymagającymi ręcznej decyzji (np. wykryte ryzyko
+            w treści albo platforma jeszcze nie gotowa). Wyłączony: każdy post czeka na Twoje zatwierdzenie,
+            jak dotychczas.
+          </p>
           <button
             type="button"
             role="switch"
@@ -309,17 +325,15 @@ export default function AccountPage() {
             />
           </button>
         </div>
-      </section>
+      </CollapsibleSection>
 
-      <section className="bg-card border border-border rounded-xl p-6 space-y-4 max-w-2xl">
-        <div>
-          <h2 className="text-lg font-semibold text-foreground">🔐 Weryfikacja dwuetapowa (2FA)</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Dodatkowe zabezpieczenie logowania - oprócz hasła, przy logowaniu poprosimy o kod z aplikacji
-            uwierzytelniającej (np. Google Authenticator, Authy, 1Password).
-          </p>
-        </div>
-
+      <CollapsibleSection
+        title="🔐 Weryfikacja dwuetapowa (2FA)"
+        description="Dodatkowe zabezpieczenie logowania - kod z aplikacji uwierzytelniającej oprócz hasła."
+        badge={<StatusBadge on={twoFactorEnabled} onLabel="Włączone ✓" />}
+        open={openSection === 'twoFactor'}
+        onOpenChange={toggleSection('twoFactor')}
+      >
         {newBackupCodes && (
           <div className="bg-secondary/30 border border-primary/40 rounded-lg p-4 space-y-2">
             <p className="text-sm font-medium text-foreground">
@@ -447,18 +461,15 @@ export default function AccountPage() {
             </div>
           </div>
         )}
-      </section>
+      </CollapsibleSection>
 
-      <section className="bg-card border border-destructive/40 rounded-xl p-6 space-y-4 max-w-2xl">
-        <div>
-          <h2 className="text-lg font-semibold text-destructive">Usuń konto</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Ta akcja jest nieodwracalna. Usunięte zostaną trwale: Twoje konto, połączone konta social media
-            (wraz z tokenami dostępu), przesłane media, zaplanowane i zrealizowane zadania publikacji oraz dane
-            subskrypcji. Jeśli masz aktywną płatną subskrypcję, zostanie ona anulowana.
-          </p>
-        </div>
-
+      <CollapsibleSection
+        title="Usuń konto"
+        description="Ta akcja jest nieodwracalna. Usunięte zostaną trwale: konto, połączone konta social media, przesłane media, zadania publikacji oraz dane subskrypcji."
+        open={openSection === 'delete'}
+        onOpenChange={toggleSection('delete')}
+        variant="destructive"
+      >
         {!showConfirm ? (
           <button
             type="button"
@@ -517,7 +528,7 @@ export default function AccountPage() {
             </div>
           </div>
         )}
-      </section>
+      </CollapsibleSection>
     </main>
   );
 }
