@@ -23,7 +23,7 @@ export default function TermsPage() {
         <p className="mt-6 text-sm text-muted-foreground">
           Niniejszy Regulamin określa zasady korzystania z aplikacji Postfly.
         </p>
-        <p className="mt-2 text-sm text-muted-foreground">Data ostatniej aktualizacji: 17 marca 2026 r.</p>
+        <p className="mt-2 text-sm text-muted-foreground">Data ostatniej aktualizacji: 15 września 2026 r.</p>
 
         <section className="mt-8 space-y-4 text-sm leading-6 text-muted-foreground">
           <h2 className="text-base font-semibold text-foreground">1. Postanowienia ogólne</h2>
@@ -53,16 +53,22 @@ export default function TermsPage() {
 
           <h2 className="text-base font-semibold text-foreground">4. Integracje OAuth i API</h2>
           <p>
-            Postfly łączy się z kontami społecznościowymi wyłącznie za zgodą Użytkownika poprzez protokół OAuth. 
-            Aplikacja nie gromadzi haseł do serwisów zewnętrznych. Użytkownik może w każdej chwili cofnąć 
-            uprawnienia dla Postfly bezpośrednio w ustawieniach swojego konta TikTok lub Google.
+            Postfly łączy się z kontami społecznościowymi (TikTok, YouTube, Meta - Facebook i Instagram) wyłącznie
+            za zgodą Użytkownika poprzez protokół OAuth. Aplikacja nie gromadzi haseł do serwisów zewnętrznych.
+            Użytkownik może w każdej chwili cofnąć uprawnienia dla Postfly bezpośrednio w ustawieniach swojego
+            konta danej platformy. Użytkownik może opcjonalnie połączyć konto z botem Postfly w serwisie
+            Telegram, żeby zarządzać publikacjami i otrzymywać powiadomienia z poziomu czatu.
           </p>
 
           <h2 className="text-base font-semibold text-foreground">5. Treści i odpowiedzialność</h2>
           <p>
-            Użytkownik ponosi wyłączną odpowiedzialność za materiały wideo, opisy oraz inne treści publikowane 
-            za pośrednictwem Postfly. Zabrania się przesyłania treści naruszających prawo, prawa autorskie osób 
-            trzecich lub promujących przemoc i nienawiść.
+            Użytkownik ponosi wyłączną odpowiedzialność za materiały wideo, opisy oraz inne treści publikowane
+            za pośrednictwem Postfly. Zabrania się przesyłania treści naruszających prawo, prawa autorskie osób
+            trzecich lub promujących przemoc i nienawiść. Postfly udostępnia opcjonalne funkcje wspomagane przez
+            sztuczną inteligencję (m.in. propozycje opisów/hashtagów, sugerowane odpowiedzi na komentarze, tryb
+            &quot;Autopilot&quot;) - niezależnie od tego, czy dana treść powstała ręcznie czy z pomocą AI, to
+            Użytkownik podejmuje ostateczną decyzję o jej publikacji i ponosi za nią pełną odpowiedzialność.
+            Szczegóły przetwarzania danych przez AI opisuje Polityka Prywatności.
           </p>
 
           <h2 className="text-base font-semibold text-foreground">6. Płatności i subskrypcje</h2>

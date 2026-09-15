@@ -133,6 +133,7 @@ export async function generateCoachingMessage(data: WeeklyCoachingData, business
   });
 
   const result = await callClaudeTool<CoachToolResult>({
+    scope: 'coaching',
     model: CLAUDE_MODELS.contentGeneration,
     system: COACH_SYSTEM_PROMPT,
     userContent,

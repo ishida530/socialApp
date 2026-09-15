@@ -62,6 +62,7 @@ export async function generateBundlesWithClaude(
   });
 
   const result = await callClaudeTool<GeneratedBundlesToolResult>({
+    scope: 'smart-autopilot-content',
     model: CLAUDE_MODELS.contentGeneration,
     system: CONTENT_SYSTEM_PROMPT,
     userContent,

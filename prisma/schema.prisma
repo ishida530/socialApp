@@ -531,3 +531,22 @@ model StripeEvent {
   processed Boolean  @default(false)
   createdAt DateTime @default(now())
 }
+
+// EPIC 8 TASK-8.3 (Agent kosztow/FinOps, 2026-09-15): Claude is the only paid component of this
+// app (standing constraint since EPIC 5), but there was never any visibility into what it
+// actually costs - flagged repeatedly across this project's whole build history as a known gap.
+// One row per successful Claude API call, recorded best-effort by callClaudeTool/
+// callClaudeAgentTurn (lib/server/anthropic-client.ts) - never blocks or fails the calling
+// feature if recording itself fails. `scope` identifies which feature made the call (e.g.
+// "coaching", "content-suggestions") so cost can be broken down by feature, not just totalled.
+model ClaudeUsageLog {
+  id           String   @id @default(cuid())
+  scope        String
+  model        String
+  inputTokens  Int
+  outputTokens Int
+  createdAt    DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([scope, createdAt])
+}

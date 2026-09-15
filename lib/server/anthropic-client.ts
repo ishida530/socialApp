@@ -3,6 +3,7 @@
 // Every caller gets the same contract: configured -> best-effort JSON via forced tool-use,
 // unconfigured or failing -> null, so callers can fall back to a deterministic non-AI path
 // instead of hard-failing the request.
+import { recordClaudeUsage } from './claude-usage';
 
 const DEFAULT_TIMEOUT_MS = 20000;
 const DEFAULT_MAX_RETRIES = 2;
@@ -29,6 +30,7 @@ function getAnthropicConfig() {
 
 type AnthropicToolResponse = {
   content?: Array<{ type: string; name?: string; input?: unknown }>;
+  usage?: { input_tokens?: number; output_tokens?: number };
 };
 
 // Agent-mentor (multi-tool, model-driven tool_choice) support - deliberately separate from
@@ -46,6 +48,9 @@ export type AnthropicAgentMessage = {
 };
 
 export async function callClaudeAgentTurn(params: {
+  // TASK-8.3 (FinOps, 2026-09-15): which feature is calling, so token usage can be broken down
+  // per feature - see lib/server/claude-usage.ts.
+  scope: string;
   model: string;
   system: string;
   messages: AnthropicAgentMessage[];
@@ -88,10 +93,19 @@ export async function callClaudeAgentTurn(params: {
       return null;
     }
 
-    const payload = (await response.json()) as { content?: AnthropicContentBlock[]; stop_reason?: string };
+    const payload = (await response.json()) as {
+      content?: AnthropicContentBlock[];
+      stop_reason?: string;
+      usage?: { input_tokens?: number; output_tokens?: number };
+    };
     if (!Array.isArray(payload.content)) {
       return null;
     }
+
+    // recordClaudeUsage swallows its own errors internally (best-effort) - awaited here anyway
+    // since the write itself is cheap next to the Claude call that already happened, and it keeps
+    // "the call is recorded" a real guarantee by the time this function returns, not a race.
+    await recordClaudeUsage(params.scope, params.model, payload.usage?.input_tokens ?? 0, payload.usage?.output_tokens ?? 0);
 
     return { content: payload.content, stopReason: payload.stop_reason };
   } catch {
@@ -102,6 +116,9 @@ export async function callClaudeAgentTurn(params: {
 }
 
 export async function callClaudeTool<T>(params: {
+  // TASK-8.3 (FinOps, 2026-09-15): which feature is calling, so token usage can be broken down
+  // per feature - see lib/server/claude-usage.ts.
+  scope: string;
   model: string;
   system: string;
   userContent: string;
@@ -157,6 +174,13 @@ export async function callClaudeTool<T>(params: {
       }
 
       const payload = (await response.json()) as AnthropicToolResponse;
+
+      // Recorded even when the tool-use block itself ends up unusable below, since the tokens
+      // were still spent either way. Awaited (not fire-and-forget) so "the call is recorded" is a
+      // real guarantee by the time this function returns - recordClaudeUsage swallows its own
+      // errors internally, so this can never make an otherwise-successful call fail.
+      await recordClaudeUsage(params.scope, params.model, payload.usage?.input_tokens ?? 0, payload.usage?.output_tokens ?? 0);
+
       const toolUseBlock = payload.content?.find(
         (block) => block.type === 'tool_use' && block.name === params.tool.name,
       );

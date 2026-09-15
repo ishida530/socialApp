@@ -100,6 +100,7 @@ async function suggestReply(commentText: string, authorName: string | null, busi
   });
 
   const result = await callClaudeTool<SuggestReplyToolResult>({
+    scope: 'social-comments',
     model: CLAUDE_MODELS.contentGeneration,
     system: SUGGEST_REPLY_SYSTEM_PROMPT,
     userContent,

@@ -352,6 +352,7 @@ export async function runMentorTurn(userId: string, userMessage: string): Promis
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
     const response = await callClaudeAgentTurn({
+      scope: 'mentor-agent',
       model: CLAUDE_MODELS.contentGeneration,
       system: MENTOR_SYSTEM_PROMPT,
       messages,

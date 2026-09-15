@@ -37,6 +37,7 @@ export async function generateFacebookTextPostSuggestion(
   });
 
   const result = await callClaudeTool<TextPostToolResult>({
+    scope: 'content-suggestions',
     model: CLAUDE_MODELS.contentGeneration,
     system: SUGGEST_TEXT_POST_SYSTEM_PROMPT,
     userContent,
