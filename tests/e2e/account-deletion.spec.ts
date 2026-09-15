@@ -33,6 +33,10 @@ test('deleting an account with the correct password removes it and redirects to 
   const user = await createPasswordUser(context);
 
   await page.goto(`${BASE_URL}/account`);
+  // EPIC 10 TASK-10.2 (2026-09-15): "Usuń konto" is now a collapsed section (progressive
+  // disclosure, see components/CollapsibleSection.tsx) - expand it before the confirm button
+  // becomes reachable.
+  await page.getByRole('button', { name: 'Usuń konto', exact: false }).first().click();
   await page.getByRole('button', { name: 'Chcę usunąć konto' }).click();
   await page.getByPlaceholder('Podaj hasło, aby potwierdzić').fill(TEST_PASSWORD);
   await page.getByPlaceholder('usuń moje konto').fill('usuń moje konto');
@@ -50,6 +54,7 @@ test('deleting an account with the wrong password fails and keeps the account', 
 
   try {
     await page.goto(`${BASE_URL}/account`);
+    await page.getByRole('button', { name: 'Usuń konto', exact: false }).first().click();
     await page.getByRole('button', { name: 'Chcę usunąć konto' }).click();
     await page.getByPlaceholder('Podaj hasło, aby potwierdzić').fill('definitely-the-wrong-password');
     await page.getByPlaceholder('usuń moje konto').fill('usuń moje konto');
