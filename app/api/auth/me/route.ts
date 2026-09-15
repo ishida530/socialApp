@@ -11,12 +11,13 @@ export async function GET(request: NextRequest) {
     // reshaping `user`.
     const profile = await prisma.user.findUnique({
       where: { id: user.userId },
-      select: { businessDescription: true, autopilotEnabled: true },
+      select: { businessDescription: true, autopilotEnabled: true, twoFactorEnabled: true },
     });
     return NextResponse.json({
       user,
       businessDescription: profile?.businessDescription ?? null,
       autopilotEnabled: profile?.autopilotEnabled ?? false,
+      twoFactorEnabled: profile?.twoFactorEnabled ?? false,
     });
   } catch {
     return unauthorized();

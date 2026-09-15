@@ -68,7 +68,10 @@ export default function TermsPage() {
             sztuczną inteligencję (m.in. propozycje opisów/hashtagów, sugerowane odpowiedzi na komentarze, tryb
             &quot;Autopilot&quot;) - niezależnie od tego, czy dana treść powstała ręcznie czy z pomocą AI, to
             Użytkownik podejmuje ostateczną decyzję o jej publikacji i ponosi za nią pełną odpowiedzialność.
-            Szczegóły przetwarzania danych przez AI opisuje Polityka Prywatności.
+            Wszelkie prawa do treści wygenerowanych lub zasugerowanych przez funkcje AI w Postfly (opisy,
+            hashtagi, propozycje odpowiedzi na komentarze) przysługują Użytkownikowi, który z nich skorzystał -
+            Usługodawca nie rości sobie do nich żadnych praw. Szczegóły przetwarzania danych przez AI opisuje
+            Polityka Prywatności.
           </p>
 
           <h2 className="text-base font-semibold text-foreground">6. Płatności i subskrypcje</h2>

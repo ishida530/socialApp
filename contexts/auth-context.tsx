@@ -15,6 +15,12 @@ type AuthUser = {
   email: string;
 };
 
+// EPIC 9 TASK-9.3 (2FA, 2026-09-15): login() now resolves to one of two outcomes instead of
+// always completing the session - an account with 2FA enabled needs a second step
+// (completeTwoFactorLogin) before refreshSession is ever called, so the caller (the login page)
+// knows to show the code-entry UI instead of navigating away.
+type LoginResult = { requiresTwoFactor: false } | { requiresTwoFactor: true; pendingToken: string };
+
 type AuthContextValue = {
   user: AuthUser | null;
   isAuthenticated: boolean;
@@ -26,7 +32,8 @@ type AuthContextValue = {
     password: string;
     hpWebsite?: string;
     formStartedAt?: number;
-  }) => Promise<void>;
+  }) => Promise<LoginResult>;
+  completeTwoFactorLogin: (pendingToken: string, code: string) => Promise<void>;
   register: (payload: {
     email: string;
     name: string;
@@ -79,8 +86,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     password: string;
     hpWebsite?: string;
     formStartedAt?: number;
-  }) => {
-    await apiClient.post('/auth/login', payload);
+  }): Promise<LoginResult> => {
+    const response = await apiClient.post<{ requiresTwoFactor?: boolean; pendingToken?: string }>('/auth/login', payload);
+
+    if (response.data.requiresTwoFactor && response.data.pendingToken) {
+      return { requiresTwoFactor: true, pendingToken: response.data.pendingToken };
+    }
+
+    await refreshSession();
+    return { requiresTwoFactor: false };
+  }, [refreshSession]);
+
+  const completeTwoFactorLogin = useCallback(async (pendingToken: string, code: string) => {
+    await apiClient.post('/auth/2fa/login', { pendingToken, code });
     await refreshSession();
   }, [refreshSession]);
 
@@ -118,10 +136,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       sessionError,
       retrySession,
       login,
+      completeTwoFactorLogin,
       register,
       logout,
     }),
-    [isLoading, sessionError, retrySession, login, logout, register, user],
+    [isLoading, sessionError, retrySession, login, completeTwoFactorLogin, logout, register, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -179,6 +179,43 @@ export async function sendContactMessageEmail(input: ContactMessageInput) {
   }
 }
 
+// TASK-9.2 (2026-09-15): one-time nudge for users who registered on web but never linked
+// telegramChatId - see sendTelegramLinkReminders in lib/server/re-engagement.ts. Every other
+// proactive reminder in this app (inactivity, coaching, campaigns) goes over Telegram and
+// requires telegramChatId, so a web-only user otherwise gets zero proactive contact after signup.
+export async function sendTelegramLinkReminderEmail(userEmail: string, userName: string) {
+  const from = process.env.EMAIL_FROM ?? 'PostFly <hello@postfly.pl>';
+  const safeName = escapeHtml(userName?.trim() || 'Twórco');
+  const accountUrl = `${process.env.FRONTEND_URL ?? 'https://postfly.pl'}/account`;
+  const safeAccountUrl = escapeHtml(accountUrl);
+
+  const result = await getResendClient().emails.send({
+    from,
+    to: userEmail,
+    subject: 'PostFly — połącz Telegram, żeby zatwierdzać publikacje z telefonu',
+    text:
+      `Cześć ${userName || 'Twórco'}!\n\n` +
+      'Zauważyliśmy, że Twoje konto PostFly nie jest jeszcze połączone z botem Telegram. ' +
+      'Po połączeniu dostaniesz powiadomienia o publikacjach, będziesz mógł zatwierdzać/edytować ' +
+      'posty z telefonu i korzystać z asystenta AI na czacie.\n\n' +
+      `Wygeneruj kod połączenia w ustawieniach konta:\n${accountUrl}\n\n` +
+      'Pozdrawiamy,\nZespół PostFly',
+    html:
+      '<div style="font-family:Inter,Arial,sans-serif;line-height:1.6;color:#111827">' +
+      `<p>Cześć ${safeName}!</p>` +
+      '<p>Zauważyliśmy, że Twoje konto PostFly nie jest jeszcze połączone z botem Telegram. ' +
+      'Po połączeniu dostaniesz powiadomienia o publikacjach, będziesz mógł zatwierdzać/edytować ' +
+      'posty z telefonu i korzystać z asystenta AI na czacie.</p>' +
+      `<p><a href="${safeAccountUrl}" target="_blank" rel="noopener noreferrer">Połącz Telegram w ustawieniach konta</a></p>` +
+      '<p>Pozdrawiamy,<br/>Zespół PostFly</p>' +
+      '</div>',
+  });
+
+  if (result.error) {
+    throw new Error(`[mail] Resend error ${result.error.statusCode}: ${result.error.message}`);
+  }
+}
+
 declare global {
   var __postflyMailProviderChecked: boolean | undefined;
 }

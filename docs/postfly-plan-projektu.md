@@ -971,6 +971,22 @@ Status: [x] zaimplementowane (TASK-7.1/7.2/7.3, TASK-8.1/8.3/8.6 zamknięte; res
 
 ---
 
+### EPIC 9 (2026-09-15)
+
+Użytkownik poprosił o domknięcie EPIC 9 (backlog dodatkowych możliwości) - 5 zadań, po tym jak agent-prezes zarekomendował pauzę na walidację produktu; użytkownik świadomie zdecydował kontynuować budowę mimo tej rekomendacji.
+
+**[PO]:** TASK-9.1 (program poleceń) i TASK-9.4 (pozycjonowanie konkurencyjne) świadomie odłożone - pierwszy nie ma jeszcze adresata (zero realnych płacących userów, ta sama zasada "nigdy nie buduj pod hipotezę" co przy EPIC 5), drugi to materiał marketingowy właściciela, nie zadanie inżynierskie.
+
+**[Architekt]:** Największa decyzja projektowa: 2FA (TASK-9.3) zaimplementowane BEZ nowej zależności npm - TOTP (RFC 6238) od zera na wbudowanym `crypto`, spójnie z dotychczasową postawą projektu "mało zależności". Krytyczna decyzja bezpieczeństwa: token oczekujący na drugi czynnik logowania (`pendingToken`) musiał zostać odróżniony od prawdziwego tokena sesji - bez tego ktokolwiek przechwytujący `pendingToken` mógłby użyć go jako pełnoprawnej sesji, całkowicie omijając 2FA. Rozwiązane przez dedykowany claim `purpose` w JWT i jawne odrzucenie takich tokenów przez `verifyAccessToken` - znalezione i naprawione samodzielnie w trakcie projektowania, nie zgłoszone przez testy ani użytkownika. Drugorzędna decyzja: sekret 2FA w trakcie konfiguracji trzymany w OSOBNYM polu (`twoFactorPendingSecretEncrypted`) od aktywnego sekretu (`twoFactorSecretEncrypted`) - przerwana/ponowiona konfiguracja nigdy nie może po cichu nadpisać już aktywnego 2FA. TASK-1.5.3 (audit trail, EPIC 1) domknięte jako efekt uboczny tej samej pracy - patrz backlog.
+
+**[Inżynier]:** `lib/server/totp.ts` (sekret/URI/weryfikacja kodu z oknem dryfu, kody zapasowe), `lib/server/two-factor.ts` (setup/enable/disable/verify), `lib/server/audit-log.ts`, 4 nowe route'y `/api/auth/2fa/*`, rozszerzenie `/api/auth/login` o rozgałęzienie na `requiresTwoFactor`, UI na `/login` (pełny formularz kodu) i `/account` (sekcja "Bezpieczeństwo" - włączanie z QR/sekretem, jednorazowy pokaz kodów zapasowych, wyłączanie z hasłem+kodem). TASK-9.2: jednorazowy e-mail re-engagement (Resend) dla userów bez połączonego Telegrama, wpięty w istniejący dzienny cron sweep (nie nowy slot - limit darmowego planu Vercel). TASK-9.5: jedno zdanie w `/terms` o własności treści AI należącej do Użytkownika.
+
+**[QA]:** `tests/unit/totp.test.ts` (9 testów, w tym niezależna reimplementacja RFC 4226 jako cross-check, nie dekoracyjny test), `tests/unit/two-factor.test.ts` (11), `tests/unit/audit-log.test.ts` (4), `tests/api/two-factor-routes.test.ts`, `tests/api/login-two-factor.test.ts` (6, w tym regresyjny test na scenariusz confused-deputy opisany wyżej), `tests/unit/re-engagement.test.ts` (5). Pełna suita: **499/499 w obu trybach APP_MODE**, tsc/build czyste. **Zastrzeżenie jak przy poprzednich turach UI**: sekcja 2FA na `/account` NIE została zweryfikowana wizualnie w przeglądarce - tylko przez tsc/testy/build, ten sam limit środowiska (brak narzędzia do automatyzacji przeglądarki).
+
+Status: [x] zaimplementowane (TASK-9.2/9.3/9.5 zamknięte; TASK-9.1/9.4 świadomie odłożone z jasnym powodem) → [x] testy napisane i zielone (499/499) → [x] zweryfikowane (tsc, build czyste) → [ ] zmergowane → [ ] wdrożone
+
+---
+
 ---
 
 **Definicja "gotowy projekt w 100%":** każdy checkbox w sekcjach 6 i 7 odhaczony, każdy z jawnym DoD spełnionym i potwierdzonym testem (nie deklaracją), **QA niezależnie zweryfikowało, nie tylko Inżynier**, Architekt podpisał się pod skalowalnością w sekcji 9 dla każdej nowej warstwy, i sekcja 8 (Review końcowy) przeszła bez zastrzeżeń blokujących.

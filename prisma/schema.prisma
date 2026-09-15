@@ -104,6 +104,11 @@ model User {
   // Last time the "still running this campaign?" reminder fired for a long-running active
   // campaign - same cooldown-field pattern as the nudges above.
   lastCampaignReminderSentAt DateTime?
+  // TASK-9.2 (2026-09-15): last time the "link your Telegram bot" re-engagement email was sent to
+  // a user who registered on web but never linked telegramChatId - these users get zero proactive
+  // nudges otherwise (every other reminder in telegram-notifications.ts requires telegramChatId).
+  // Same once-per-cooldown pattern as the fields above, just over email instead of Telegram.
+  lastTelegramLinkReminderSentAt DateTime?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   socialAccounts SocialAccount[]
@@ -138,6 +143,17 @@ model User {
   // proactive nudge in this app (lastInactivityNudgeSentAt etc.), see sendContentSuggestions in
   // lib/server/telegram-notifications.ts.
   lastContentSuggestionSentAt DateTime?
+  // EPIC 9 TASK-9.3 (2FA, 2026-09-15). twoFactorSecretEncrypted is the ACTIVE secret (only set
+  // once setup is confirmed with a real code) - AES-256-GCM, same pattern as OAuth tokens
+  // (lib/server/crypto.ts). twoFactorPendingSecretEncrypted holds a secret generated during setup
+  // but not yet confirmed, kept separate so starting setup never overwrites/breaks an already-
+  // active 2FA config, and an abandoned setup attempt never silently enables anything.
+  // twoFactorBackupCodeHashes are one-time-use recovery codes (scrypt-hashed, same as
+  // passwordHash) - each is removed from the array the moment it's used.
+  twoFactorEnabled              Boolean   @default(false)
+  twoFactorSecretEncrypted      String?
+  twoFactorPendingSecretEncrypted String?
+  twoFactorBackupCodeHashes     String[]  @default([])
 }
 
 model TelegramLinkCode {
@@ -539,6 +555,28 @@ model StripeEvent {
 // callClaudeAgentTurn (lib/server/anthropic-client.ts) - never blocks or fails the calling
 // feature if recording itself fails. `scope` identifies which feature made the call (e.g.
 // "coaching", "content-suggestions") so cost can be broken down by feature, not just totalled.
+// EPIC 1 TASK-1.5.3 / EPIC 9 TASK-9.3 (audit trail, 2026-09-15): a real dziennik akcji - who did
+// what, when, with what result - separate from error_log/observability.ts (which logs to stdout/
+// Vercel/Sentry, not queryable by the app itself). Scoped deliberately to SECURITY-relevant events
+// for this first pass (login, 2FA, account deletion, password reset) rather than every business
+// action across the app - a full action-by-action trail for every agent write is a much larger
+// undertaking or was never blocked, this is what genuinely blocked TASK-8.7 (Agent diagnostyczny)
+// and TASK-9.3 together. `actor` distinguishes who/what performed the action (a human via the web
+// session, the Telegram bot, a cron sweep, etc.) since not every action has a human userId behind
+// it.
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  actor     String
+  action    String
+  metadata  Json?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+}
+
 model ClaudeUsageLog {
   id           String   @id @default(cuid())
   scope        String

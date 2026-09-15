@@ -10,6 +10,7 @@ import {
 import { collectMetricsForRecentJobs } from '@/lib/server/post-metrics';
 import { collectAccountGrowth } from '@/lib/server/account-growth';
 import { detectAndNotifyNewComments } from '@/lib/server/social-comments';
+import { sendTelegramLinkReminders } from '@/lib/server/re-engagement';
 import { serverError, unauthorized } from '@/lib/server/http';
 import { runWithRequestId } from '@/lib/server/request-context';
 
@@ -26,14 +27,16 @@ function isAuthorizedCronRequest(request: NextRequest) {
   return authorization === `Bearer ${secret}`;
 }
 
-// One daily sweep covering nine related, non-urgent background jobs - the morning digest
+// One daily sweep covering ten related, non-urgent background jobs - the morning digest
 // (TASK-3.2.2), the long-inactivity nudge (TASK-3.2.3), post-performance metrics collection, the
 // sponsorship growth signal (TASK-5.4.3), the weekly coaching check-in, the stale-campaign
 // reminder, account growth (follower/subscriber count) collection, new-comment detection (EPIC 11
-// Sprint 11.2, TASK-11.2.5), and proactive content suggestions (all 2026-09-14, cooldown/dedupe-
-// gated where relevant, not by cron day-of-week). Kept on one route/cron entry deliberately:
+// Sprint 11.2, TASK-11.2.5), proactive content suggestions (all 2026-09-14), and the one-time
+// "link your Telegram" email nudge for web-only users (TASK-9.2, 2026-09-15) - cooldown/dedupe-
+// gated where relevant, not by cron day-of-week. Kept on one route/cron entry deliberately:
 // free-tier Vercel cron slots are limited, and none of these are urgent enough to need their own
-// schedule.
+// schedule. The email nudge is the one job here that isn't Telegram-specific - it still belongs
+// in this sweep rather than a new cron entry for the same slot-budget reason.
 //
 // TASK-1.3.4: one requestId per sweep - see lib/server/request-context.ts.
 export async function GET(request: NextRequest) {
@@ -66,6 +69,9 @@ async function handleGet(request: NextRequest) {
     // Proactive content suggestions (2026-09-14): same daily sweep, gated to once/week by its own
     // cooldown field - see lib/server/telegram-notifications.ts.
     const contentSuggestionsSummary = await sendContentSuggestions();
+    // TASK-9.2 (2026-09-15): same daily sweep, not a separate cron entry - see
+    // lib/server/re-engagement.ts. One-time per user, gated by lastTelegramLinkReminderSentAt.
+    const telegramLinkReminderSummary = await sendTelegramLinkReminders();
 
     return NextResponse.json({
       ok: true,
@@ -78,6 +84,7 @@ async function handleGet(request: NextRequest) {
       followerSnapshotsUpdated: growthSummary.updated,
       commentsDetected: commentsSummary.commentsDetected,
       contentSuggestionsSent: contentSuggestionsSummary.usersNotified,
+      telegramLinkRemindersSent: telegramLinkReminderSummary.usersNotified,
       processedAt: new Date().toISOString(),
     });
   } catch (error) {
