@@ -18,8 +18,18 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useAuth } from '@/contexts/auth-context';
 import { apiClient } from '@/lib/api-client';
+import { CollapsibleSection } from '@/components/CollapsibleSection';
+import { isFeatureEnabled } from '@/lib/feature-flags';
 import type { Platform, SmartCampaign, ScheduledPost as SmartScheduledPost } from '@/lib/smart-schedule/types';
 import { resolvePublishIssue } from '@/lib/smart-schedule/publish-issues';
+
+// EPIC 10 Faza 2 (2026-09-15): gated behind a feature flag deliberately - this is the most
+// complex, most business-critical screen in the app (audyt: docs/UX_AUDIT.md, ~16+ decisions on
+// one screen), and unlike the /account and /community EPIC 10 Faza 1 changes, there's no way to
+// visually verify this in the current environment. Flag defaults OFF (flat legacy layout,
+// unchanged) so the owner can review the collapsed-sections version in a preview deploy
+// (NEXT_PUBLIC_FEATURE_FLAGS=new-schedule-ui) before it becomes the default for real use.
+const SCHEDULE_REDESIGN_FLAG = 'new-schedule-ui';
 
 type PaginatedJobsResponse = {
   data: PublishJob[];
@@ -227,7 +237,10 @@ export default function SchedulePage() {
   const [isCampaignSaving, setIsCampaignSaving] = useState(false);
   const [isCampaignDeleting, setIsCampaignDeleting] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [weeklyPlannerOpen, setWeeklyPlannerOpen] = useState(false);
+  const [aiOptimizerOpen, setAiOptimizerOpen] = useState(false);
   const pageSize = 10;
+  const scheduleRedesignEnabled = isFeatureEnabled(SCHEDULE_REDESIGN_FLAG);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated && !sessionError) {
@@ -828,165 +841,203 @@ export default function SchedulePage() {
     );
   }
 
+  const weeklyPlannerBody = (
+    <>
+      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
+        <div className="space-y-1">
+          <p className="text-sm font-medium text-foreground">Planer kampanii AI</p>
+          <p className="text-xs text-muted-foreground">
+            Wybierz materiały, a AI zaproponuje posty i terminy na tydzień.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => {
+              void runWeeklyCampaignPlanner(false);
+            }}
+            disabled={isWeeklyPlanLoading}
+            className="px-3 py-1.5 text-xs rounded-lg bg-primary/10 border border-primary/30 text-primary disabled:opacity-60"
+          >
+            {isWeeklyPlanLoading ? 'Liczenie...' : 'Zaproponuj plan AI'}
+          </button>
+          <button
+            onClick={() => {
+              void runWeeklyCampaignPlanner(true);
+            }}
+            disabled={isWeeklyPlanLoading || selectedMediaIds.size === 0}
+            className="px-3 py-1.5 text-xs rounded-lg bg-primary text-primary-foreground disabled:opacity-60"
+          >
+            {isWeeklyPlanLoading ? 'Tworzenie...' : 'Utwórz kampanię'}
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-xs text-muted-foreground">Cel kampanii (opcjonalnie)</label>
+        <textarea
+          value={campaignGoal}
+          onChange={(event) => setCampaignGoal(event.target.value)}
+          rows={2}
+          placeholder="Np. promocja nowej usługi i zwiększenie ruchu na landing page"
+          className="w-full px-3 py-2 bg-secondary/40 border border-border rounded-lg text-sm text-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary/50"
+        />
+      </div>
+
+      <div>
+        <p className="text-xs text-muted-foreground mb-2">Materiały do kampanii ({selectedMediaIds.size})</p>
+        <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
+          {mediaLibrary.slice(0, 12).map((media) => {
+            const isSelected = selectedMediaIds.has(media.id);
+            return (
+              <label
+                key={media.id}
+                className={`flex items-center justify-between gap-3 px-3 py-2 text-xs rounded-lg border transition-all ${
+                  isSelected
+                    ? 'bg-primary/10 border-primary/30 text-primary'
+                    : 'bg-secondary border-border text-foreground'
+                }`}
+              >
+                <span className="flex items-center gap-2 min-w-0">
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => toggleMediaSelection(media.id)}
+                    className="h-4 w-4"
+                  />
+                  <span className="truncate">{media.title}</span>
+                </span>
+                {isSelected && (
+                  <button
+                    onClick={(event) => {
+                      event.preventDefault();
+                      toggleMediaSelection(media.id);
+                    }}
+                    className="px-2 py-1 rounded-md border border-border bg-secondary/60 text-[11px] text-foreground"
+                  >
+                    Usuń z kampanii
+                  </button>
+                )}
+              </label>
+            );
+          })}
+          {mediaLibrary.length === 0 && (
+            <p className="text-xs text-muted-foreground">Brak materiałów w bibliotece.</p>
+          )}
+        </div>
+        {selectedMediaIds.size > 0 && (
+          <button
+            onClick={() => setSelectedMediaIds(new Set())}
+            className="mt-2 px-3 py-1.5 text-xs rounded-lg border border-border bg-secondary text-foreground"
+          >
+            Wyczyść wybór materiałów
+          </button>
+        )}
+      </div>
+
+      {weeklyPlan && (
+        <div className="rounded-md border border-border bg-background/30 px-3 py-2 space-y-2">
+          <p className="text-xs text-foreground font-medium">
+            AI proponuje {weeklyPlan.plan.recommendedPostsPerWeek} postów/tydz. na bazie {weeklyPlan.plan.selectedMaterials} materiałów.
+          </p>
+          <p className="text-[11px] text-muted-foreground">Zaznacz pozycje do akceptacji.</p>
+          <div className="space-y-1 max-h-44 overflow-y-auto pr-1">
+            {weeklyPlan.suggestions.slice(0, 10).map((item, index) => (
+              <label
+                key={`${item.videoId}-${item.platform}-${index}`}
+                className="flex items-center gap-2 rounded-md border border-border bg-secondary/20 px-2 py-1.5"
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedWeeklyPlanItems.has(`${index}-${item.videoId}-${item.platform}`)}
+                  onChange={() => toggleWeeklyPlanItem(`${index}-${item.videoId}-${item.platform}`)}
+                  className="h-4 w-4"
+                />
+                <span className="text-[11px] text-muted-foreground truncate">
+                  {item.platform} • {item.videoTitle} • {new Date(item.suggestedScheduledFor).toLocaleString('pl-PL')}
+                </span>
+              </label>
+            ))}
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            Wybrane pozycje: {selectedWeeklyPlanItems.size}/{weeklyPlan.suggestions.length}
+          </p>
+        </div>
+      )}
+    </>
+  );
+
+  const aiOptimizerBody = (
+    <>
+      <div className="flex flex-wrap gap-2 items-center justify-between">
+        <p className="text-xs text-muted-foreground">Optymalizacja zadań oczekujących</p>
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              void runAiSchedule('preview');
+            }}
+            disabled={isAiLoading || isAiApplying || isPlanLoading || !hasAutoPilotAccess}
+            className="px-3 py-1.5 text-xs rounded-lg bg-secondary border border-border text-foreground disabled:opacity-60"
+          >
+            {isAiLoading ? 'Liczenie...' : 'Podgląd sugestii'}
+          </button>
+          <button
+            onClick={() => {
+              void runAiSchedule('apply');
+            }}
+            disabled={isAiLoading || isAiApplying || isPlanLoading || !hasAutoPilotAccess || aiSuggestions.length === 0}
+            className="px-3 py-1.5 text-xs rounded-lg bg-primary/10 border border-primary/30 text-primary disabled:opacity-60"
+          >
+            {isAiApplying ? 'Zastosowywanie...' : 'Akceptuj sugestie'}
+          </button>
+        </div>
+      </div>
+      {aiStatusBreakdown && (
+        <p className="text-[11px] text-muted-foreground mt-2">
+          Oczekujące: {aiStatusBreakdown.pending} • W trakcie: {aiStatusBreakdown.running} • Opublikowane: {aiStatusBreakdown.success} • Błąd: {aiStatusBreakdown.failed} • Anulowane: {aiStatusBreakdown.canceled}
+          {aiInfoMessage ? ` • ${aiInfoMessage}` : ''}
+        </p>
+      )}
+    </>
+  );
+
   return (
     <>
       <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 lg:pb-6">
           <section className="bg-card border border-border rounded-xl p-6 space-y-4">
             <h2 className="text-lg font-semibold text-foreground">Harmonogram publikacji</h2>
-            <div className="rounded-lg border border-border bg-secondary/20 p-3 space-y-3">
-              <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
-                <div className="space-y-1">
-                  <p className="text-sm font-medium text-foreground">Planer kampanii AI</p>
-                  <p className="text-xs text-muted-foreground">
-                    Wybierz materiały, a AI zaproponuje posty i terminy na tydzień.
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => {
-                      void runWeeklyCampaignPlanner(false);
-                    }}
-                    disabled={isWeeklyPlanLoading}
-                    className="px-3 py-1.5 text-xs rounded-lg bg-primary/10 border border-primary/30 text-primary disabled:opacity-60"
-                  >
-                    {isWeeklyPlanLoading ? 'Liczenie...' : 'Zaproponuj plan AI'}
-                  </button>
-                  <button
-                    onClick={() => {
-                      void runWeeklyCampaignPlanner(true);
-                    }}
-                    disabled={isWeeklyPlanLoading || selectedMediaIds.size === 0}
-                    className="px-3 py-1.5 text-xs rounded-lg bg-primary text-primary-foreground disabled:opacity-60"
-                  >
-                    {isWeeklyPlanLoading ? 'Tworzenie...' : 'Utwórz kampanię'}
-                  </button>
+            {scheduleRedesignEnabled ? (
+              <>
+                <CollapsibleSection
+                  title="Planer kampanii AI (tydzień)"
+                  description="Wybierz materiały, a AI zaproponuje posty i terminy na cały tydzień."
+                  badge={weeklyPlan ? <span className="text-xs font-medium text-primary">Plan gotowy</span> : undefined}
+                  open={weeklyPlannerOpen}
+                  onOpenChange={setWeeklyPlannerOpen}
+                >
+                  {weeklyPlannerBody}
+                </CollapsibleSection>
+                <CollapsibleSection
+                  title="Optymalizacja AI zadań oczekujących"
+                  description="AI przeanalizuje już zaplanowane zadania i zaproponuje lepsze godziny publikacji."
+                  badge={
+                    aiSuggestions.length > 0 ? (
+                      <span className="text-xs font-medium text-primary">{aiSuggestions.length} sugestii</span>
+                    ) : undefined
+                  }
+                  open={aiOptimizerOpen}
+                  onOpenChange={setAiOptimizerOpen}
+                >
+                  {aiOptimizerBody}
+                </CollapsibleSection>
+              </>
+            ) : (
+              <div className="rounded-lg border border-border bg-secondary/20 p-3 space-y-3">
+                {weeklyPlannerBody}
+                <div className="border-t border-border pt-3">
+                  {aiOptimizerBody}
                 </div>
               </div>
-
-              <div className="space-y-2">
-                <label className="text-xs text-muted-foreground">Cel kampanii (opcjonalnie)</label>
-                <textarea
-                  value={campaignGoal}
-                  onChange={(event) => setCampaignGoal(event.target.value)}
-                  rows={2}
-                  placeholder="Np. promocja nowej usługi i zwiększenie ruchu na landing page"
-                  className="w-full px-3 py-2 bg-secondary/40 border border-border rounded-lg text-sm text-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary/50"
-                />
-              </div>
-
-              <div>
-                <p className="text-xs text-muted-foreground mb-2">Materiały do kampanii ({selectedMediaIds.size})</p>
-                <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
-                  {mediaLibrary.slice(0, 12).map((media) => {
-                    const isSelected = selectedMediaIds.has(media.id);
-                    return (
-                      <label
-                        key={media.id}
-                        className={`flex items-center justify-between gap-3 px-3 py-2 text-xs rounded-lg border transition-all ${
-                          isSelected
-                            ? 'bg-primary/10 border-primary/30 text-primary'
-                            : 'bg-secondary border-border text-foreground'
-                        }`}
-                      >
-                        <span className="flex items-center gap-2 min-w-0">
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => toggleMediaSelection(media.id)}
-                            className="h-4 w-4"
-                          />
-                          <span className="truncate">{media.title}</span>
-                        </span>
-                        {isSelected && (
-                          <button
-                            onClick={(event) => {
-                              event.preventDefault();
-                              toggleMediaSelection(media.id);
-                            }}
-                            className="px-2 py-1 rounded-md border border-border bg-secondary/60 text-[11px] text-foreground"
-                          >
-                            Usuń z kampanii
-                          </button>
-                        )}
-                      </label>
-                    );
-                  })}
-                  {mediaLibrary.length === 0 && (
-                    <p className="text-xs text-muted-foreground">Brak materiałów w bibliotece.</p>
-                  )}
-                </div>
-                {selectedMediaIds.size > 0 && (
-                  <button
-                    onClick={() => setSelectedMediaIds(new Set())}
-                    className="mt-2 px-3 py-1.5 text-xs rounded-lg border border-border bg-secondary text-foreground"
-                  >
-                    Wyczyść wybór materiałów
-                  </button>
-                )}
-              </div>
-
-              {weeklyPlan && (
-                <div className="rounded-md border border-border bg-background/30 px-3 py-2 space-y-2">
-                  <p className="text-xs text-foreground font-medium">
-                    AI proponuje {weeklyPlan.plan.recommendedPostsPerWeek} postów/tydz. na bazie {weeklyPlan.plan.selectedMaterials} materiałów.
-                  </p>
-                  <p className="text-[11px] text-muted-foreground">Zaznacz pozycje do akceptacji.</p>
-                  <div className="space-y-1 max-h-44 overflow-y-auto pr-1">
-                    {weeklyPlan.suggestions.slice(0, 10).map((item, index) => (
-                      <label
-                        key={`${item.videoId}-${item.platform}-${index}`}
-                        className="flex items-center gap-2 rounded-md border border-border bg-secondary/20 px-2 py-1.5"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedWeeklyPlanItems.has(`${index}-${item.videoId}-${item.platform}`)}
-                          onChange={() => toggleWeeklyPlanItem(`${index}-${item.videoId}-${item.platform}`)}
-                          className="h-4 w-4"
-                        />
-                        <span className="text-[11px] text-muted-foreground truncate">
-                          {item.platform} • {item.videoTitle} • {new Date(item.suggestedScheduledFor).toLocaleString('pl-PL')}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    Wybrane pozycje: {selectedWeeklyPlanItems.size}/{weeklyPlan.suggestions.length}
-                  </p>
-                </div>
-              )}
-
-              <div className="border-t border-border pt-3">
-                <div className="flex flex-wrap gap-2 items-center justify-between">
-                  <p className="text-xs text-muted-foreground">Optymalizacja zadań oczekujących</p>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => {
-                        void runAiSchedule('preview');
-                      }}
-                      disabled={isAiLoading || isAiApplying || isPlanLoading || !hasAutoPilotAccess}
-                      className="px-3 py-1.5 text-xs rounded-lg bg-secondary border border-border text-foreground disabled:opacity-60"
-                    >
-                      {isAiLoading ? 'Liczenie...' : 'Podgląd sugestii'}
-                    </button>
-                    <button
-                      onClick={() => {
-                        void runAiSchedule('apply');
-                      }}
-                      disabled={isAiLoading || isAiApplying || isPlanLoading || !hasAutoPilotAccess || aiSuggestions.length === 0}
-                      className="px-3 py-1.5 text-xs rounded-lg bg-primary/10 border border-primary/30 text-primary disabled:opacity-60"
-                    >
-                      {isAiApplying ? 'Zastosowywanie...' : 'Akceptuj sugestie'}
-                    </button>
-                  </div>
-                </div>
-                {aiStatusBreakdown && (
-                  <p className="text-[11px] text-muted-foreground mt-2">
-                    Oczekujące: {aiStatusBreakdown.pending} • W trakcie: {aiStatusBreakdown.running} • Opublikowane: {aiStatusBreakdown.success} • Błąd: {aiStatusBreakdown.failed} • Anulowane: {aiStatusBreakdown.canceled}
-                    {aiInfoMessage ? ` • ${aiInfoMessage}` : ''}
-                  </p>
-                )}
-              </div>
-            </div>
+            )}
 
             <div className="rounded-lg border border-border bg-secondary/20 p-3 space-y-3">
               <div className="flex flex-wrap gap-2">
