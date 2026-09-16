@@ -11,7 +11,7 @@ type ClaimedJobRow = {
 };
 
 type PublishTransportResult = {
-  provider: 'YOUTUBE' | 'TIKTOK' | 'FACEBOOK' | 'INSTAGRAM';
+  provider: 'YOUTUBE' | 'TIKTOK' | 'FACEBOOK' | 'INSTAGRAM' | 'LINKEDIN';
   remoteId?: string;
   postUrl?: string;
 };
@@ -64,12 +64,19 @@ function isPermanentFacebookPermissionError(message: string) {
   );
 }
 
-// Proactive content suggestions (2026-09-14): a TEXT job on any platform but Facebook is a
-// configuration mistake, not a transient failure (the dispatch check in publishToPlatform throws
-// before any network call happens) - retrying it would just throw the identical error 3 more
-// times for nothing.
+// Proactive content suggestions (2026-09-14, extended 2026-09-16 for LinkedIn): a TEXT job on any
+// platform but Facebook/LinkedIn is a configuration mistake, not a transient failure (the dispatch
+// check in publishToPlatform throws before any network call happens) - retrying it would just
+// throw the identical error 3 more times for nothing.
 function isUnsupportedTextPostPlatformError(message: string) {
   return message.includes('wyłącznie na Facebooku');
+}
+
+// Same reasoning as isUnsupportedTextPostPlatformError above - a LinkedIn VIDEO job is a
+// configuration mistake caught by the dispatch check in publishToPlatform before any network call
+// happens, not a transient failure worth retrying 3 times.
+function isPermanentLinkedInVideoUnsupportedError(message: string) {
+  return message.includes('LinkedIn w tej integracji obsługuje tylko posty tekstowe i zdjęcia');
 }
 
 const MAX_RETRY_ATTEMPTS = 3;
@@ -430,7 +437,7 @@ function composeCaption(caption: string, hashtags: string[]) {
 
 type PublishInputJob = {
   socialAccount: {
-    platform: 'YOUTUBE' | 'TIKTOK' | 'FACEBOOK' | 'INSTAGRAM';
+    platform: 'YOUTUBE' | 'TIKTOK' | 'FACEBOOK' | 'INSTAGRAM' | 'LINKEDIN';
     externalId: string | null;
   };
   video: {
@@ -911,6 +918,129 @@ async function publishToFacebookPhoto(job: PublishInputJob, accessToken: string)
   };
 }
 
+function resolveLinkedInApiVersion() {
+  return process.env.LINKEDIN_API_VERSION || '202401';
+}
+
+function linkedInHeaders(accessToken: string) {
+  return {
+    Authorization: `Bearer ${accessToken}`,
+    'Content-Type': 'application/json',
+    'LinkedIn-Version': resolveLinkedInApiVersion(),
+    'X-Restli-Protocol-Version': '2.0.0',
+  };
+}
+
+// LinkedIn Posts API (REST) zwraca URN utworzonego posta w nagłówku odpowiedzi (`x-restli-id`),
+// nie w body - inaczej niż Meta/TikTok, gdzie id wraca w JSON-ie.
+async function createLinkedInPost(
+  authorUrn: string,
+  accessToken: string,
+  body: Record<string, unknown>,
+): Promise<PublishTransportResult> {
+  const response = await fetch('https://api.linkedin.com/rest/posts', {
+    method: 'POST',
+    headers: linkedInHeaders(accessToken),
+    body: JSON.stringify({ author: authorUrn, ...body }),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+
+    if (response.status === 401 || response.status === 403) {
+      throw new PublishAuthError(
+        `LinkedIn access token invalid/expired: ${errorBody || response.statusText}`,
+        response.status,
+      );
+    }
+
+    throw new Error(`LinkedIn publish failed: ${errorBody || response.statusText}`);
+  }
+
+  const postId = response.headers.get('x-restli-id') ?? undefined;
+
+  return {
+    provider: 'LINKEDIN' as const,
+    remoteId: postId,
+    postUrl: postId ? `https://www.linkedin.com/feed/update/${postId}` : undefined,
+  };
+}
+
+async function publishToLinkedInTextPost(job: PublishInputJob, accessToken: string): Promise<PublishTransportResult> {
+  const memberId = job.socialAccount.externalId;
+  if (!memberId) {
+    throw new Error('Brak externalId profilu LinkedIn dla konta social');
+  }
+
+  return createLinkedInPost(`urn:li:person:${memberId}`, accessToken, {
+    commentary: composeCaption(job.caption, job.hashtags).slice(0, 3000),
+    visibility: 'PUBLIC',
+    distribution: { feedDistribution: 'MAIN_FEED', targetEntities: [], thirdPartyDistributionChannels: [] },
+    lifecycleState: 'PUBLISHED',
+    isReshareDisabledByAuthor: false,
+  });
+}
+
+// LinkedIn (inaczej niż Meta/Instagram) nie pobiera materiału z publicznego URL-a ("pull") -
+// wymaga bezpośredniego uploadu bajtów pod jednorazowy `uploadUrl` zwrócony przez
+// initializeUpload. resolveVideoBytes już obsługuje ten sam plik (lokalny na dysku w
+// dev/test, publiczny URL na produkcji) dla wideo - reużyty tu bez zmian, bo to zwykłe pobranie
+// bajtów, nie coś specyficznego dla wideo.
+async function initializeLinkedInImageUpload(authorUrn: string, accessToken: string) {
+  const response = await fetch('https://api.linkedin.com/rest/images?action=initializeUpload', {
+    method: 'POST',
+    headers: linkedInHeaders(accessToken),
+    body: JSON.stringify({ initializeUploadRequest: { owner: authorUrn } }),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    if (response.status === 401 || response.status === 403) {
+      throw new PublishAuthError(
+        `LinkedIn access token invalid/expired: ${errorBody || response.statusText}`,
+        response.status,
+      );
+    }
+    throw new Error(`LinkedIn image upload init failed: ${errorBody || response.statusText}`);
+  }
+
+  const payload = (await response.json()) as {
+    value?: { uploadUrl?: string; image?: string };
+  };
+
+  if (!payload.value?.uploadUrl || !payload.value?.image) {
+    throw new Error('LinkedIn image upload init failed: missing uploadUrl/image in response');
+  }
+
+  return { uploadUrl: payload.value.uploadUrl, imageUrn: payload.value.image };
+}
+
+async function publishToLinkedInPhoto(job: PublishInputJob, accessToken: string): Promise<PublishTransportResult> {
+  const memberId = job.socialAccount.externalId;
+  if (!memberId) {
+    throw new Error('Brak externalId profilu LinkedIn dla konta social');
+  }
+
+  const authorUrn = `urn:li:person:${memberId}`;
+  const { uploadUrl, imageUrn } = await initializeLinkedInImageUpload(authorUrn, accessToken);
+
+  const imageBytes = await resolveVideoBytes(job);
+  const uploadResponse = await fetch(uploadUrl, { method: 'PUT', body: imageBytes });
+  if (!uploadResponse.ok) {
+    const errorBody = await uploadResponse.text();
+    throw new Error(`LinkedIn image upload failed: ${errorBody || uploadResponse.statusText}`);
+  }
+
+  return createLinkedInPost(authorUrn, accessToken, {
+    commentary: composeCaption(job.caption, job.hashtags).slice(0, 3000),
+    visibility: 'PUBLIC',
+    distribution: { feedDistribution: 'MAIN_FEED', targetEntities: [], thirdPartyDistributionChannels: [] },
+    lifecycleState: 'PUBLISHED',
+    isReshareDisabledByAuthor: false,
+    content: { media: { id: imageUrn } },
+  });
+}
+
 // Post jest już opublikowany, gdy to wołamy - błąd tutaj nie może cofnąć publikacji,
 // tylko zostawić link pusty (i tak dowiadujemy się o tym po zapisie w bazie/panelu).
 async function fetchInstagramPermalink(mediaId: string, accessToken: string, version: string): Promise<string | undefined> {
@@ -1073,8 +1203,12 @@ async function publishToInstagramPhoto(job: PublishInputJob, accessToken: string
 
 async function publishToPlatform(job: PublishInputJob, accessToken: string): Promise<PublishTransportResult> {
   if (job.video.mediaType === 'TEXT') {
+    if (job.socialAccount.platform === 'LINKEDIN') {
+      return publishToLinkedInTextPost(job, accessToken);
+    }
+
     if (job.socialAccount.platform !== 'FACEBOOK') {
-      throw new Error('Posty tekstowe bez materiału są obsługiwane wyłącznie na Facebooku.');
+      throw new Error('Posty tekstowe bez materiału są obsługiwane wyłącznie na Facebooku i LinkedIn.');
     }
 
     return publishToFacebookTextPost(job, accessToken);
@@ -1097,6 +1231,10 @@ async function publishToPlatform(job: PublishInputJob, accessToken: string): Pro
       return publishToInstagramPhoto(job, accessToken);
     }
 
+    if (job.socialAccount.platform === 'LINKEDIN') {
+      return publishToLinkedInPhoto(job, accessToken);
+    }
+
     throw new Error(`Nieobsługiwana platforma publikacji: ${job.socialAccount.platform}`);
   }
 
@@ -1114,6 +1252,12 @@ async function publishToPlatform(job: PublishInputJob, accessToken: string): Pro
 
   if (job.socialAccount.platform === 'INSTAGRAM') {
     return publishToInstagram(job, accessToken);
+  }
+
+  if (job.socialAccount.platform === 'LINKEDIN') {
+    // Publikacja wideo na LinkedIn świadomie poza zakresem tej integracji (własne, bardziej
+    // złożone API z chunkowanym uploadem) - patrz komentarz przy enum Platform w schema.prisma.
+    throw new Error('LinkedIn w tej integracji obsługuje tylko posty tekstowe i zdjęcia, nie wideo.');
   }
 
   throw new Error(`Nieobsługiwana platforma publikacji: ${job.socialAccount.platform}`);
@@ -1238,7 +1382,7 @@ async function processClaimedJobCore(jobId: string) {
 
   const publishInput: PublishInputJob = {
     socialAccount: {
-      platform: job.socialAccount.platform as 'YOUTUBE' | 'TIKTOK' | 'FACEBOOK' | 'INSTAGRAM',
+      platform: job.socialAccount.platform as 'YOUTUBE' | 'TIKTOK' | 'FACEBOOK' | 'INSTAGRAM' | 'LINKEDIN',
       externalId: job.socialAccount.externalId,
     },
     video: {
@@ -1629,6 +1773,21 @@ async function processClaimedJobCore(jobId: string) {
         jobId: job.id,
         attempt: nextAttempt,
         reason: 'text-post-unsupported-platform',
+      });
+
+      return 'failed' as const;
+    }
+
+    if (isPermanentLinkedInVideoUnsupportedError(reason)) {
+      await prisma.publishJob.update({
+        where: { id: job.id },
+        data: { status: 'FAILED', errorMessage: reason },
+      });
+
+      logEvent('publish-processor', 'job-failed-final', {
+        jobId: job.id,
+        attempt: nextAttempt,
+        reason: 'linkedin-video-unsupported',
       });
 
       return 'failed' as const;

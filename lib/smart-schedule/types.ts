@@ -1,4 +1,4 @@
-export type Platform = 'youtube' | 'tiktok' | 'instagram' | 'facebook';
+export type Platform = 'youtube' | 'tiktok' | 'instagram' | 'facebook' | 'linkedin';
 
 export interface PostContent {
   mediaUrl: string;

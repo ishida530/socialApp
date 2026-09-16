@@ -119,11 +119,12 @@ type WeeklyPlanResponse = {
 
 type WeeklyPlanAcceptedItem = WeeklyPlanResponse['suggestions'][number];
 
-const PLATFORM_FROM_API: Record<'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'FACEBOOK', Platform> = {
+const PLATFORM_FROM_API: Record<'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'FACEBOOK' | 'LINKEDIN', Platform> = {
   YOUTUBE: 'youtube',
   TIKTOK: 'tiktok',
   INSTAGRAM: 'instagram',
   FACEBOOK: 'facebook',
+  LINKEDIN: 'linkedin',
 };
 
 function statusFilterLabel(status: StatusFilter) {
@@ -503,6 +504,7 @@ export default function SchedulePage() {
               tiktok: '',
               instagram: '',
               facebook: '',
+              linkedin: '',
             },
             tags: [],
           },

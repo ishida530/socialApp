@@ -80,9 +80,20 @@ export async function createDraftGroupForVideo(
     }
   });
 
-  const connectedPlatforms = Array.from(accountByPlatform.keys()).filter(
-    (platform) => !(video.mediaType === 'IMAGE' && platform === Platform.YOUTUBE),
-  );
+  const connectedPlatforms = Array.from(accountByPlatform.keys()).filter((platform) => {
+    if (video.mediaType === 'IMAGE' && platform === Platform.YOUTUBE) {
+      return false;
+    }
+
+    // LinkedIn w tej integracji obsługuje tylko tekst i zdjęcia (patrz publishToPlatform w
+    // publish-processor.ts) - wykluczone już na etapie tworzenia draftu, żeby "Publikuj" nie
+    // kończyło się błędem dopiero przy realnej próbie publikacji.
+    if (video.mediaType === 'VIDEO' && platform === Platform.LINKEDIN) {
+      return false;
+    }
+
+    return true;
+  });
 
   if (connectedPlatforms.length === 0) {
     return { ok: false, error: 'Żadna podłączona platforma nie obsługuje tego typu materiału.' };
@@ -169,12 +180,18 @@ export async function createDraftGroupForVideo(
   };
 }
 
-type SocialPlatform = 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'FACEBOOK';
+type SocialPlatform = 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'FACEBOOK' | 'LINKEDIN';
 
 export function normalizePublishPlatform(value: string): SocialPlatform {
   const normalized = value.trim().toUpperCase();
 
-  if (normalized === 'YOUTUBE' || normalized === 'TIKTOK' || normalized === 'INSTAGRAM' || normalized === 'FACEBOOK') {
+  if (
+    normalized === 'YOUTUBE' ||
+    normalized === 'TIKTOK' ||
+    normalized === 'INSTAGRAM' ||
+    normalized === 'FACEBOOK' ||
+    normalized === 'LINKEDIN'
+  ) {
     return normalized;
   }
 

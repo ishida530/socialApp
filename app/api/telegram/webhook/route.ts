@@ -83,7 +83,7 @@ function resolveRateLimitChatId(update: TelegramUpdate): string | null {
 export const maxDuration = 60;
 
 const START_COMMAND_PATTERN = /^\/start(?:@\w+)?\s+(\S+)/i;
-const VALID_TOGGLE_PLATFORMS = ['YOUTUBE', 'TIKTOK', 'INSTAGRAM', 'FACEBOOK'];
+const VALID_TOGGLE_PLATFORMS = ['YOUTUBE', 'TIKTOK', 'INSTAGRAM', 'FACEBOOK', 'LINKEDIN'];
 
 type PreviewJob = {
   socialAccount: { platform: string };

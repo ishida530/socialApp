@@ -3,8 +3,8 @@ import { decrypt, encrypt } from './crypto';
 import { prisma } from './prisma';
 import { assertSocialAccountsLimit } from './subscription';
 
-type OAuthProvider = 'youtube' | 'tiktok' | 'facebook' | 'instagram';
-type PrismaPlatform = 'YOUTUBE' | 'TIKTOK' | 'FACEBOOK' | 'INSTAGRAM';
+type OAuthProvider = 'youtube' | 'tiktok' | 'facebook' | 'instagram' | 'linkedin';
+type PrismaPlatform = 'YOUTUBE' | 'TIKTOK' | 'FACEBOOK' | 'INSTAGRAM' | 'LINKEDIN';
 
 type TokenResult = {
   accessToken: string;
@@ -42,7 +42,11 @@ function getProvider(platformInput: string): OAuthProvider {
     return 'instagram';
   }
 
-  throw new Error('Unsupported platform. Use youtube, tiktok, facebook or instagram.');
+  if (normalized === 'linkedin') {
+    return 'linkedin';
+  }
+
+  throw new Error('Unsupported platform. Use youtube, tiktok, facebook, instagram or linkedin.');
 }
 
 function requireConfig(key: string) {
@@ -102,6 +106,18 @@ function resolveFacebookScope() {
     process.env.FACEBOOK_OAUTH_SCOPES ||
     'public_profile,email,pages_show_list,pages_read_engagement,pages_manage_engagement,pages_manage_posts,business_management'
   );
+}
+
+function resolveLinkedInApiVersion() {
+  return process.env.LINKEDIN_API_VERSION || '202401';
+}
+
+function resolveLinkedInScope() {
+  // Profil osobisty, nie strona firmowa (patrz komentarz przy enum Platform w schema.prisma):
+  // 'openid,profile,email' to "Sign In with LinkedIn using OpenID Connect" (tożsamość -
+  // potrzebne do pobrania URN autora dla publikacji), 'w_member_social' to "Share on LinkedIn"
+  // (publikacja) - oba produkty samoobsługowe, bez recenzji LinkedIn.
+  return process.env.LINKEDIN_OAUTH_SCOPES || 'openid,profile,email,w_member_social';
 }
 
 function resolveInstagramScope() {
@@ -211,6 +227,10 @@ function toPrismaPlatform(provider: OAuthProvider): PrismaPlatform {
     return 'FACEBOOK';
   }
 
+  if (provider === 'linkedin') {
+    return 'LINKEDIN';
+  }
+
   return 'INSTAGRAM';
 }
 
@@ -250,6 +270,20 @@ export function buildAuthUrl(
 
     return {
       url: `https://www.facebook.com/${version}/dialog/oauth?${params.toString()}`,
+    };
+  }
+
+  if (provider === 'linkedin') {
+    const params = new URLSearchParams({
+      client_id: requireConfig('LINKEDIN_CLIENT_ID'),
+      redirect_uri: requireConfig('LINKEDIN_REDIRECT_URI'),
+      response_type: 'code',
+      state,
+      scope: resolveLinkedInScope(),
+    });
+
+    return {
+      url: `https://www.linkedin.com/oauth/v2/authorization?${params.toString()}`,
     };
   }
 
@@ -407,6 +441,48 @@ async function exchangeMetaCode(code: string, provider: 'facebook' | 'instagram'
   };
 }
 
+async function exchangeLinkedInCode(code: string): Promise<TokenResult> {
+  const params = new URLSearchParams({
+    grant_type: 'authorization_code',
+    code,
+    client_id: requireConfig('LINKEDIN_CLIENT_ID'),
+    client_secret: requireConfig('LINKEDIN_CLIENT_SECRET'),
+    redirect_uri: requireConfig('LINKEDIN_REDIRECT_URI'),
+  });
+
+  const response = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params.toString(),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`LinkedIn token exchange failed: ${errorBody || response.statusText}`);
+  }
+
+  const tokenJson = (await response.json()) as {
+    access_token?: string;
+    // Domyślne aplikacje LinkedIn NIE dostają refresh_token (tylko access token ważny ~60 dni) -
+    // ten produkt ("Refresh Token behavior") wymaga osobnej, dodatkowej zgody LinkedIn. Pole
+    // opcjonalne właśnie dlatego, nie przez pomyłkę.
+    refresh_token?: string;
+    expires_in?: number;
+  };
+
+  if (!tokenJson.access_token) {
+    throw new Error('LinkedIn token exchange failed: missing access_token');
+  }
+
+  return {
+    accessToken: tokenJson.access_token,
+    refreshToken: tokenJson.refresh_token,
+    expiresAt: tokenJson.expires_in
+      ? new Date(Date.now() + tokenJson.expires_in * 1000)
+      : undefined,
+  };
+}
+
 async function refreshGoogleToken(refreshToken: string): Promise<TokenResult> {
   const params = new URLSearchParams({
     client_id: requireConfig('GOOGLE_CLIENT_ID'),
@@ -516,6 +592,44 @@ async function refreshMetaToken(accessToken: string, provider: 'facebook' | 'ins
   return {
     accessToken: tokenJson.access_token,
     refreshToken: tokenJson.access_token,
+    expiresAt: tokenJson.expires_in
+      ? new Date(Date.now() + tokenJson.expires_in * 1000)
+      : undefined,
+  };
+}
+
+async function refreshLinkedInToken(refreshToken: string): Promise<TokenResult> {
+  const params = new URLSearchParams({
+    grant_type: 'refresh_token',
+    refresh_token: refreshToken,
+    client_id: requireConfig('LINKEDIN_CLIENT_ID'),
+    client_secret: requireConfig('LINKEDIN_CLIENT_SECRET'),
+  });
+
+  const response = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params.toString(),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`LinkedIn token refresh failed: ${errorBody || response.statusText}`);
+  }
+
+  const tokenJson = (await response.json()) as {
+    access_token?: string;
+    refresh_token?: string;
+    expires_in?: number;
+  };
+
+  if (!tokenJson.access_token) {
+    throw new Error('LinkedIn token refresh failed: missing access_token');
+  }
+
+  return {
+    accessToken: tokenJson.access_token,
+    refreshToken: tokenJson.refresh_token,
     expiresAt: tokenJson.expires_in
       ? new Date(Date.now() + tokenJson.expires_in * 1000)
       : undefined,
@@ -636,6 +750,32 @@ async function fetchInstagramProfile(accessToken: string) {
   };
 }
 
+// OpenID Connect userinfo - zastąpiło stare /v2/me (wymagało osobnego, dziś niedostępnego
+// scope'u r_liteprofile dla nowych aplikacji). `sub` to surowe ID członka LinkedIn - zapisywane
+// jako externalId, żeby publish-processor mógł zbudować URN autora ("urn:li:person:{sub}") bez
+// dodatkowego wywołania API przy każdej publikacji.
+async function fetchLinkedInProfile(accessToken: string) {
+  const response = await fetch('https://api.linkedin.com/v2/userinfo', {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error('Unable to fetch LinkedIn user profile');
+  }
+
+  const profile = (await response.json()) as {
+    sub?: string;
+    name?: string;
+  };
+
+  return {
+    externalId: profile.sub ?? null,
+    handle: profile.name ?? 'LinkedIn account',
+  };
+}
+
 async function fetchMetaManagedPages(accessToken: string) {
   const version = resolveMetaApiVersion();
   const response = await fetch(
@@ -725,7 +865,9 @@ export async function handleOAuthCallback(
       ? await exchangeGoogleCode(query.code)
       : provider === 'tiktok'
         ? await exchangeTikTokCode(query.code, options?.tiktokCodeVerifier)
-        : await exchangeMetaCode(query.code, provider);
+        : provider === 'linkedin'
+          ? await exchangeLinkedInCode(query.code)
+          : await exchangeMetaCode(query.code, provider);
 
   const metaContext =
     provider === 'facebook' || provider === 'instagram'
@@ -737,12 +879,14 @@ export async function handleOAuthCallback(
       ? await fetchGoogleProfile(tokenResult.accessToken)
       : provider === 'tiktok'
         ? await fetchTikTokProfile(tokenResult.accessToken)
-        : provider === 'facebook' || provider === 'instagram'
-          ? {
-              externalId: metaContext?.externalId ?? null,
-              handle: metaContext?.handle ?? 'Meta account',
-            }
-          : await fetchFacebookProfile(tokenResult.accessToken);
+        : provider === 'linkedin'
+          ? await fetchLinkedInProfile(tokenResult.accessToken)
+          : provider === 'facebook' || provider === 'instagram'
+            ? {
+                externalId: metaContext?.externalId ?? null,
+                handle: metaContext?.handle ?? 'Meta account',
+              }
+            : await fetchFacebookProfile(tokenResult.accessToken);
 
   const prismaPlatform = toPrismaPlatform(provider);
   const reconnectAccountId = options?.reconnectAccountId;
@@ -823,6 +967,14 @@ export async function handleOAuthCallback(
         });
       })();
 
+  const displayName: Record<OAuthProvider, string> = {
+    youtube: 'YouTube',
+    tiktok: 'TikTok',
+    facebook: 'Facebook',
+    instagram: 'Instagram',
+    linkedin: 'LinkedIn',
+  };
+
   return {
     success: true,
     platform: provider,
@@ -830,34 +982,12 @@ export async function handleOAuthCallback(
     handle: saved.handle,
     message:
       updateReason === 'reconnect'
-        ? `Konto ${
-            provider === 'youtube'
-              ? 'YouTube'
-              : provider === 'tiktok'
-                ? 'TikTok'
-                : provider === 'facebook'
-                  ? 'Facebook'
-                  : 'Instagram'
-          } zostało ponownie autoryzowane.`
+        ? `Konto ${displayName[provider]} zostało ponownie autoryzowane.`
         : updateReason === 'already-connected'
-        ? provider === 'tiktok'
-          ? 'To konto TikTok było już połączone. Dane autoryzacji zostały odświeżone. Aby dodać kolejne konto, zaloguj w oknie autoryzacji inne konto TikTok (ew. tryb incognito / wylogowanie z obecnego konta).'
-          : `To konto ${
-              provider === 'youtube'
-                ? 'YouTube'
-                : provider === 'facebook'
-                  ? 'Facebook'
-                  : 'Instagram'
-            } było już połączone. Dane autoryzacji zostały odświeżone.`
-        : `Konto ${
-            provider === 'youtube'
-              ? 'YouTube'
-              : provider === 'tiktok'
-                ? 'TikTok'
-                : provider === 'facebook'
-                  ? 'Facebook'
-                  : 'Instagram'
-          } połączone!`,
+          ? provider === 'tiktok'
+            ? 'To konto TikTok było już połączone. Dane autoryzacji zostały odświeżone. Aby dodać kolejne konto, zaloguj w oknie autoryzacji inne konto TikTok (ew. tryb incognito / wylogowanie z obecnego konta).'
+            : `To konto ${displayName[provider]} było już połączone. Dane autoryzacji zostały odświeżone.`
+          : `Konto ${displayName[provider]} połączone!`,
   };
 }
 
@@ -920,6 +1050,19 @@ export async function refreshSocialAccessToken(accountId: string) {
 
                 return refreshMetaToken(decryptedAccessToken, 'instagram');
               })()
+            : account.platform === 'LINKEDIN'
+              ? (() => {
+                  // Domyślne aplikacje LinkedIn nie dostają refresh_token (patrz komentarz przy
+                  // exchangeLinkedInCode) - bez niego token po prostu wygasa po ~60 dniach i
+                  // konto wymaga ręcznego ponownego połączenia, ten sam ogólny mechanizm co dla
+                  // każdego innego wygasłego tokenu (PublishAuthError -> powiadomienie o
+                  // konieczności ponownej autoryzacji).
+                  if (!decryptedRefreshToken) {
+                    throw new Error('Brak refresh token dla konta social');
+                  }
+
+                  return refreshLinkedInToken(decryptedRefreshToken);
+                })()
         : (() => {
             throw new Error(`Refresh token nieobsługiwany dla platformy ${account.platform}`);
               })()

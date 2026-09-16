@@ -20,13 +20,14 @@ type RequestBody = {
   apply?: boolean;
 };
 
-type PlatformLower = 'youtube' | 'tiktok' | 'instagram' | 'facebook';
+type PlatformLower = 'youtube' | 'tiktok' | 'instagram' | 'facebook' | 'linkedin';
 
 const PLATFORM_TO_LOWER: Record<Platform, PlatformLower> = {
   YOUTUBE: 'youtube',
   TIKTOK: 'tiktok',
   INSTAGRAM: 'instagram',
   FACEBOOK: 'facebook',
+  LINKEDIN: 'linkedin',
 };
 
 function resolveRecommendedPostsPerWeek(videoCount: number, plan: 'FREE' | 'STARTER' | 'PRO' | 'BUSINESS') {

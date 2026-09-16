@@ -3,7 +3,7 @@ import { orchestrateContent } from './smart-autopilot/orchestrator';
 import type { ScheduleSlot } from './smart-autopilot/types';
 
 type PlatformBundle = {
-  platform: 'TIKTOK' | 'INSTAGRAM' | 'YOUTUBE' | 'FACEBOOK';
+  platform: 'TIKTOK' | 'INSTAGRAM' | 'YOUTUBE' | 'FACEBOOK' | 'LINKEDIN';
   title?: string;
   caption: string;
   hashtags: string[];

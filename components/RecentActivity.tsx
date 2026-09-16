@@ -1,11 +1,11 @@
 "use client";
 
-import { Youtube, Instagram, Music2, Facebook, CheckCircle2, Clock, XCircle, Info } from 'lucide-react';
+import { Youtube, Instagram, Music2, Facebook, Linkedin, CheckCircle2, Clock, XCircle, Info } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
 
-type PlatformKey = 'youtube' | 'instagram' | 'tiktok' | 'facebook';
+type PlatformKey = 'youtube' | 'instagram' | 'tiktok' | 'facebook' | 'linkedin';
 
 interface Activity {
   id: string;
@@ -26,7 +26,7 @@ type PublishJobResponse = {
     title?: string;
   };
   socialAccount?: {
-    platform?: 'YOUTUBE' | 'INSTAGRAM' | 'TIKTOK' | 'FACEBOOK';
+    platform?: 'YOUTUBE' | 'INSTAGRAM' | 'TIKTOK' | 'FACEBOOK' | 'LINKEDIN';
   };
 };
 
@@ -41,6 +41,7 @@ const platformIcons = {
   instagram: { icon: Instagram, color: 'text-pink-500' },
   tiktok: { icon: Music2, color: 'text-slate-400' },
   facebook: { icon: Facebook, color: 'text-blue-500' },
+  linkedin: { icon: Linkedin, color: 'text-sky-600' },
 };
 
 export function RecentActivity() {

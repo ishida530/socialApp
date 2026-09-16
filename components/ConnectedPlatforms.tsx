@@ -5,6 +5,7 @@ import {
   Music2,
   Instagram,
   Facebook,
+  Linkedin,
   CheckCircle2,
   XCircle,
   RefreshCw,
@@ -17,7 +18,7 @@ type PlatformCard = {
   name: string;
   icon: typeof Youtube;
   color: string;
-  apiPlatform: 'youtube' | 'tiktok' | 'instagram' | 'facebook';
+  apiPlatform: 'youtube' | 'tiktok' | 'instagram' | 'facebook' | 'linkedin';
 };
 
 const platforms: PlatformCard[] = [
@@ -45,11 +46,17 @@ const platforms: PlatformCard[] = [
     color: 'text-blue-500',
     apiPlatform: 'facebook',
   },
+  {
+    name: 'LinkedIn',
+    icon: Linkedin,
+    color: 'text-sky-600',
+    apiPlatform: 'linkedin',
+  },
 ];
 
 type SocialAccountDto = {
   id: string;
-  platform: 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'FACEBOOK';
+  platform: 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'FACEBOOK' | 'LINKEDIN';
   handle: string;
   createdAt: string;
 };
@@ -75,12 +82,13 @@ export function ConnectedPlatforms() {
   }, []);
 
   const accountsByPlatform = useMemo(() => {
-    const map = new Map<'youtube' | 'tiktok' | 'instagram' | 'facebook', SocialAccountDto[]>();
+    const map = new Map<'youtube' | 'tiktok' | 'instagram' | 'facebook' | 'linkedin', SocialAccountDto[]>();
 
     map.set('youtube', []);
     map.set('tiktok', []);
     map.set('instagram', []);
     map.set('facebook', []);
+    map.set('linkedin', []);
 
     accounts.forEach((account) => {
       if (account.platform === 'YOUTUBE') {
@@ -98,6 +106,10 @@ export function ConnectedPlatforms() {
       if (account.platform === 'FACEBOOK') {
         map.get('facebook')?.push(account);
       }
+
+      if (account.platform === 'LINKEDIN') {
+        map.get('linkedin')?.push(account);
+      }
     });
 
     map.forEach((value, key) => {
@@ -112,7 +124,7 @@ export function ConnectedPlatforms() {
     return map;
   }, [accounts]);
 
-  const connectAccount = async (platform: 'youtube' | 'tiktok' | 'instagram' | 'facebook') => {
+  const connectAccount = async (platform: 'youtube' | 'tiktok' | 'instagram' | 'facebook' | 'linkedin') => {
     try {
       setLoadingPlatform(platform);
       const response = await apiClient.get<{ url?: string }>(

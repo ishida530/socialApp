@@ -11,6 +11,7 @@ const FORMAT_COPY: Record<Platform, { reels: string; feed: string }> = {
   },
   YOUTUBE: { reels: '', feed: '' },
   TIKTOK: { reels: '', feed: '' },
+  LINKEDIN: { reels: '', feed: '' },
 };
 
 export function MetaFormatPanel({

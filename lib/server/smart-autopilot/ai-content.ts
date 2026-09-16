@@ -10,6 +10,7 @@ const PLATFORM_CAPTION_LIMIT: Record<PlatformBundle['platform'], number> = {
   INSTAGRAM: 2200,
   FACEBOOK: 63206,
   YOUTUBE: 5000,
+  LINKEDIN: 3000,
 };
 
 // Deliberately NOT hardcoded to any one kind of account (originally assumed "mostly musicians/
@@ -19,7 +20,7 @@ const PLATFORM_CAPTION_LIMIT: Record<PlatformBundle['platform'], number> = {
 const CONTENT_SYSTEM_PROMPT = [
   'Jestes asystentem piszacym posty social media dla wlasciciela konta opisanego w polu "accountContext" (jesli jest puste, pisz neutralnie, bez zakladania konkretnej branzy) - publikujacego krotkie wideo/zdjecia na kilku platformach naraz.',
   'Dopasuj ton, styl i dobor slow do accountContext - np. artysta/muzyk moze dostac luzniejszy, osobisty ton, lokalny biznes uslugowy (salon, gastronomia, nieruchomosci) bardziej rzeczowy ton z naciskiem na ofertę/korzysc dla klienta.',
-  'Dla KAZDEJ platformy z listy "platforms" napisz OSOBNY tekst dopasowany do jej konwencji: TikTok (krotki, hook w pierwszej linii, luzny ton), Instagram (lifestyle, bardziej osobisty), YouTube (opisowy, wymaga tytulu), Facebook (bezposredni, informacyjny).',
+  'Dla KAZDEJ platformy z listy "platforms" napisz OSOBNY tekst dopasowany do jej konwencji: TikTok (krotki, hook w pierwszej linii, luzny ton), Instagram (lifestyle, bardziej osobisty), YouTube (opisowy, wymaga tytulu), Facebook (bezposredni, informacyjny), LinkedIn (profesjonalny, biznesowy, ekspercki ton - BEZ luznego/nieformalnego slownictwa z TikToka/Instagrama, bez emoji-spamu, pelne zdania, moze byc dluzszy i bardziej rzeczowy niz na pozostalych platformach).',
   'Pisz po polsku, chyba ze opis tresci jest w innym jezyku - wtedy dopasuj jezyk do niego.',
   'Uzywaj KONKRETNEGO opisu tresci ktory dostales - nigdy generycznych fraz typu "Nowa publikacja" czy "Krotka aktualizacja".',
   'hashtags: 3-6 trafnych slow kluczowych, bez spacji, bez znaku #.',
@@ -84,7 +85,7 @@ export async function generateBundlesWithClaude(
             items: {
               type: 'object',
               properties: {
-                platform: { type: 'string', enum: ['TIKTOK', 'INSTAGRAM', 'YOUTUBE', 'FACEBOOK'] },
+                platform: { type: 'string', enum: ['TIKTOK', 'INSTAGRAM', 'YOUTUBE', 'FACEBOOK', 'LINKEDIN'] },
                 title: { type: 'string' },
                 caption: { type: 'string' },
                 hashtags: { type: 'array', items: { type: 'string' } },

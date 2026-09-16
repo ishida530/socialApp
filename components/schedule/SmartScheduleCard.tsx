@@ -10,6 +10,7 @@ const PLATFORM_LABELS: Record<Platform, string> = {
   tiktok: 'TikTok',
   instagram: 'Instagram',
   facebook: 'Facebook',
+  linkedin: 'LinkedIn',
 };
 
 function resolveStatusBadge(post: ScheduledPost) {
