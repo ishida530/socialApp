@@ -92,7 +92,7 @@ describe('/pomysl', () => {
     const response = await POST(webhookRequest(chatId, '/pomysl'));
     expect(response.status).toBe(200);
 
-    expect(mockGenerateContentIdeas).toHaveBeenCalledWith('Jestem raperem', expect.any(Array));
+    expect(mockGenerateContentIdeas).toHaveBeenCalledWith('Jestem raperem', expect.any(Array), null);
     const calls = mockSendTelegramMessage.mock.calls;
     expect(calls[0][1]).toMatch(/Analizuję/i);
     const finalMessage = calls.at(-1)?.[1] as string;

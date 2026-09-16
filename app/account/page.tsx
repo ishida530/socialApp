@@ -49,6 +49,13 @@ export default function AccountPage() {
   const [isSavingBusinessDescription, setIsSavingBusinessDescription] = useState(false);
   const BUSINESS_DESCRIPTION_MAX_LENGTH = 500;
 
+  // 2026-09-16 (zgłoszenie właściciela: sugerowana treść brzmiała zbyt generycznie dla jego konta) -
+  // odrębne od businessDescription ("czym się zajmuję") pole opisujące JAK właściciel mówi, wpięte
+  // w te same prompty Claude generujące treść (lib/server/*).
+  const [communicationStyle, setCommunicationStyle] = useState('');
+  const [isSuggestingCommunicationStyle, setIsSuggestingCommunicationStyle] = useState(false);
+  const COMMUNICATION_STYLE_MAX_LENGTH = 500;
+
   // Web equivalent of the Telegram /autopilot on|off|status command - same User.autopilotEnabled
   // field, so toggling here has the exact same effect as typing the command in the bot.
   const [autopilotEnabled, setAutopilotEnabled] = useState(false);
@@ -94,9 +101,15 @@ export default function AccountPage() {
     }
 
     apiClient
-      .get<{ businessDescription: string | null; autopilotEnabled: boolean; twoFactorEnabled: boolean }>('/auth/me')
+      .get<{
+        businessDescription: string | null;
+        communicationStyle: string | null;
+        autopilotEnabled: boolean;
+        twoFactorEnabled: boolean;
+      }>('/auth/me')
       .then((response) => {
         setBusinessDescription(response.data.businessDescription ?? '');
+        setCommunicationStyle(response.data.communicationStyle ?? '');
         setAutopilotEnabled(response.data.autopilotEnabled ?? false);
         setTwoFactorEnabled(response.data.twoFactorEnabled ?? false);
       })
@@ -133,12 +146,26 @@ export default function AccountPage() {
   const handleSaveBusinessDescription = async () => {
     try {
       setIsSavingBusinessDescription(true);
-      await apiClient.patch('/auth/me', { businessDescription });
+      await apiClient.patch('/auth/me', { businessDescription, communicationStyle });
       toast.success('Zapisano.');
     } catch {
       toast.error('Nie udało się zapisać. Spróbuj ponownie.');
     } finally {
       setIsSavingBusinessDescription(false);
+    }
+  };
+
+  const handleSuggestCommunicationStyle = async () => {
+    try {
+      setIsSuggestingCommunicationStyle(true);
+      const response = await apiClient.post<{ suggestion: string }>('/auth/me/suggest-communication-style', {
+        draft: communicationStyle,
+      });
+      setCommunicationStyle(response.data.suggestion.slice(0, COMMUNICATION_STYLE_MAX_LENGTH));
+    } catch {
+      toast.error('Nie udało się przygotować podpowiedzi. Spróbuj ponownie.');
+    } finally {
+      setIsSuggestingCommunicationStyle(false);
     }
   };
 
@@ -349,6 +376,35 @@ export default function AccountPage() {
           <p className="text-xs text-muted-foreground mt-1 text-right">
             {businessDescription.length}/{BUSINESS_DESCRIPTION_MAX_LENGTH}
           </p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-1">Styl wypowiedzi</label>
+          <p className="text-xs text-muted-foreground mb-2">
+            Jak faktycznie mówisz - np. "bezpośrednio, bez lania wody, czasem ostro, mówię 'ziomy' nie 'Wy',
+            unikam fraz typu 'buduję markę'". Bez tego AI domyślnie pisze generycznym, motywacyjnym tonem.
+          </p>
+          <textarea
+            value={communicationStyle}
+            onChange={(event) => setCommunicationStyle(event.target.value.slice(0, COMMUNICATION_STYLE_MAX_LENGTH))}
+            rows={3}
+            maxLength={COMMUNICATION_STYLE_MAX_LENGTH}
+            className="w-full rounded-lg border border-border bg-secondary/30 px-3 py-2 text-sm text-foreground"
+            placeholder="Np. Piszę bezpośrednio i krótko, bez ogólników. Mówię 'ziomy'. Nie chcę fraz w stylu 'buduję to od zera'."
+          />
+          <div className="flex items-center justify-between mt-1">
+            <button
+              type="button"
+              onClick={handleSuggestCommunicationStyle}
+              disabled={isSuggestingCommunicationStyle}
+              className="text-xs text-primary hover:underline font-medium disabled:opacity-50"
+            >
+              {isSuggestingCommunicationStyle ? 'Przygotowuję podpowiedź...' : '✨ Zaproponuj (AI)'}
+            </button>
+            <p className="text-xs text-muted-foreground">
+              {communicationStyle.length}/{COMMUNICATION_STYLE_MAX_LENGTH}
+            </p>
+          </div>
         </div>
 
         <button

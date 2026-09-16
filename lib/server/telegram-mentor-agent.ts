@@ -286,14 +286,14 @@ async function executeTool(userId: string, name: string, input: unknown): Promis
     if (name === 'get_content_ideas') {
       const [recentPosts, dbUser] = await Promise.all([
         getRecentContentForIdeas(userId),
-        prisma.user.findUnique({ where: { id: userId }, select: { businessDescription: true } }),
+        prisma.user.findUnique({ where: { id: userId }, select: { businessDescription: true, communicationStyle: true } }),
       ]);
 
       if (recentPosts.length < 2) {
         return JSON.stringify({ error: 'Za malo opublikowanych postow (min. 2), zeby wygenerowac pomysly.' });
       }
 
-      const ideas = await generateContentIdeas(dbUser?.businessDescription ?? null, recentPosts);
+      const ideas = await generateContentIdeas(dbUser?.businessDescription ?? null, recentPosts, dbUser?.communicationStyle ?? null);
       return JSON.stringify({ ideas: ideas ?? [] });
     }
 
@@ -312,12 +312,13 @@ async function executeTool(userId: string, name: string, input: unknown): Promis
 
     if (name === 'get_account_info') {
       const [dbUser, socialAccounts] = await Promise.all([
-        prisma.user.findUnique({ where: { id: userId }, select: { businessDescription: true } }),
+        prisma.user.findUnique({ where: { id: userId }, select: { businessDescription: true, communicationStyle: true } }),
         prisma.socialAccount.findMany({ where: { userId }, select: { platform: true, handle: true } }),
       ]);
 
       return JSON.stringify({
         businessDescription: dbUser?.businessDescription ?? null,
+        communicationStyle: dbUser?.communicationStyle ?? null,
         connectedPlatforms: socialAccounts.map((account) => ({ platform: account.platform, handle: account.handle })),
       });
     }

@@ -163,7 +163,7 @@ export async function orchestrateContent(userId: string, input: OrchestrateConte
   // lib/server/smart-autopilot/performance-data.ts.
   const [subscription, user, realPerformanceData] = await Promise.all([
     prisma.subscription.findUnique({ where: { userId }, select: { plan: true } }),
-    prisma.user.findUnique({ where: { id: userId }, select: { businessDescription: true } }),
+    prisma.user.findUnique({ where: { id: userId }, select: { businessDescription: true, communicationStyle: true } }),
     input.performanceData ? Promise.resolve(null) : getRealPerformanceData(userId, input.timezone),
   ]);
 
@@ -210,8 +210,13 @@ export async function orchestrateContent(userId: string, input: OrchestrateConte
     // remain the fallback (no ANTHROPIC_API_KEY, timeout, or a malformed/incomplete response) -
     // same "AI enhances, heuristic is the safety net" pattern as the classification step above.
     let bundles =
-      (await generateBundlesWithClaude(analysis, input, [...requestedPlatforms], user?.businessDescription)) ??
-      transformByPersona(analysis, input);
+      (await generateBundlesWithClaude(
+        analysis,
+        input,
+        [...requestedPlatforms],
+        user?.businessDescription,
+        user?.communicationStyle,
+      )) ?? transformByPersona(analysis, input);
 
     if (input.targetPlatforms && input.targetPlatforms.length > 0) {
       const allowedPlatforms = new Set(input.targetPlatforms);

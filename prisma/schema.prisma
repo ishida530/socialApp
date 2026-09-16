@@ -72,6 +72,13 @@ model User {
   // adapts to the actual account instead of assuming every user is a musician. Asked once at
   // onboarding (web account settings, or Telegram after /start if still empty), editable anytime.
   businessDescription String?
+  // 2026-09-16 (zgłoszenie właściciela: sugestia treści brzmiała "pizdowato", zbyt generycznie-
+  // motywacyjnie dla jego konta - businessDescription mówi CZYM zajmuje się konto, ale nic nie
+  // mówi JAK ta osoba mówi). Wolny tekst opisujący głos/ton wypowiedzi (np. "bezpośrednio, bez
+  // lania wody, czasem ostro, nie mówię 'buduję markę'") - wpięty w te same prompty Claude co
+  // businessDescription (patrz każde miejsce z "accountContext" w lib/server/*), więc jedna
+  // zmiana poprawia WSZYSTKIE miejsca generujące treść naraz, nie tylko sugestie na Facebooka.
+  communicationStyle String?
   telegramChatId String?         @unique
   publishingPaused Boolean       @default(false)
   // Set while the bot is waiting for a free-text reply answering the onboarding

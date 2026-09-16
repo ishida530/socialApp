@@ -112,6 +112,10 @@ const COACH_SYSTEM_PROMPT = [
   'Jesli sa aktywne cele uzytkownika, nawiaz do nich wprost - czy widac postep, czy moze warto je dostosowac.',
   'followerGrowth to realny wzrost/spadek liczby obserwujacych/subskrybentow per platforma (nie mylic z engagement per post) - jesli sa dane, wspomnij o tym, bo to pokazuje czy CALE konto rosnie, nie tylko pojedyncze posty. Platforma bez danych (weekAgo null) - pomin ja, nie zgaduj trendu.',
   'Nie uzywaj ogolnikow typu "swietna robota" bez pokrycia w danych - badz konkretny.',
+  // 2026-09-16: jeśli podano communicationStyle, to nadrzędna instrukcja co do tonu/słownictwa -
+  // ważniejsza niż "wspierający" wyżej, jeśli communicationStyle mówi co innego (np. bardziej
+  // bezpośredni/surowy ton).
+  'Jesli w danych podano communicationStyle (styl wypowiedzi wlasciciela konta) - trzymaj sie go dosłownie, jest wazniejszy niz ogolne wskazowki tonu w tym prompcie.',
   PLATFORM_ALGORITHM_KNOWLEDGE,
 ].join(' ');
 
@@ -119,9 +123,14 @@ type CoachToolResult = { summary?: string; suggestion?: string };
 
 export type CoachingMessage = { summary: string; suggestion: string };
 
-export async function generateCoachingMessage(data: WeeklyCoachingData, businessDescription: string | null): Promise<CoachingMessage | null> {
+export async function generateCoachingMessage(
+  data: WeeklyCoachingData,
+  businessDescription: string | null,
+  communicationStyle?: string | null,
+): Promise<CoachingMessage | null> {
   const userContent = JSON.stringify({
     accountContext: redactPotentialPii((businessDescription || '').trim()),
+    communicationStyle: redactPotentialPii((communicationStyle || '').trim()),
     postsThisWeek: data.postsThisWeek,
     postsLastWeek: data.postsLastWeek,
     engagementRateThisWeek: data.engagementRateThisWeek,

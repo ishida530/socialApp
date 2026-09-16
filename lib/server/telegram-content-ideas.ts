@@ -18,6 +18,9 @@ const IDEAS_SYSTEM_PROMPT = [
   'Zaproponuj DOKLADNIE 2-3 pomysly. Kazdy pomysl to konkretny opis sceny/kadru/tresci do nagrania (nie ogolnik typu "nagraj cos ciekawego") - co pokazac, gdzie, jaki ma byc hook/pierwsza sekunda.',
   'Unikaj powtarzania motywow ktore juz widac w "recentPosts" - szukaj wariacji lub czegos nowego w tym samym stylu/branzy.',
   'Pisz po polsku, krotko i konkretnie - to ma byc gotowa podpowiedz do nagrania, nie esej.',
+  // 2026-09-16: communicationStyle (jeśli podano) to nadrzędna instrukcja co do słownictwa/tonu
+  // opisu pomysłu - ważniejsza niż domyślny neutralny styl.
+  'Jesli w danych podano communicationStyle - opisuj pomysly w tym samym tonie/slownictwie, to nadrzedne wobec neutralnego domyslnego stylu.',
   PLATFORM_ALGORITHM_KNOWLEDGE,
 ].join(' ');
 
@@ -30,8 +33,10 @@ export type ContentIdea = { title: string; description: string };
 export async function generateContentIdeas(
   businessDescription: string | null,
   recentPosts: RecentContentSample[],
+  communicationStyle?: string | null,
 ): Promise<ContentIdea[] | null> {
   const safeAccountContext = redactPotentialPii((businessDescription || '').trim());
+  const safeCommunicationStyle = redactPotentialPii((communicationStyle || '').trim());
   const safeRecentPosts = recentPosts.map((post) => ({
     caption: redactPotentialPii(post.caption || ''),
     hashtags: post.hashtags,
@@ -40,6 +45,7 @@ export async function generateContentIdeas(
 
   const userContent = JSON.stringify({
     accountContext: safeAccountContext,
+    communicationStyle: safeCommunicationStyle,
     recentPosts: safeRecentPosts,
   });
 

@@ -776,7 +776,7 @@ async function handleTextCommand(chatIdStr: string, userId: string, text: string
     const MIN_POSTS_FOR_IDEAS = 2;
     const [recentPosts, dbUser] = await Promise.all([
       getRecentContentForIdeas(userId),
-      prisma.user.findUnique({ where: { id: userId }, select: { businessDescription: true } }),
+      prisma.user.findUnique({ where: { id: userId }, select: { businessDescription: true, communicationStyle: true } }),
     ]);
 
     if (recentPosts.length < MIN_POSTS_FOR_IDEAS) {
@@ -791,7 +791,7 @@ async function handleTextCommand(chatIdStr: string, userId: string, text: string
       logError('telegram', 'send-pomysl-ack-failed', error, { chatId: chatIdStr }),
     );
 
-    const ideas = await generateContentIdeas(dbUser?.businessDescription ?? null, recentPosts);
+    const ideas = await generateContentIdeas(dbUser?.businessDescription ?? null, recentPosts, dbUser?.communicationStyle ?? null);
 
     await sendTelegramMessage(
       chatIdStr,
