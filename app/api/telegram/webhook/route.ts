@@ -287,6 +287,32 @@ async function handleStartCommand(chatIdStr: string, code: string) {
   }
 }
 
+const TITLE_FROM_CAPTION_MAX_LENGTH = 80;
+
+// 2026-09-16 (zgłoszenie właściciela: "nie podoba mi się nazwa" - domyślny tytuł materiału z
+// Telegrama brzmiał "Telegram 2026-09-16T06:48:37.589Z", surowy ISO timestamp widoczny wprost w
+// panelu na /schedule). Kiedy użytkownik dodał podpis pod plikiem, to ZAWSZE lepszy, bardziej
+// opisowy tytuł niż jakikolwiek wygenerowany znacznik czasu - i tak już jest używany do treści AI
+// (patrz createDraftGroupForVideo niżej), więc ponowne użycie go tutaj nie kosztuje nic dodatkowego.
+// Bez podpisu: czytelna polska data (Europe/Warsaw, ten sam wzorzec co reszta tego pliku) zamiast
+// surowego ISO.
+function resolveTelegramMediaTitle(media: { mediaType: 'VIDEO' | 'IMAGE'; caption?: string }): string {
+  const trimmedCaption = media.caption?.trim();
+  if (trimmedCaption) {
+    return trimmedCaption.length > TITLE_FROM_CAPTION_MAX_LENGTH
+      ? `${trimmedCaption.slice(0, TITLE_FROM_CAPTION_MAX_LENGTH - 1)}…`
+      : trimmedCaption;
+  }
+
+  const label = media.mediaType === 'IMAGE' ? 'Zdjęcie' : 'Wideo';
+  const formatted = new Date().toLocaleString('pl-PL', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+    timeZone: 'Europe/Warsaw',
+  });
+  return `${label} z Telegrama - ${formatted}`;
+}
+
 async function handleIncomingMedia(
   chatIdStr: string,
   userId: string,
@@ -312,7 +338,7 @@ async function handleIncomingMedia(
   ).catch((error) => logError('telegram', 'send-processing-ack-failed', error, { chatId: chatIdStr }));
 
   try {
-    const video = await uploadTelegramMediaAsVideo(userId, media.fileId, media.mediaType, `Telegram ${new Date().toISOString()}`);
+    const video = await uploadTelegramMediaAsVideo(userId, media.fileId, media.mediaType, resolveTelegramMediaTitle(media));
     // Telegram lets a user attach a text caption to the photo/video itself - the natural place
     // to say what this post is about, no separate step needed. Without it, generatePlatformBundles
     // gets an empty rawInput and falls back to a generic caption ("Krotka aktualizacja: Nowa
