@@ -79,6 +79,54 @@ describe('Telegram text commands (TASK-3.2.1)', () => {
     expect(message).toMatch(/Szkice czekające na decyzję: 1/);
   });
 
+  it('/status shows the next scheduled time in Europe/Warsaw, not the server process\'s ambient timezone (2026-09-16 owner report)', async () => {
+    // Forces a non-Warsaw ambient TZ for this one test - the bug this guards against only
+    // reproduces when `toLocaleString` has no explicit `timeZone` option, in which case it falls
+    // back to the Node process's TZ. Locally that's often already Europe/Warsaw (the same
+    // timezone as the code's intended output), which would make this assertion pass whether the
+    // fix is present or not - not a real test. Vercel's actual production runtime defaults to
+    // UTC, which is exactly what surfaced the original bug report.
+    const originalTz = process.env.TZ;
+    process.env.TZ = 'America/New_York';
+
+    try {
+      const { user } = await createTestUser();
+      cleanupUserIds.push(user.id);
+      const chatId = '1000000009';
+      await linkChat(user.id, chatId);
+
+      const account = await createSocialAccount(user.id, 'FACEBOOK');
+      const video = await createVideo(user.id);
+      // 06:30 UTC in September is 08:30 Europe/Warsaw (CEST, UTC+2) and 02:30 America/New_York
+      // (EDT, UTC-4) - three mutually distinct hours, so a passing assertion for "08:30" can only
+      // mean the code's explicit timeZone: 'Europe/Warsaw' option actually took effect.
+      await prisma.publishJob.create({
+        data: {
+          status: 'PENDING',
+          postGroupId: 'g-tz',
+          caption: 'x',
+          hashtags: [],
+          scheduledFor: new Date('2026-09-16T06:30:00.000Z'),
+          videoId: video.id,
+          socialAccountId: account.id,
+        },
+      });
+
+      await POST(webhookRequest(chatId, '/status'));
+
+      const message = mockSendTelegramMessage.mock.calls.at(-1)?.[1] as string;
+      expect(message).toContain('08:30');
+      expect(message).not.toContain('02:30');
+      expect(message).not.toContain('06:30');
+    } finally {
+      if (originalTz === undefined) {
+        delete process.env.TZ;
+      } else {
+        process.env.TZ = originalTz;
+      }
+    }
+  });
+
   it('/approve <id> triggers immediate processing for a job owned by the requester', async () => {
     const { user } = await createTestUser();
     cleanupUserIds.push(user.id);
