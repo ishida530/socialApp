@@ -66,6 +66,7 @@ export default function AccountPage() {
   const [disablePassword, setDisablePassword] = useState('');
   const [disableCode, setDisableCode] = useState('');
   const [isDisablingTwoFactor, setIsDisablingTwoFactor] = useState(false);
+  const [isForgettingDevices, setIsForgettingDevices] = useState(false);
 
   const [openSection, setOpenSection] = useState<AccountSection | null>(null);
   const toggleSection = (section: AccountSection) => (open: boolean) => setOpenSection(open ? section : null);
@@ -220,6 +221,22 @@ export default function AccountPage() {
       toast.error('Nie udało się wyłączyć 2FA - sprawdź hasło i kod.');
     } finally {
       setIsDisablingTwoFactor(false);
+    }
+  };
+
+  const handleForgetTrustedDevices = async () => {
+    try {
+      setIsForgettingDevices(true);
+      const response = await apiClient.post<{ count: number }>('/auth/2fa/forget-devices');
+      toast.success(
+        response.data.count > 0
+          ? `Zapomniano ${response.data.count} urządzeń. Kolejne logowanie na każdym z nich poprosi o kod.`
+          : 'Nie było żadnych zapamiętanych urządzeń.',
+      );
+    } catch {
+      toast.error('Nie udało się zapomnieć urządzeń. Spróbuj ponownie.');
+    } finally {
+      setIsForgettingDevices(false);
     }
   };
 
@@ -421,13 +438,24 @@ export default function AccountPage() {
             <p className="text-sm text-emerald-500 font-medium">Włączone ✓</p>
 
             {!showDisableTwoFactor ? (
-              <button
-                type="button"
-                onClick={() => setShowDisableTwoFactor(true)}
-                className="px-4 py-2 rounded-lg border border-destructive text-destructive hover:bg-destructive/10 transition-colors text-sm font-medium"
-              >
-                Wyłącz 2FA
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowDisableTwoFactor(true)}
+                  className="px-4 py-2 rounded-lg border border-destructive text-destructive hover:bg-destructive/10 transition-colors text-sm font-medium"
+                >
+                  Wyłącz 2FA
+                </button>
+                <button
+                  type="button"
+                  onClick={handleForgetTrustedDevices}
+                  disabled={isForgettingDevices}
+                  className="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-secondary/40 transition-colors text-sm font-medium disabled:opacity-50"
+                  title="Przy logowaniu na każdym urządzeniu, na którym zaznaczono „Zapamiętaj to urządzenie”, ponownie poprosi o kod."
+                >
+                  {isForgettingDevices ? 'Zapominanie...' : 'Zapomnij zapamiętane urządzenia'}
+                </button>
+              </div>
             ) : (
               <div className="space-y-3">
                 <div>

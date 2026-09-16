@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Link2, Image as ImageIcon, BarChart3, Layers, TrendingUp, Users, TriangleAlert } from 'lucide-react';
+import { LayoutDashboard, Link2, Image as ImageIcon, BarChart3, Layers, Calendar, TrendingUp, Users, TriangleAlert } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { BrandLogo } from '@/components/BrandLogo';
@@ -14,6 +14,12 @@ import { isPersonalMode } from '@/lib/app-mode';
 const navItems = [
   { icon: LayoutDashboard, label: 'Pulpit', href: '/dashboard' },
   { icon: Layers, label: 'Kampanie', href: '/campaigns' },
+  // Harmonogram (2026-09-16): brakowało tej strony w nawigacji od zawsze - reachable tylko przez
+  // kontekstowe linki (components/Header.tsx, OnboardingChecklist.tsx, DashboardAIAdvisor.tsx),
+  // nigdy z głównego menu. Header.tsx grupuje /campaigns i /schedule pod jednym tytułem "Kampanie
+  // i harmonogram" - to dwa różne modele (Campaign vs. grupowanie PublishJob po Video), stąd dwie
+  // osobne pozycje menu, nie jedna.
+  { icon: Calendar, label: 'Harmonogram', href: '/schedule' },
   // Rozwój/Społeczność (2026-09-14): web odpowiedniki funkcji zbudowanych wcześniej wyłącznie na
   // Telegramie (/goal, /followers, /fan, /sale, moderacja komentarzy) - patrz components/GrowthPanel.tsx
   // i components/CommunityPanel.tsx.

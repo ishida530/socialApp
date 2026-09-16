@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { issueAccessToken, TOKEN_COOKIE_NAME, verifyPendingTwoFactorToken } from '@/lib/server/auth';
+import {
+  issueAccessToken,
+  TOKEN_COOKIE_NAME,
+  TWO_FACTOR_REMEMBER_COOKIE_NAME,
+  TWO_FACTOR_REMEMBER_MAX_AGE_SEC,
+  verifyPendingTwoFactorToken,
+} from '@/lib/server/auth';
 import { badRequest, tooManyRequests, unauthorized, serverError } from '@/lib/server/http';
-import { verifyTwoFactorForLogin } from '@/lib/server/two-factor';
+import { createTrustedDeviceToken, verifyTwoFactorForLogin } from '@/lib/server/two-factor';
 import { recordAuditLog } from '@/lib/server/audit-log';
 import { consumeRateLimit, getRequestIp } from '@/lib/server/rate-limit';
 
@@ -25,7 +31,11 @@ export async function POST(request: NextRequest) {
       return tooManyRequests('Too many attempts. Try again later.', rateLimit.retryAfterSec);
     }
 
-    const body = (await request.json().catch(() => ({}))) as { pendingToken?: string; code?: string };
+    const body = (await request.json().catch(() => ({}))) as {
+      pendingToken?: string;
+      code?: string;
+      rememberDevice?: boolean;
+    };
     if (!body.pendingToken || !body.code) {
       return badRequest('Validation failed', ['pendingToken i code są wymagane']);
     }
@@ -55,6 +65,22 @@ export async function POST(request: NextRequest) {
       path: '/',
       maxAge: resolveCookieMaxAge(),
     });
+
+    // "Remember this device" (2026-09-16) - opt-in, unchecked by default is NOT the case here on
+    // purpose (see app/login/page.tsx: the checkbox defaults to checked, matching what the owner
+    // asked for - typing a code on every login was the actual complaint). Separate cookie from the
+    // session above; losing/expiring this one only ever brings back the 2FA prompt, never logs
+    // anyone out.
+    if (body.rememberDevice) {
+      const rememberToken = await createTrustedDeviceToken(pendingUser.userId);
+      response.cookies.set(TWO_FACTOR_REMEMBER_COOKIE_NAME, rememberToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: TWO_FACTOR_REMEMBER_MAX_AGE_SEC,
+      });
+    }
 
     return response;
   } catch (error) {

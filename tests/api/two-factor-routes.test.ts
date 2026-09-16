@@ -3,8 +3,10 @@ import { createHmac } from 'crypto';
 import { POST as setupRoute } from '@/app/api/auth/2fa/setup/route';
 import { POST as enableRoute } from '@/app/api/auth/2fa/enable/route';
 import { POST as disableRoute } from '@/app/api/auth/2fa/disable/route';
+import { POST as forgetDevicesRoute } from '@/app/api/auth/2fa/forget-devices/route';
 import { prisma } from '@/lib/server/prisma';
 import { hashPassword } from '@/lib/server/crypto';
+import { createTrustedDeviceToken, verifyTrustedDeviceToken } from '@/lib/server/two-factor';
 import { createTestUser, deleteTestUser, authHeaders, jsonRequest } from '../helpers/fixtures';
 
 // EPIC 9 TASK-9.3 (2FA, 2026-09-15) - HTTP-level coverage of the setup/enable/disable routes.
@@ -14,6 +16,7 @@ import { createTestUser, deleteTestUser, authHeaders, jsonRequest } from '../hel
 const SETUP_URL = 'http://localhost:3000/api/auth/2fa/setup';
 const ENABLE_URL = 'http://localhost:3000/api/auth/2fa/enable';
 const DISABLE_URL = 'http://localhost:3000/api/auth/2fa/disable';
+const FORGET_DEVICES_URL = 'http://localhost:3000/api/auth/2fa/forget-devices';
 
 function computeCode(base32: string): string {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
@@ -116,5 +119,27 @@ describe('POST /api/auth/2fa/disable', () => {
 
     const refreshed = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
     expect(refreshed.twoFactorEnabled).toBe(false);
+  });
+});
+
+describe('POST /api/auth/2fa/forget-devices (2026-09-16)', () => {
+  it('rejects an unauthenticated request', async () => {
+    const response = await forgetDevicesRoute(jsonRequest(FORGET_DEVICES_URL, {}));
+    expect(response.status).toBe(401);
+  });
+
+  it('forgets every trusted device for the authenticated user and reports the count', async () => {
+    const { user, token } = await createTestUser();
+    cleanupUserId = user.id;
+    const tokenA = await createTrustedDeviceToken(user.id);
+    const tokenB = await createTrustedDeviceToken(user.id);
+
+    const response = await forgetDevicesRoute(jsonRequest(FORGET_DEVICES_URL, {}, authHeaders(token)));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.count).toBe(2);
+
+    expect(await verifyTrustedDeviceToken(user.id, tokenA)).toBe(false);
+    expect(await verifyTrustedDeviceToken(user.id, tokenB)).toBe(false);
   });
 });

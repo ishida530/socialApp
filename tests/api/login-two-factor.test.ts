@@ -21,12 +21,30 @@ const TWO_FA_LOGIN_URL = 'http://localhost:3000/api/auth/2fa/login';
 const SETUP_URL = 'http://localhost:3000/api/auth/2fa/setup';
 const ENABLE_URL = 'http://localhost:3000/api/auth/2fa/enable';
 
-function loginRequest(url: string, body: unknown) {
+function loginRequest(url: string, body: unknown, extraHeaders: Record<string, string> = {}) {
   return new NextRequest(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-forwarded-for': `10.0.0.${randomUUID().slice(0, 2)}` },
+    headers: {
+      'Content-Type': 'application/json',
+      'x-forwarded-for': `10.0.0.${randomUUID().slice(0, 2)}`,
+      ...extraHeaders,
+    },
     body: JSON.stringify(body),
   });
+}
+
+// Extracts one cookie's value out of a `Set-Cookie` response header - the login-route tests
+// below need to carry the 2FA "remember this device" cookie from one request into the next,
+// which NextRequest has no built-in cookie jar for across independent calls.
+function extractCookieValue(setCookieHeader: string | null, cookieName: string): string {
+  if (!setCookieHeader) {
+    throw new Error(`No Set-Cookie header present (looking for ${cookieName})`);
+  }
+  const match = setCookieHeader.match(new RegExp(`${cookieName}=([^;]+)`));
+  if (!match) {
+    throw new Error(`Cookie ${cookieName} not found in Set-Cookie header: ${setCookieHeader}`);
+  }
+  return match[1];
 }
 
 function computeCode(base32: string): string {
@@ -166,5 +184,136 @@ describe('POST /api/auth/2fa/login', () => {
     // exists to prevent.
     const response = await twoFactorLoginRoute(loginRequest(TWO_FA_LOGIN_URL, { pendingToken: token, code: computeCode(secret) }));
     expect(response.status).toBe(401);
+  });
+});
+
+describe('POST /api/auth/2fa/login - "remember this device" (2026-09-16)', () => {
+  it('sets a postfly_2fa_remember cookie alongside the session cookie when rememberDevice is true', async () => {
+    const { user, token } = await createTestUser();
+    cleanupUserId = user.id;
+    await prisma.user.update({ where: { id: user.id }, data: { passwordHash: hashPassword('correct-password') } });
+    const secret = await enableTwoFactorFor(user.id, token);
+
+    const loginResponse = await loginRoute(loginRequest(LOGIN_URL, { email: user.email, password: 'correct-password' }));
+    const { pendingToken } = await loginResponse.json();
+
+    const response = await twoFactorLoginRoute(
+      loginRequest(TWO_FA_LOGIN_URL, { pendingToken, code: computeCode(secret), rememberDevice: true }),
+    );
+    expect(response.status).toBe(200);
+    const cookies = response.headers.getSetCookie();
+    expect(cookies.some((cookie) => cookie.startsWith('postfly_token='))).toBe(true);
+    expect(cookies.some((cookie) => cookie.startsWith('postfly_2fa_remember='))).toBe(true);
+  });
+
+  it('does NOT set the remember cookie when rememberDevice is omitted/false', async () => {
+    const { user, token } = await createTestUser();
+    cleanupUserId = user.id;
+    await prisma.user.update({ where: { id: user.id }, data: { passwordHash: hashPassword('correct-password') } });
+    const secret = await enableTwoFactorFor(user.id, token);
+
+    const loginResponse = await loginRoute(loginRequest(LOGIN_URL, { email: user.email, password: 'correct-password' }));
+    const { pendingToken } = await loginResponse.json();
+
+    const response = await twoFactorLoginRoute(loginRequest(TWO_FA_LOGIN_URL, { pendingToken, code: computeCode(secret) }));
+    const cookies = response.headers.getSetCookie();
+    expect(cookies.some((cookie) => cookie.startsWith('postfly_2fa_remember='))).toBe(false);
+  });
+});
+
+describe('POST /api/auth/login - with a trusted-device cookie (2026-09-16)', () => {
+  it('skips requiresTwoFactor entirely and issues a real session directly', async () => {
+    const { user, token } = await createTestUser();
+    cleanupUserId = user.id;
+    await prisma.user.update({ where: { id: user.id }, data: { passwordHash: hashPassword('correct-password') } });
+    const secret = await enableTwoFactorFor(user.id, token);
+
+    const firstLogin = await loginRoute(loginRequest(LOGIN_URL, { email: user.email, password: 'correct-password' }));
+    const { pendingToken } = await firstLogin.json();
+    const twoFaResponse = await twoFactorLoginRoute(
+      loginRequest(TWO_FA_LOGIN_URL, { pendingToken, code: computeCode(secret), rememberDevice: true }),
+    );
+    const rememberCookie = extractCookieValue(twoFaResponse.headers.get('set-cookie'), 'postfly_2fa_remember');
+
+    const secondLogin = await loginRoute(
+      loginRequest(LOGIN_URL, { email: user.email, password: 'correct-password' }, {
+        Cookie: `postfly_2fa_remember=${rememberCookie}`,
+      }),
+    );
+
+    expect(secondLogin.status).toBe(200);
+    const body = await secondLogin.json();
+    expect(body.requiresTwoFactor).toBeUndefined();
+    expect(secondLogin.headers.get('set-cookie')).toContain('postfly_token=');
+  });
+
+  it('still requires the password even with a valid remember cookie - the cookie never substitutes for it', async () => {
+    const { user, token } = await createTestUser();
+    cleanupUserId = user.id;
+    await prisma.user.update({ where: { id: user.id }, data: { passwordHash: hashPassword('correct-password') } });
+    const secret = await enableTwoFactorFor(user.id, token);
+
+    const firstLogin = await loginRoute(loginRequest(LOGIN_URL, { email: user.email, password: 'correct-password' }));
+    const { pendingToken } = await firstLogin.json();
+    const twoFaResponse = await twoFactorLoginRoute(
+      loginRequest(TWO_FA_LOGIN_URL, { pendingToken, code: computeCode(secret), rememberDevice: true }),
+    );
+    const rememberCookie = extractCookieValue(twoFaResponse.headers.get('set-cookie'), 'postfly_2fa_remember');
+
+    const wrongPasswordLogin = await loginRoute(
+      loginRequest(LOGIN_URL, { email: user.email, password: 'wrong-password' }, {
+        Cookie: `postfly_2fa_remember=${rememberCookie}`,
+      }),
+    );
+
+    expect(wrongPasswordLogin.status).toBe(401);
+  });
+
+  it('a garbage/unrecognized remember cookie still requires the 2FA step normally', async () => {
+    const { user, token } = await createTestUser();
+    cleanupUserId = user.id;
+    await prisma.user.update({ where: { id: user.id }, data: { passwordHash: hashPassword('correct-password') } });
+    await enableTwoFactorFor(user.id, token);
+
+    const response = await loginRoute(
+      loginRequest(LOGIN_URL, { email: user.email, password: 'correct-password' }, {
+        Cookie: 'postfly_2fa_remember=not-a-real-token',
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.requiresTwoFactor).toBe(true);
+  });
+
+  it("a device trusted by one user never bypasses 2FA for a different user's account", async () => {
+    const { user: userA, token: tokenA } = await createTestUser();
+    const { user: userB, token: tokenB } = await createTestUser();
+    cleanupUserId = userA.id;
+
+    try {
+      await prisma.user.update({ where: { id: userA.id }, data: { passwordHash: hashPassword('password-a') } });
+      await prisma.user.update({ where: { id: userB.id }, data: { passwordHash: hashPassword('password-b') } });
+      const secretA = await enableTwoFactorFor(userA.id, tokenA);
+      await enableTwoFactorFor(userB.id, tokenB);
+
+      const loginA = await loginRoute(loginRequest(LOGIN_URL, { email: userA.email, password: 'password-a' }));
+      const { pendingToken: pendingA } = await loginA.json();
+      const twoFaA = await twoFactorLoginRoute(
+        loginRequest(TWO_FA_LOGIN_URL, { pendingToken: pendingA, code: computeCode(secretA), rememberDevice: true }),
+      );
+      const rememberCookieForA = extractCookieValue(twoFaA.headers.get('set-cookie'), 'postfly_2fa_remember');
+
+      // Same browser/cookie, but logging in as userB - userA's trusted-device token must not apply.
+      const loginBWithAsCookie = await loginRoute(
+        loginRequest(LOGIN_URL, { email: userB.email, password: 'password-b' }, {
+          Cookie: `postfly_2fa_remember=${rememberCookieForA}`,
+        }),
+      );
+      const bodyB = await loginBWithAsCookie.json();
+      expect(bodyB.requiresTwoFactor).toBe(true);
+    } finally {
+      await deleteTestUser(userB.id);
+    }
   });
 });

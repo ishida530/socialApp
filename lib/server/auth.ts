@@ -8,6 +8,13 @@ export type AuthUser = {
 
 export const TOKEN_COOKIE_NAME = 'postfly_token';
 
+// 2FA "remember this device" (2026-09-16) - a SEPARATE cookie from the session token above. It
+// never grants a session by itself; POST /api/auth/login only ever reads it to decide whether to
+// skip straight to a real session instead of returning requiresTwoFactor, and only after the
+// password already checked out. See lib/server/two-factor.ts for the token itself.
+export const TWO_FACTOR_REMEMBER_COOKIE_NAME = 'postfly_2fa_remember';
+export const TWO_FACTOR_REMEMBER_MAX_AGE_SEC = 30 * 24 * 60 * 60;
+
 function requireJwtSecret() {
   const secret = process.env.JWT_SECRET;
   if (!secret) {

@@ -154,6 +154,7 @@ model User {
   twoFactorSecretEncrypted      String?
   twoFactorPendingSecretEncrypted String?
   twoFactorBackupCodeHashes     String[]  @default([])
+  twoFactorTrustedDevices       TwoFactorTrustedDevice[]
 }
 
 model TelegramLinkCode {
@@ -176,6 +177,24 @@ model PasswordResetToken {
   createdAt DateTime @default(now())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+// 2FA "remember this device" (2026-09-16, requested by owner - typing a code on every single
+// login was too much friction). Separate from the session cookie/JWT entirely - this only ever
+// lets POST /api/auth/login skip straight to a real session instead of returning
+// requiresTwoFactor, and ONLY after the password already checked out. It never substitutes for
+// the password. Same tokenHash pattern as PasswordResetToken/TelegramLinkCode (raw random token
+// in the cookie, sha256 hash stored here) so a leaked DB row alone can't be replayed as a cookie.
+model TwoFactorTrustedDevice {
+  id         String    @id @default(cuid())
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, expiresAt])
 }
