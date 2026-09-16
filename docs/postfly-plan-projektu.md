@@ -1045,6 +1045,22 @@ Status: [x] zaimplementowane → [x] testy napisane i zielone (521/521 + nowy e2
 
 ---
 
+### 2FA "zapamiętaj to urządzenie" + brakujący /schedule w menu (2026-09-16)
+
+Dwie proste, konkretne prośby właściciela: kod 2FA przy każdym logowaniu to za dużo tarcia, i `/schedule` nie da się znaleźć w menu.
+
+**[Architekt], odkrycie #1:** `/schedule` był w pełni funkcjonalny (świeżo przebudowany w poprzedniej turze) i linkowany kontekstowo z trzech miejsc (`Header.tsx`, `OnboardingChecklist.tsx`, `DashboardAIAdvisor.tsx`), ale nigdy nie dostał wpisu w głównym `Sidebar.tsx` - proste niedopatrzenie, nie świadoma decyzja. `Header.tsx` już grupuje `/campaigns` i `/schedule` pod wspólnym tytułem "Kampanie i harmonogram", co potwierdza że to dwa świadomie odrębne, sparowane ekrany (różne modele danych pod spodem) - naprawione dodaniem osobnej pozycji "Harmonogram", nie scalaniem z "Kampanie".
+
+**[Architekt], projekt #2:** "Zapamiętaj to urządzenie" zaprojektowane jako OSOBNE od sesji ciasteczko (`postfly_2fa_remember`, httpOnly, 30 dni) - nie przedłużenie/osłabienie logiki sesyjnej. Kluczowa zasada bezpieczeństwa: ten mechanizm NIGDY nie zastępuje hasła, tylko pomija drugi czynnik, i tylko PO tym jak hasło już przeszło pełną weryfikację w `POST /api/auth/login`. Nowy model `TwoFactorTrustedDevice`, ten sam wzorzec `tokenHash` (surowy token w ciasteczku, tylko sha256 w bazie) co istniejące `PasswordResetToken`/`TelegramLinkCode` - spójność z resztą appki, nie nowy wzorzec. Stałe 30-dniowe wygaśnięcie od utworzenia (nie odświeżane przy użyciu) - urządzenie używane codziennie i tak wymaga ponownego potwierdzenia raz w miesiącu, świadomie nie "zaufaj na zawsze". Wyłączenie 2FA czyści wszystkie zaufane urządzenia - inaczej stare ciasteczko mogłoby po cichu wskrzesić obejście przy ponownym włączeniu 2FA bez świadomego potwierdzenia zaufania od nowa.
+
+**[Inżynier]:** Checkbox na `/login` (krok 2FA) domyślnie ZAZNACZONY - to była wprost wyrażona prośba ("nie chcę za każdym razem"), więc odznaczenie jest świadomym działaniem, nie zaznaczenie. `POST /api/auth/login` sprawdza ciasteczko PRZED zwróceniem `requiresTwoFactor` (ale PO weryfikacji hasła, która zawsze biegnie bezwarunkowo pierwsza). Dodatkowo, nieproszone ale tanie i standardowe dla tej klasy funkcji: przycisk "Zapomnij zapamiętane urządzenia" na `/account` (`POST /api/auth/2fa/forget-devices`) - pozwala odwołać zaufanie zbiorczo (np. pomyłkowo zaznaczone na współdzielonym komputerze) bez wyłączania całego 2FA.
+
+**[QA]:** Pełna suita: **537/537 w obu trybach APP_MODE**, tsc/build czyste. Nowość tej tury: **pierwszy w pełni realny, niezamockowany e2e test całego przepływu przeglądarki** (`tests/e2e/login-2fa-remember-device.spec.ts`) - zaznaczenie checkboxa faktycznie pomija prompt 2FA przy kolejnym logowaniu z tej samej przeglądarki (po wyczyszczeniu tylko ciasteczka sesji, nie ciasteczka zapamiętania), odznaczenie nadal go wymaga. Po drodze napotkana i poprawnie zdiagnozowana lokalna przeszkoda: rate-limit logowania appki (10 prób/15 min, magazyn w pamięci procesu dev) wyczerpany wielokrotnymi ręcznymi powtórzeniami testu w tej samej turze - nie błąd appki, restart serwera dev resetuje limit; potwierdzone czystym przejściem w CI (świeże środowisko, bez tego problemu).
+
+Status: [x] zaimplementowane → [x] testy napisane i zielone (537/537 + nowy e2e) → [x] zweryfikowane (tsc, build, realny e2e w przeglądarce) → [x] zmergowane (PR #105) → [x] wdrożone (postfly.pl/dashboard zawiera link "Harmonogram")
+
+---
+
 ---
 
 **Definicja "gotowy projekt w 100%":** każdy checkbox w sekcjach 6 i 7 odhaczony, każdy z jawnym DoD spełnionym i potwierdzonym testem (nie deklaracją), **QA niezależnie zweryfikowało, nie tylko Inżynier**, Architekt podpisał się pod skalowalnością w sekcji 9 dla każdej nowej warstwy, i sekcja 8 (Review końcowy) przeszła bez zastrzeżeń blokujących.
