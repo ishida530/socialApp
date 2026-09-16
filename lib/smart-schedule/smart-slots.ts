@@ -5,6 +5,9 @@ const DEFAULT_HEATMAP: UserActivityHeatmap = {
   tiktok: [0.08, 0.06, 0.05, 0.05, 0.04, 0.05, 0.08, 0.12, 0.18, 0.24, 0.28, 0.3, 0.34, 0.36, 0.38, 0.4, 0.42, 0.5, 0.6, 0.66, 0.58, 0.44, 0.28, 0.14],
   instagram: [0.07, 0.05, 0.04, 0.04, 0.03, 0.05, 0.08, 0.12, 0.2, 0.26, 0.3, 0.34, 0.38, 0.36, 0.34, 0.32, 0.34, 0.42, 0.5, 0.54, 0.46, 0.34, 0.22, 0.12],
   facebook: [0.06, 0.05, 0.04, 0.03, 0.03, 0.04, 0.06, 0.1, 0.14, 0.2, 0.24, 0.28, 0.32, 0.34, 0.32, 0.3, 0.3, 0.34, 0.38, 0.4, 0.34, 0.26, 0.18, 0.1],
+  // Platforma biznesowa - w przeciwienstwie do reszty, szczyt aktywnosci to godziny pracy
+  // (poczatek dnia ~9, przerwa obiadowa ~12, koniec dnia ~17), nie wieczor.
+  linkedin: [0.03, 0.02, 0.02, 0.02, 0.02, 0.03, 0.06, 0.14, 0.28, 0.34, 0.32, 0.3, 0.34, 0.28, 0.24, 0.22, 0.24, 0.3, 0.22, 0.14, 0.1, 0.07, 0.05, 0.04],
 };
 
 function getHeatmapForPlatform(platform: Platform, heatmap?: UserActivityHeatmap) {

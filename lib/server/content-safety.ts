@@ -10,11 +10,11 @@ const PROFANITY_PATTERNS = [
   /\bshit\b/i,
 ];
 
-const OLDER_AUDIENCE_PLATFORMS = new Set(['YOUTUBE', 'FACEBOOK']);
+const OLDER_AUDIENCE_PLATFORMS = new Set(['YOUTUBE', 'FACEBOOK', 'LINKEDIN']);
 
 export function collectContentWarnings(
   caption: string,
-  platform: 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'FACEBOOK',
+  platform: 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'FACEBOOK' | 'LINKEDIN',
 ) {
   const warnings: string[] = [];
 
@@ -25,7 +25,9 @@ export function collectContentWarnings(
   const hasProfanity = PROFANITY_PATTERNS.some((pattern) => pattern.test(caption));
   if (hasProfanity && OLDER_AUDIENCE_PLATFORMS.has(platform)) {
     warnings.push(
-      'Wulgarny język może nie pasować do tej platformy — YouTube i Facebook mają szerszą, starszą publiczność.',
+      platform === 'LINKEDIN'
+        ? 'Wulgarny język może nie pasować do tej platformy — LinkedIn to sieć zawodowa.'
+        : 'Wulgarny język może nie pasować do tej platformy — YouTube i Facebook mają szerszą, starszą publiczność.',
     );
   }
 

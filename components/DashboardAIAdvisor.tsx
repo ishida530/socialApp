@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
 
-type JobPlatform = 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'FACEBOOK';
+type JobPlatform = 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'FACEBOOK' | 'LINKEDIN';
 
 type ScheduledPost = {
   id: string;
@@ -29,6 +29,7 @@ const PLATFORM_COLORS: Record<JobPlatform, string> = {
   TIKTOK: 'bg-black',
   INSTAGRAM: 'bg-pink-500',
   FACEBOOK: 'bg-blue-600',
+  LINKEDIN: 'bg-sky-700',
 };
 
 const PLATFORM_LABELS: Record<JobPlatform, string> = {
@@ -36,6 +37,7 @@ const PLATFORM_LABELS: Record<JobPlatform, string> = {
   TIKTOK: 'TikTok',
   INSTAGRAM: 'Instagram',
   FACEBOOK: 'Facebook',
+  LINKEDIN: 'LinkedIn',
 };
 
 export function DashboardAIAdvisor() {

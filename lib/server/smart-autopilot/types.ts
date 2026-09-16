@@ -44,7 +44,7 @@ export type MediaFileInput = {
 };
 
 export type PerformanceDataInput = {
-  platform: 'TIKTOK' | 'INSTAGRAM' | 'YOUTUBE' | 'FACEBOOK';
+  platform: 'TIKTOK' | 'INSTAGRAM' | 'YOUTUBE' | 'FACEBOOK' | 'LINKEDIN';
   hour: number;
   ctr?: number;
   er?: number;
@@ -56,7 +56,7 @@ export type OrchestrateContentInput = {
   personaHint?: Persona;
   rawInput?: string;
   mediaFiles?: MediaFileInput[];
-  targetPlatforms?: Array<'TIKTOK' | 'INSTAGRAM' | 'YOUTUBE' | 'FACEBOOK'>;
+  targetPlatforms?: Array<'TIKTOK' | 'INSTAGRAM' | 'YOUTUBE' | 'FACEBOOK' | 'LINKEDIN'>;
   timezone: string;
   performanceData?: PerformanceDataInput[];
   mode: OrchestrationMode;
@@ -76,7 +76,7 @@ export type AnalysisOutput = {
 };
 
 export type PlatformBundle = {
-  platform: 'TIKTOK' | 'INSTAGRAM' | 'YOUTUBE' | 'FACEBOOK';
+  platform: 'TIKTOK' | 'INSTAGRAM' | 'YOUTUBE' | 'FACEBOOK' | 'LINKEDIN';
   title?: string;
   caption: string;
   hashtags: string[];

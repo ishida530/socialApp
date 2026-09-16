@@ -12,6 +12,12 @@ enum Platform {
   INSTAGRAM
   TIKTOK
   FACEBOOK
+  // 2026-09-16: drugie konto testowe (biuro nieruchomości), profil osobisty (scope
+  // w_member_social - "Share on LinkedIn"), nie strona firmowa (Community Management API
+  // wymagałby osobnej, restrykcyjnej recenzji LinkedIn). Publikacja tylko tekst/zdjęcia - LinkedIn
+  // wymaga bezpośredniego uploadu bajtów (nie pull przez file_url jak Meta), wideo świadomie poza
+  // zakresem tej integracji.
+  LINKEDIN
 }
 
 enum VideoStatus {

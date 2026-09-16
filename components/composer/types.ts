@@ -1,4 +1,4 @@
-export type Platform = 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'FACEBOOK';
+export type Platform = 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'FACEBOOK' | 'LINKEDIN';
 
 export type SocialAccountDto = {
   id: string;
@@ -55,6 +55,7 @@ export const PLATFORM_LABEL: Record<Platform, string> = {
   TIKTOK: 'TikTok',
   INSTAGRAM: 'Instagram',
   FACEBOOK: 'Facebook',
+  LINKEDIN: 'LinkedIn',
 };
 
 export const PLATFORM_CAPTION_LIMIT: Record<Platform, number> = {
@@ -62,4 +63,5 @@ export const PLATFORM_CAPTION_LIMIT: Record<Platform, number> = {
   TIKTOK: 2200,
   INSTAGRAM: 2200,
   FACEBOOK: 63206,
+  LINKEDIN: 3000,
 };

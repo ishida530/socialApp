@@ -151,6 +151,48 @@ describe('generateBundlesWithClaude', () => {
     expect(result).not.toBeNull();
   });
 
+  it('accepts LINKEDIN as a requested platform and truncates its caption to the LinkedIn limit (3000 chars)', async () => {
+    const longCaption = 'x'.repeat(3100);
+    vi.stubGlobal(
+      'fetch',
+      mockClaudeToolResponse([{ platform: 'LINKEDIN', caption: longCaption, hashtags: ['nieruchomosci'] }]),
+    );
+
+    const result = await generateBundlesWithClaude(analysis, baseInput, ['LINKEDIN']);
+
+    expect(result).not.toBeNull();
+    expect(result![0].platform).toBe('LINKEDIN');
+    expect(result![0].caption.length).toBe(3000);
+  });
+
+  // 2026-09-16 (drugie konto testowe - biuro nieruchomości, LinkedIn jako platforma biznesowa):
+  // właściciel wprost potwierdził, że LinkedIn ma brzmieć INACZEJ niż TikTok/Instagram/Facebook,
+  // nie kolejnym luznym tonem - blokuje to wprost w systemowym prompcie, nie tylko w komentarzu.
+  it('tells Claude LinkedIn needs a distinct, professional tone - not the same casual tone as TikTok/Instagram/Facebook', async () => {
+    let capturedBody: { system: string } | null = null;
+    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
+      capturedBody = JSON.parse(init!.body as string);
+      return {
+        ok: true,
+        json: async () => ({
+          content: [
+            {
+              type: 'tool_use',
+              name: 'generate_platform_bundles',
+              input: { bundles: [{ platform: 'LINKEDIN', caption: 'x', hashtags: ['a'] }] },
+            },
+          ],
+        }),
+      };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await generateBundlesWithClaude(analysis, baseInput, ['LINKEDIN']);
+
+    expect(capturedBody!.system).toContain('LinkedIn');
+    expect(capturedBody!.system).toMatch(/profesjonaln|biznesow/i);
+  });
+
   it('returns null when Claude is not configured (no API key)', async () => {
     delete process.env.ANTHROPIC_API_KEY;
     const fetchMock = vi.fn();

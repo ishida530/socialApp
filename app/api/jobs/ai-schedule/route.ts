@@ -20,7 +20,7 @@ type PublishStatusBreakdown = {
   canceled: number;
 };
 
-const SUPPORTED_PLATFORMS = new Set(['YOUTUBE', 'TIKTOK', 'INSTAGRAM', 'FACEBOOK']);
+const SUPPORTED_PLATFORMS = new Set(['YOUTUBE', 'TIKTOK', 'INSTAGRAM', 'FACEBOOK', 'LINKEDIN']);
 
 export async function POST(request: NextRequest) {
   try {

@@ -88,7 +88,7 @@ async function checkIntegrationPreflight(userId: string, requiredPlatforms: stri
     where: {
       userId,
       platform: {
-        in: requiredPlatforms as Array<'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'FACEBOOK'>,
+        in: requiredPlatforms as Array<'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'FACEBOOK' | 'LINKEDIN'>,
       },
     },
     select: {
