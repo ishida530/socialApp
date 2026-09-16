@@ -113,6 +113,54 @@ describe('POST /api/telegram/webhook — media upload (TASK-3.1.2)', () => {
     ]);
   });
 
+  it('uses the Telegram caption as the video title when one was provided (2026-09-16 owner report: raw ISO timestamp titles were confusing)', async () => {
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
+    await createSocialAccount(user.id, 'INSTAGRAM');
+    const chatId = '111222334';
+    await linkChat(user.id, chatId);
+
+    const fakeVideo = await createVideo(user.id);
+    mockUploadTelegramMediaAsVideo.mockResolvedValue(fakeVideo);
+
+    await POST(
+      webhookRequest({
+        message: {
+          chat: { id: Number(chatId) },
+          video: { file_id: 'tg-file-caption', file_size: 1024 },
+          caption: 'Nowy wrzut na ścianę streetart',
+        },
+      }),
+    );
+
+    expect(mockUploadTelegramMediaAsVideo).toHaveBeenCalledWith(
+      user.id,
+      'tg-file-caption',
+      'VIDEO',
+      'Nowy wrzut na ścianę streetart',
+    );
+  });
+
+  it('falls back to a readable "<Wideo/Zdjęcie> z Telegrama - <polska data>" title when there is no caption, never a raw ISO timestamp', async () => {
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
+    await createSocialAccount(user.id, 'INSTAGRAM');
+    const chatId = '111222335';
+    await linkChat(user.id, chatId);
+
+    const fakeVideo = await createVideo(user.id);
+    mockUploadTelegramMediaAsVideo.mockResolvedValue(fakeVideo);
+
+    await POST(
+      webhookRequest({ message: { chat: { id: Number(chatId) }, video: { file_id: 'tg-file-no-caption', file_size: 1024 } } }),
+    );
+
+    const title = mockUploadTelegramMediaAsVideo.mock.calls[0][3] as string;
+    expect(title).toMatch(/^Wideo z Telegrama - /);
+    // The old, reported-as-confusing format was a bare ISO instant like "2026-09-16T06:48:37.589Z".
+    expect(title).not.toMatch(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+  });
+
   it('auto-attaches a new upload to the active campaign, with zero extra step from the user (real end-to-end wiring, not a mocked call)', async () => {
     const { startCampaign } = await import('@/lib/server/campaigns');
 
