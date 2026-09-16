@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { issueAccessToken, issuePendingTwoFactorToken, TOKEN_COOKIE_NAME } from '@/lib/server/auth';
+import {
+  issueAccessToken,
+  issuePendingTwoFactorToken,
+  TOKEN_COOKIE_NAME,
+  TWO_FACTOR_REMEMBER_COOKIE_NAME,
+} from '@/lib/server/auth';
 import {
   badRequest,
   serverError,
@@ -11,6 +16,7 @@ import { verifyPassword } from '@/lib/server/crypto';
 import { hasTrippedHoneypot } from '@/lib/server/honeypot';
 import { consumeRateLimit, getRequestIp } from '@/lib/server/rate-limit';
 import { recordAuditLog } from '@/lib/server/audit-log';
+import { verifyTrustedDeviceToken } from '@/lib/server/two-factor';
 
 function resolveCookieMaxAge() {
   const raw = Number(process.env.JWT_EXPIRES_IN ?? 3600);
@@ -82,13 +88,25 @@ export async function POST(request: NextRequest) {
     // EPIC 9 TASK-9.3 (2FA, 2026-09-15): password alone is not enough for an account with 2FA
     // enabled - issue a short-lived pending token instead of a real session, and make the client
     // collect a code before POST /api/auth/2fa/login actually logs the user in.
+    //
+    // 2026-09-16 "remember this device": before falling back to that, check for a valid trusted-
+    // device cookie for THIS user. Never substitutes for the password check above, which already
+    // ran unconditionally - this only ever skips the SECOND factor, on a device that already
+    // proved it once (see createTrustedDeviceToken in lib/server/two-factor.ts).
     if (user.twoFactorEnabled) {
-      const pendingToken = issuePendingTwoFactorToken(user.id, user.email);
-      await recordAuditLog({ userId: user.id, actor: 'user', action: 'login.password_ok_2fa_required', ip });
-      return NextResponse.json({ requiresTwoFactor: true, pendingToken });
-    }
+      const rememberToken = request.cookies.get(TWO_FACTOR_REMEMBER_COOKIE_NAME)?.value?.trim();
+      const deviceTrusted = rememberToken ? await verifyTrustedDeviceToken(user.id, rememberToken) : false;
 
-    await recordAuditLog({ userId: user.id, actor: 'user', action: 'login.succeeded', ip });
+      if (!deviceTrusted) {
+        const pendingToken = issuePendingTwoFactorToken(user.id, user.email);
+        await recordAuditLog({ userId: user.id, actor: 'user', action: 'login.password_ok_2fa_required', ip });
+        return NextResponse.json({ requiresTwoFactor: true, pendingToken });
+      }
+
+      await recordAuditLog({ userId: user.id, actor: 'user', action: 'login.succeeded', ip, metadata: { viaTrustedDevice: true } });
+    } else {
+      await recordAuditLog({ userId: user.id, actor: 'user', action: 'login.succeeded', ip });
+    }
 
     const accessToken = issueAccessToken(user.id, user.email);
     const response = NextResponse.json({

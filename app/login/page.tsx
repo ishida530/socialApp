@@ -24,6 +24,9 @@ export default function LoginPage() {
   // 2FA enabled - switches the form to the code-entry step instead of navigating to /dashboard.
   const [pendingToken, setPendingToken] = useState<string | null>(null);
   const [twoFactorCode, setTwoFactorCode] = useState('');
+  // 2026-09-16 "remember this device": defaults to checked - the owner explicitly asked for 2FA
+  // to NOT prompt on every login, so opting out (unchecking) is the deliberate action, not opting in.
+  const [rememberDevice, setRememberDevice] = useState(true);
 
   useEffect(() => {
     if (isLoading) {
@@ -94,7 +97,7 @@ export default function LoginPage() {
 
     try {
       setIsSubmitting(true);
-      await completeTwoFactorLogin(pendingToken, twoFactorCode);
+      await completeTwoFactorLogin(pendingToken, twoFactorCode, rememberDevice);
       toast.success('Zalogowano pomyślnie.');
       router.replace('/dashboard');
     } catch {
@@ -153,6 +156,16 @@ export default function LoginPage() {
               placeholder="123456"
             />
           </div>
+
+          <label className="flex items-start gap-2 text-sm text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={rememberDevice}
+              onChange={(event) => setRememberDevice(event.target.checked)}
+              className="mt-0.5 h-4 w-4"
+            />
+            <span>Zapamiętaj to urządzenie na 30 dni - nie będę pytać o kod przy kolejnych logowaniach.</span>
+          </label>
 
           <button
             type="submit"

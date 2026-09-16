@@ -33,7 +33,7 @@ type AuthContextValue = {
     hpWebsite?: string;
     formStartedAt?: number;
   }) => Promise<LoginResult>;
-  completeTwoFactorLogin: (pendingToken: string, code: string) => Promise<void>;
+  completeTwoFactorLogin: (pendingToken: string, code: string, rememberDevice?: boolean) => Promise<void>;
   register: (payload: {
     email: string;
     name: string;
@@ -97,8 +97,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { requiresTwoFactor: false };
   }, [refreshSession]);
 
-  const completeTwoFactorLogin = useCallback(async (pendingToken: string, code: string) => {
-    await apiClient.post('/auth/2fa/login', { pendingToken, code });
+  const completeTwoFactorLogin = useCallback(async (pendingToken: string, code: string, rememberDevice?: boolean) => {
+    await apiClient.post('/auth/2fa/login', { pendingToken, code, rememberDevice });
     await refreshSession();
   }, [refreshSession]);
 

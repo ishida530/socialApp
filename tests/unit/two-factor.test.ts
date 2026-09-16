@@ -2,7 +2,15 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { createHmac } from 'crypto';
 import { prisma } from '@/lib/server/prisma';
 import { decrypt } from '@/lib/server/crypto';
-import { disableTwoFactor, enableTwoFactor, startTwoFactorSetup, verifyTwoFactorForLogin } from '@/lib/server/two-factor';
+import {
+  createTrustedDeviceToken,
+  disableTwoFactor,
+  enableTwoFactor,
+  forgetAllTrustedDevices,
+  startTwoFactorSetup,
+  verifyTrustedDeviceToken,
+  verifyTwoFactorForLogin,
+} from '@/lib/server/two-factor';
 import { hashPassword } from '@/lib/server/crypto';
 import { createTestUser, deleteTestUser } from '../helpers/fixtures';
 
@@ -152,6 +160,98 @@ describe('disableTwoFactor', () => {
     expect(refreshed.twoFactorEnabled).toBe(false);
     expect(refreshed.twoFactorSecretEncrypted).toBeNull();
     expect(refreshed.twoFactorBackupCodeHashes).toHaveLength(0);
+  });
+
+  it('also forgets every trusted device - a stale cookie must never resurrect the bypass if 2FA is re-enabled', async () => {
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
+    const secret = await enableForUser(user.id, user.email, 'correct-password');
+    const rawToken = await createTrustedDeviceToken(user.id);
+    expect(await verifyTrustedDeviceToken(user.id, rawToken)).toBe(true);
+
+    await disableTwoFactor(user.id, 'correct-password', computeCode(secret));
+
+    expect(await verifyTrustedDeviceToken(user.id, rawToken)).toBe(false);
+  });
+});
+
+describe('createTrustedDeviceToken / verifyTrustedDeviceToken', () => {
+  it('a freshly created token verifies for its own user', async () => {
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
+
+    const rawToken = await createTrustedDeviceToken(user.id);
+    expect(await verifyTrustedDeviceToken(user.id, rawToken)).toBe(true);
+  });
+
+  it('rejects a token that belongs to a different user', async () => {
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
+    const { user: otherUser } = await createTestUser();
+
+    try {
+      const rawToken = await createTrustedDeviceToken(otherUser.id);
+      expect(await verifyTrustedDeviceToken(user.id, rawToken)).toBe(false);
+    } finally {
+      await deleteTestUser(otherUser.id);
+    }
+  });
+
+  it('rejects a made-up token', async () => {
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
+
+    expect(await verifyTrustedDeviceToken(user.id, 'not-a-real-token')).toBe(false);
+  });
+
+  it('rejects an expired token', async () => {
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
+
+    const rawToken = await createTrustedDeviceToken(user.id);
+    await prisma.twoFactorTrustedDevice.updateMany({
+      where: { userId: user.id },
+      data: { expiresAt: new Date(Date.now() - 1000) },
+    });
+
+    expect(await verifyTrustedDeviceToken(user.id, rawToken)).toBe(false);
+  });
+});
+
+describe('forgetAllTrustedDevices', () => {
+  it('deletes every trusted device for the user and reports how many', async () => {
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
+    const tokenA = await createTrustedDeviceToken(user.id);
+    const tokenB = await createTrustedDeviceToken(user.id);
+
+    const result = await forgetAllTrustedDevices(user.id);
+    expect(result.count).toBe(2);
+
+    expect(await verifyTrustedDeviceToken(user.id, tokenA)).toBe(false);
+    expect(await verifyTrustedDeviceToken(user.id, tokenB)).toBe(false);
+  });
+
+  it('never touches another user\'s trusted devices', async () => {
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
+    const { user: otherUser } = await createTestUser();
+
+    try {
+      const otherToken = await createTrustedDeviceToken(otherUser.id);
+      await forgetAllTrustedDevices(user.id);
+      expect(await verifyTrustedDeviceToken(otherUser.id, otherToken)).toBe(true);
+    } finally {
+      await deleteTestUser(otherUser.id);
+    }
+  });
+
+  it('returns count 0 and does not throw when there is nothing to forget', async () => {
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
+
+    const result = await forgetAllTrustedDevices(user.id);
+    expect(result.count).toBe(0);
   });
 });
 
