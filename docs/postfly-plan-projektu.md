@@ -1061,6 +1061,40 @@ Status: [x] zaimplementowane → [x] testy napisane i zielone (537/537 + nowy e2
 
 ---
 
+### Poprawka strefy czasowej `/status` na Telegramie (2026-09-16)
+
+Zgłoszenie właściciela: zaplanowana publikacja na 8:12 nadal wisiała jako "pending" o 8:16, `/status` pokazywał zły czas najbliższej publikacji.
+
+**[Architekt], diagnoza:** dwa oddzielne zjawiska pod jednym zgłoszeniem. (1) Realny root cause opóźnienia: QStash (precyzyjny scheduler) nieskonfigurowany w produkcji (brak `QSTASH_TOKEN`/`QSTASH_CURRENT_SIGNING_KEY`/`QSTASH_NEXT_SIGNING_KEY` w `.env.production.local` pobranym z Vercela) - zaplanowane posty po cichu polegają wyłącznie na jednorazowym dziennym cronie (`0 3 * * *` UTC = 5:00 czasu warszawskiego), nie na precyzyjnym QStash. To wymaga konta właściciela (Upstash) - dostarczona osobna instrukcja konfiguracji, nie kod. (2) Realny, potwierdzony bug: `formatStatusMessage` w `app/api/telegram/webhook/route.ts` miał JEDNO z czterech wywołań `toLocaleString('pl-PL')` bez `timeZone: 'Europe/Warsaw'` - na serwerowym środowisku Vercela (ambient TZ = UTC) pokazywało to godzinę przesuniętą o 2h względem realnego czasu warszawskiego.
+
+**[Inżynier]:** Naprawione dopisaniem brakującego `timeZone: 'Europe/Warsaw'`. Test regresyjny wymagał świadomego triku - lokalna maszyna deweloperska ma domyślne TZ już ustawione na Europe/Warsaw, więc naiwny test przechodziłby niezależnie od poprawki. Test wymusza `process.env.TZ = 'America/New_York'` na czas testu (przywracane w `finally`), sprawdza że `/status` pokazuje `08:30` (poprawna godzina warszawska), nie `02:30` (nowojorska) ani `06:30` (surowe UTC) - zweryfikowany przez chwilowe cofnięcie poprawki (test faktycznie czerwony, pokazywał "02:30:00") przed finalizacją.
+
+Status: [x] zaimplementowane → [x] test napisany i zielony (po potwierdzeniu że faktycznie czerwony bez poprawki) → [x] zweryfikowane (tsc, oba tryby APP_MODE, build) → [x] zmergowane (PR #107) → [x] wdrożone. Konfiguracja QStash pozostaje otwarta jako decyzja/działanie właściciela (wymaga jego własnego konta Upstash) - poza tym co Inżynier może domknąć samodzielnie.
+
+---
+
+### Nazwa domyślna materiałów wgranych przez Telegram (2026-09-16)
+
+Zgłoszenie właściciela: domyślny tytuł materiału wgranego przez Telegram (`Telegram 2026-09-16T06:48:37.589Z`) to surowy znacznik czasu ISO, nieczytelny i nieprzydatny w bibliotece mediów.
+
+**[Inżynier]:** Nowa funkcja `resolveTelegramMediaTitle` w `app/api/telegram/webhook/route.ts` - preferuje własny podpis (caption) użytkownika z Telegrama jako tytuł, gdy jest podany (ograniczony do 80 znaków, z wielokropkiem przy ucięciu); dopiero brak podpisu spada do czytelnej, spolszczonej daty (`Europe/Warsaw`, np. "Wideo z Telegrama - 16.09.2026, 08:48") zamiast surowego ISO.
+
+Status: [x] zaimplementowane → [x] testy napisane i zielone (podpis użyty dosłownie jako tytuł; fallback bez podpisu NIE pasuje do wzorca ISO) → [x] zweryfikowane (tsc, oba tryby APP_MODE, build) → [x] zmergowane (PR #108) → [x] wdrożone.
+
+---
+
+### Osobne pole "Styl wypowiedzi" + sugestia AI (2026-09-16)
+
+Zgłoszenie właściciela: proaktywna sugestia posta na Facebooka ("Buduję to wszystko od zera, krok po kroku... Polski rap to dla mnie coś więcej niż muzyka...") brzmiała generycznie-motywacyjnie, nienaturalnie dla jego konta. Poproszony o pomysł PRZED kodem, zaproponowano: osobne pole "jak mówisz" (ton/głos), niezależne od istniejącego `businessDescription` (który mówi tylko CZYM zajmuje się konto) - zaakceptowane, z dodatkową prośbą o przycisk sugestii AI.
+
+**[Architekt]:** `User.communicationStyle` jako osobne pole, wpięte w te same ~7 miejsc wywołania Claude co `businessDescription` (`content-suggestions`, `coaching`, `telegram-content-ideas`, `social-comments`, `smart-autopilot/ai-content`, `telegram-mentor-agent`) - jedna zmiana poprawia WSZYSTKIE miejsca generujące treść naraz. Każdy system prompt jawnie oznacza `communicationStyle`, gdy podany, jako instrukcję NADRZĘDNĄ względem jakiejkolwiek ogólnej wskazówki tonu w tym samym prompcie.
+
+**[Inżynier]:** Nowy `lib/server/communication-style.ts` (`suggestCommunicationStyle`) i `POST /api/auth/me/suggest-communication-style` pod przyciskiem "✨ Zaproponuj (AI)" na `/account`. Świadomie NIE woła Claude dla pustego szkicu - zamiast tego zwraca statyczny szablon pytań pomocniczych (`COMMUNICATION_STYLE_STARTER_TEMPLATE`), dokładnie żeby uniknąć powtórki tego samego zgłoszonego błędu (AI zmyślające generyczny głos znikąd). Claude wywoływany wyłącznie do dopracowania/ustrukturyzowania NIEPUSTEGO szkicu użytkownika - "AI sugeruje, człowiek zatwierdza", ten sam wzorzec co `canSuggest: false` w innych miejscach appki.
+
+**[QA]:** Nowe testy: `suggestCommunicationStyle` (pusty/whitespace szkic → szablon bez wywołania Claude; niepusty → wywołanie i zwrócony wynik; Claude nieskonfigurowany/błąd/pusta odpowiedź → surowy szkic, nigdy zmyślona treść), `POST /api/auth/me/suggest-communication-style` (401 bez auth, walidacja długości/typu, happy path), rozszerzony `GET/PATCH /api/auth/me` o round-trip `communicationStyle` (ten sam wzorzec co istniejący dla `businessDescription`), i test w `content-suggestions.test.ts` potwierdzający że `communicationStyle` faktycznie trafia do wywołania Claude i jest wspomniany w system prompcie - blokuje regresję zgłoszonego błędu wprost. Pełna suita: **558/558 w obu trybach APP_MODE**, tsc czyste (dwa niepowiązane, pre-existing błędy w `tests/api/backup-crypto.test.ts` potwierdzone jako obecne też na czystym `main` przed tą zmianą), build przechodzi.
+
+Status: [x] zaimplementowane → [x] testy napisane i zielone (558/558) → [x] zweryfikowane (tsc, oba tryby APP_MODE, build) → [x] zmergowane (PR #109) → [x] wdrożone (postfly.pl/api/auth/me/suggest-communication-style zwraca 401 zamiast 404). Nie zweryfikowane ręcznie w realnej przeglądarce - tylko przez tsc/testy/build.
+
 ---
 
 **Definicja "gotowy projekt w 100%":** każdy checkbox w sekcjach 6 i 7 odhaczony, każdy z jawnym DoD spełnionym i potwierdzonym testem (nie deklaracją), **QA niezależnie zweryfikowało, nie tylko Inżynier**, Architekt podpisał się pod skalowalnością w sekcji 9 dla każdej nowej warstwy, i sekcja 8 (Review końcowy) przeszła bez zastrzeżeń blokujących.
