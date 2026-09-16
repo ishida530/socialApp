@@ -86,4 +86,21 @@ describe('generateFacebookTextPostSuggestion', () => {
     expect(userContent.activeGoals).toEqual(['Publikować 3x w tygodniu']);
     expect(capturedBody?.system).toContain('podanych danych');
   });
+
+  it('sends communicationStyle alongside accountContext, and the system prompt tells Claude it takes priority (2026-09-16 owner report: suggestion sounded generic/off-brand)', async () => {
+    let capturedBody: { system?: string; messages?: Array<{ content?: string }> } | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init?: { body?: string }) => {
+        capturedBody = JSON.parse(init?.body ?? '{}');
+        return claudeToolResponse({ canSuggest: true, postText: 'Krótko i na temat, bez lania wody.' });
+      }),
+    );
+
+    await generateFacebookTextPostSuggestion('Jestem raperem', baseData, 'Bezpośrednio, bez lania wody, mówię "ziomy".');
+
+    const userContent = JSON.parse(capturedBody?.messages?.[0]?.content ?? '{}');
+    expect(userContent.communicationStyle).toBe('Bezpośrednio, bez lania wody, mówię "ziomy".');
+    expect(capturedBody?.system).toContain('communicationStyle');
+  });
 });

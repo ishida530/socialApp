@@ -90,6 +90,72 @@ describe('GET/PATCH /api/auth/me — businessDescription', () => {
   });
 });
 
+// communicationStyle (2026-09-16): sibling field to businessDescription - businessDescription
+// says WHAT the account is about, communicationStyle says HOW the owner speaks. Same
+// GET/PATCH/length-limit pattern, kept separate so a generic AI voice doesn't override it.
+describe('GET/PATCH /api/auth/me — communicationStyle', () => {
+  it('GET returns null communicationStyle for a fresh account', async () => {
+    const { user, token } = await createTestUser();
+    cleanupUserId = user.id;
+
+    const response = await GET(getRequest(token));
+    const body = await response.json();
+    expect(body.communicationStyle).toBeNull();
+  });
+
+  it('PATCH saves a communicationStyle and GET reflects it afterwards', async () => {
+    const { user, token } = await createTestUser();
+    cleanupUserId = user.id;
+
+    const response = await PATCH(
+      patchRequest(token, { communicationStyle: 'Bezpośrednio, bez lania wody, mówię "ziomy"' }),
+    );
+    expect(response.status).toBe(200);
+
+    const refreshed = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
+    expect(refreshed.communicationStyle).toBe('Bezpośrednio, bez lania wody, mówię "ziomy"');
+
+    const getResponse = await GET(getRequest(token));
+    const getBody = await getResponse.json();
+    expect(getBody.communicationStyle).toBe('Bezpośrednio, bez lania wody, mówię "ziomy"');
+  });
+
+  it('PATCH with an empty string clears communicationStyle back to null', async () => {
+    const { user, token } = await createTestUser();
+    cleanupUserId = user.id;
+    await prisma.user.update({ where: { id: user.id }, data: { communicationStyle: 'coś tam' } });
+
+    await PATCH(patchRequest(token, { communicationStyle: '   ' }));
+
+    const refreshed = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
+    expect(refreshed.communicationStyle).toBeNull();
+  });
+
+  it('PATCH rejects a communicationStyle over the length limit', async () => {
+    const { user, token } = await createTestUser();
+    cleanupUserId = user.id;
+
+    const response = await PATCH(patchRequest(token, { communicationStyle: 'x'.repeat(501) }));
+    expect(response.status).toBe(400);
+
+    const refreshed = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
+    expect(refreshed.communicationStyle).toBeNull();
+  });
+
+  it('PATCH with businessDescription alone does not touch communicationStyle', async () => {
+    const { user, token } = await createTestUser();
+    cleanupUserId = user.id;
+    await prisma.user.update({ where: { id: user.id }, data: { communicationStyle: 'wcześniej ustawione' } });
+
+    const response = await PATCH(patchRequest(token, { businessDescription: 'nowy opis' }));
+    expect(response.status).toBe(200);
+
+    const refreshed = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
+    expect(refreshed.communicationStyle).toBe('wcześniej ustawione');
+    expect(refreshed.businessDescription).toBe('nowy opis');
+  });
+});
+
 // Web equivalent of Telegram's /autopilot on|off|status (2026-09-14) - the same
 // User.autopilotEnabled field, exposed here so the Account settings page can toggle it too.
 describe('GET/PATCH /api/auth/me — autopilotEnabled', () => {

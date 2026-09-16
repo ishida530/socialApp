@@ -25,6 +25,10 @@ const CONTENT_SYSTEM_PROMPT = [
   'hashtags: 3-6 trafnych slow kluczowych, bez spacji, bez znaku #.',
   'title: wypelnij TYLKO dla platformy YOUTUBE, max 80 znakow.',
   'cta: krotkie, opcjonalne wezwanie do dzialania dopasowane do platformy.',
+  // 2026-09-16 (zgloszenie wlasciciela: wygenerowana tresc brzmiala zbyt generycznie-motywacyjnie,
+  // "pizdowato" dla jego konta) - communicationStyle to NADRZĘDNA instrukcja co do tonu/slownictwa,
+  // wazniejsza niz ogolne dopasowanie tonu do accountContext w linii wyzej, kiedy jest podana.
+  'Jesli w danych podano communicationStyle (styl wypowiedzi wlasciciela konta) - to NADRZĘDNA instrukcja co do tonu i slownictwa, wazniejsza niz cokolwiek innego w tym prompcie. Trzymaj sie jej doslownie.',
 ].join(' ');
 
 type GeneratedBundlesToolResult = {
@@ -42,6 +46,7 @@ export async function generateBundlesWithClaude(
   input: OrchestrateContentInput,
   targetPlatforms: PlatformBundle['platform'][],
   businessDescription?: string | null,
+  communicationStyle?: string | null,
 ): Promise<PlatformBundle[] | null> {
   if (targetPlatforms.length === 0) {
     return null;
@@ -51,10 +56,12 @@ export async function generateBundlesWithClaude(
   // pre-existing template fallback (transform.ts also redacts before using rawInput).
   const safeDescription = redactPotentialPii((input.rawInput || '').trim());
   const safeAccountContext = redactPotentialPii((businessDescription || '').trim());
+  const safeCommunicationStyle = redactPotentialPii((communicationStyle || '').trim());
 
   const userContent = JSON.stringify({
     contentDescription: safeDescription || '(brak opisu od uzytkownika - napisz neutralny, chwytliwy tekst)',
     accountContext: safeAccountContext || '',
+    communicationStyle: safeCommunicationStyle || '',
     persona: analysis.persona,
     intent: analysis.intent,
     contentType: analysis.contentType,

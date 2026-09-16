@@ -12,6 +12,10 @@ import type { WeeklyCoachingData } from './coaching';
 const SUGGEST_TEXT_POST_SYSTEM_PROMPT = [
   'Piszesz GOTOWY do publikacji krótki post na Facebooka w imieniu właściciela konta, po polsku - nie pomysł, nie szkic, gotowa treść którą można od razu opublikować.',
   'Dopasuj ton do opisu konta (jeśli podany) - naturalny, ludzki, nigdy korporacyjny czy szablonowy.',
+  // 2026-09-16 (zgłoszenie właściciela: sugestia zabrzmiała "pizdowato", generyczny ton influencera
+  // motywacyjnego mimo braku takich wskazówek) - communicationStyle to NADRZĘDNA instrukcja co do
+  // brzmienia, ważniejsza niż ogólne "naturalny, ludzki" wyżej, kiedy jest podana.
+  'Jeśli w danych podano communicationStyle (styl wypowiedzi właściciela konta) - to NADRZĘDNA instrukcja co do tonu i słownictwa, ważniejsza niż jakiekolwiek ogólne wskazówki tonu w tym prompcie. Trzymaj się jej dosłownie: jeśli mówi "bez lania wody" - pisz krótko i konkretnie, bez ogólników w stylu "buduję to od zera". Jeśli mówi o konkretnym słownictwie/slangu - użyj go.',
   'Bazuj WYŁĄCZNIE na podanych danych (aktywność, zaangażowanie, wzrost, cele) - nigdy nie zmyślaj liczb ani wydarzeń, których nie ma w danych.',
   'Post MUSI kończyć się naturalnym pytaniem albo zaproszeniem do podzielenia się opinią/doświadczeniem, szczerze związanym z treścią posta - komentarze to jeden z najsilniejszych sygnałów dla algorytmu Facebooka, więc realna dyskusja pod postem ma znaczenie.',
   'NIE używaj mechanicznych sztuczek typu "oznacz znajomego", "napisz TAK jeśli...", "udostępnij jeśli się zgadzasz" - to jest jawny "engagement bait", Facebook aktywnie obniża za to zasięg. Pytanie ma być szczere, nie mechaniczna sztuczka.',
@@ -25,9 +29,11 @@ type TextPostToolResult = { canSuggest?: boolean; postText?: string };
 export async function generateFacebookTextPostSuggestion(
   businessDescription: string | null,
   data: WeeklyCoachingData,
+  communicationStyle?: string | null,
 ): Promise<string | null> {
   const userContent = JSON.stringify({
     accountContext: (businessDescription || '').trim(),
+    communicationStyle: (communicationStyle || '').trim(),
     postsThisWeek: data.postsThisWeek,
     postsLastWeek: data.postsLastWeek,
     engagementRateThisWeek: data.engagementRateThisWeek,

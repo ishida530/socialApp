@@ -11,11 +11,12 @@ export async function GET(request: NextRequest) {
     // reshaping `user`.
     const profile = await prisma.user.findUnique({
       where: { id: user.userId },
-      select: { businessDescription: true, autopilotEnabled: true, twoFactorEnabled: true },
+      select: { businessDescription: true, communicationStyle: true, autopilotEnabled: true, twoFactorEnabled: true },
     });
     return NextResponse.json({
       user,
       businessDescription: profile?.businessDescription ?? null,
+      communicationStyle: profile?.communicationStyle ?? null,
       autopilotEnabled: profile?.autopilotEnabled ?? false,
       twoFactorEnabled: profile?.twoFactorEnabled ?? false,
     });
@@ -25,6 +26,7 @@ export async function GET(request: NextRequest) {
 }
 
 const BUSINESS_DESCRIPTION_MAX_LENGTH = 500;
+const COMMUNICATION_STYLE_MAX_LENGTH = 500;
 
 export async function PATCH(request: NextRequest) {
   try {
@@ -32,10 +34,16 @@ export async function PATCH(request: NextRequest) {
     const body = (await request.json()) as {
       defaultExplicitContent?: boolean;
       businessDescription?: string;
+      communicationStyle?: string;
       autopilotEnabled?: boolean;
     };
 
-    const data: { defaultExplicitContent?: boolean; businessDescription?: string | null; autopilotEnabled?: boolean } = {};
+    const data: {
+      defaultExplicitContent?: boolean;
+      businessDescription?: string | null;
+      communicationStyle?: string | null;
+      autopilotEnabled?: boolean;
+    } = {};
 
     if (body.defaultExplicitContent !== undefined) {
       if (typeof body.defaultExplicitContent !== 'boolean') {
@@ -59,6 +67,19 @@ export async function PATCH(request: NextRequest) {
       data.businessDescription = trimmed || null;
     }
 
+    if (body.communicationStyle !== undefined) {
+      if (typeof body.communicationStyle !== 'string') {
+        return badRequest('Validation failed', ['communicationStyle: wymagany tekst']);
+      }
+      const trimmed = body.communicationStyle.trim();
+      if (trimmed.length > COMMUNICATION_STYLE_MAX_LENGTH) {
+        return badRequest('Validation failed', [
+          `communicationStyle: maksymalnie ${COMMUNICATION_STYLE_MAX_LENGTH} znaków`,
+        ]);
+      }
+      data.communicationStyle = trimmed || null;
+    }
+
     if (body.autopilotEnabled !== undefined) {
       if (typeof body.autopilotEnabled !== 'boolean') {
         return badRequest('Validation failed', ['autopilotEnabled: wymagana wartość boolean']);
@@ -73,7 +94,13 @@ export async function PATCH(request: NextRequest) {
     const updated = await prisma.user.update({
       where: { id: user.userId },
       data,
-      select: { id: true, defaultExplicitContent: true, businessDescription: true, autopilotEnabled: true },
+      select: {
+        id: true,
+        defaultExplicitContent: true,
+        businessDescription: true,
+        communicationStyle: true,
+        autopilotEnabled: true,
+      },
     });
 
     return NextResponse.json({ user: updated });

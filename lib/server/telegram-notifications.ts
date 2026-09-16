@@ -235,7 +235,7 @@ export async function sendWeeklyCoachingCheckins(): Promise<{ usersNotified: num
       telegramChatId: { not: null },
       OR: [{ lastCoachingCheckinSentAt: null }, { lastCoachingCheckinSentAt: { lte: cutoff } }],
     },
-    select: { id: true, telegramChatId: true, businessDescription: true },
+    select: { id: true, telegramChatId: true, businessDescription: true, communicationStyle: true },
   });
 
   let usersNotified = 0;
@@ -251,7 +251,9 @@ export async function sendWeeklyCoachingCheckins(): Promise<{ usersNotified: num
 
     // AI enhances, template is the safety net - same pattern as caption generation
     // (ai-content.ts): a real, honest, data-only message beats no message at all.
-    const message = (await generateCoachingMessage(data, user.businessDescription)) ?? formatFallbackCoachingMessage(data);
+    const message =
+      (await generateCoachingMessage(data, user.businessDescription, user.communicationStyle)) ??
+      formatFallbackCoachingMessage(data);
 
     try {
       await sendTelegramMessage(user.telegramChatId as string, formatCoachingCheckinMessage(message));
@@ -379,7 +381,12 @@ function formatProactiveIdeasMessage(ideas: Array<{ title: string; description: 
   return lines.join('\n').trimEnd();
 }
 
-async function sendFacebookTextPostSuggestion(user: { id: string; telegramChatId: string; businessDescription: string | null }): Promise<boolean> {
+async function sendFacebookTextPostSuggestion(user: {
+  id: string;
+  telegramChatId: string;
+  businessDescription: string | null;
+  communicationStyle: string | null;
+}): Promise<boolean> {
   const fbAccount = await prisma.socialAccount.findFirst({
     where: { userId: user.id, platform: 'FACEBOOK', accessToken: { not: null } },
   });
@@ -389,7 +396,7 @@ async function sendFacebookTextPostSuggestion(user: { id: string; telegramChatId
   }
 
   const data = await getWeeklyCoachingData(user.id);
-  const postText = await generateFacebookTextPostSuggestion(user.businessDescription, data);
+  const postText = await generateFacebookTextPostSuggestion(user.businessDescription, data, user.communicationStyle);
   if (!postText) {
     return false;
   }
@@ -429,13 +436,18 @@ async function sendFacebookTextPostSuggestion(user: { id: string; telegramChatId
   return true;
 }
 
-async function sendMediaContentIdeaSuggestion(user: { id: string; telegramChatId: string; businessDescription: string | null }): Promise<boolean> {
+async function sendMediaContentIdeaSuggestion(user: {
+  id: string;
+  telegramChatId: string;
+  businessDescription: string | null;
+  communicationStyle: string | null;
+}): Promise<boolean> {
   const recentPosts = await getRecentContentForIdeas(user.id);
   if (recentPosts.length < MIN_POSTS_FOR_IDEAS) {
     return false;
   }
 
-  const ideas = await generateContentIdeas(user.businessDescription, recentPosts);
+  const ideas = await generateContentIdeas(user.businessDescription, recentPosts, user.communicationStyle);
   if (!ideas || ideas.length === 0) {
     return false;
   }
@@ -454,13 +466,18 @@ export async function sendContentSuggestions(): Promise<{ usersNotified: number 
       publishingPaused: false,
       OR: [{ lastContentSuggestionSentAt: null }, { lastContentSuggestionSentAt: { lte: cutoff } }],
     },
-    select: { id: true, telegramChatId: true, businessDescription: true },
+    select: { id: true, telegramChatId: true, businessDescription: true, communicationStyle: true },
   });
 
   let usersNotified = 0;
 
   for (const user of candidates) {
-    const typedUser = { id: user.id, telegramChatId: user.telegramChatId as string, businessDescription: user.businessDescription };
+    const typedUser = {
+      id: user.id,
+      telegramChatId: user.telegramChatId as string,
+      businessDescription: user.businessDescription,
+      communicationStyle: user.communicationStyle,
+    };
 
     try {
       const sent = (await sendFacebookTextPostSuggestion(typedUser)) || (await sendMediaContentIdeaSuggestion(typedUser));
