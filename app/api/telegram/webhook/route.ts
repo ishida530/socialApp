@@ -606,7 +606,12 @@ function formatActivityMessage(entries: Awaited<ReturnType<typeof getRecentActiv
 function formatStatusMessage(snapshot: Awaited<ReturnType<typeof getTelegramStatusSnapshot>>): string {
   const lines = [
     snapshot.publishingPaused ? '⏸️ Publikacje wstrzymane (/resume żeby wznowić).' : '▶️ Publikacje aktywne.',
-    `Zaplanowane: ${snapshot.pendingCount}${snapshot.nextScheduledFor ? ` (najbliższa: ${snapshot.nextScheduledFor.toLocaleString('pl-PL')})` : ''}`,
+    // Bug znaleziony 2026-09-16 (zgłoszenie właściciela): brakowało `timeZone: 'Europe/Warsaw'`
+    // tutaj (jedyne miejsce w tym pliku bez niego - patrz linie z "📅 Zaplanowano"/"Ostatnie
+    // zadania" dla wzorca) - bez tego `toLocaleString` użył strefy czasowej serwera (UTC), więc
+    // /status pokazywał godzinę ~2h wcześniejszą niż realna (CEST = UTC+2), mimo że w bazie
+    // zapisana godzina była poprawna.
+    `Zaplanowane: ${snapshot.pendingCount}${snapshot.nextScheduledFor ? ` (najbliższa: ${snapshot.nextScheduledFor.toLocaleString('pl-PL', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Europe/Warsaw' })})` : ''}`,
     `Szkice czekające na decyzję: ${snapshot.draftCount}`,
     `Opublikowane w ostatnich 7 dniach: ${snapshot.recentSuccess}`,
     snapshot.activeCampaignName
