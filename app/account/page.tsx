@@ -12,7 +12,35 @@ import { CollapsibleSection } from '@/components/CollapsibleSection';
 // one collapses the others, so this screen asks one decision at a time instead of showing all 5
 // (Telegram, profil, autopilot, 2FA, usuń konto) expanded at once (the "1 screen = 1 decision"
 // principle from docs/postfly-plan-projektu.md section 0.1, flagged as violated in docs/UX_AUDIT.md).
-type AccountSection = 'telegram' | 'profile' | 'autopilot' | 'twoFactor' | 'delete';
+type AccountSection = 'telegram' | 'profile' | 'style' | 'integrations' | 'autopilot' | 'twoFactor' | 'delete';
+
+// 2026-09-25: per-platform writing rules owned by the account (Postfly serves different kinds of
+// businesses - what a good LinkedIn post is for a real-estate agency differs from a solar
+// installer's). Same keys as lib/server/platform-style-guides.ts STYLE_GUIDE_PLATFORMS.
+const STYLE_GUIDE_FIELDS = [
+  {
+    platform: 'FACEBOOK',
+    label: 'Facebook',
+    placeholder:
+      'Np. 400-700 znaków, forma "Państwo", hook z konkretem w pierwszej linii, 0-2 emoji, link w ostatniej linii, max 3 hashtagi.',
+  },
+  {
+    platform: 'INSTAGRAM',
+    label: 'Instagram',
+    placeholder: 'Np. krótkie linie, słowa kluczowe w pierwszej linii, "link w bio", 3-5 hashtagów lokalnych i branżowych.',
+  },
+  {
+    platform: 'LINKEDIN',
+    label: 'LinkedIn',
+    placeholder:
+      'Np. 1. osoba jako właściciel firmy, ton biznesowy i ekspercki, 900-1500 znaków, bez emoji, na końcu pytanie do dyskusji.',
+  },
+  { platform: 'TIKTOK', label: 'TikTok', placeholder: 'Np. hook w pierwszych 3 słowach, luźny ton, max 150 znaków.' },
+  { platform: 'YOUTUBE', label: 'YouTube', placeholder: 'Np. tytuł z frazą kluczową, opis 2-3 akapity, linki na końcu.' },
+] as const;
+const STYLE_GUIDE_MAX_LENGTH = 3000;
+
+type IntegrationKeyRow = { id: string; name: string; keyPrefix: string; createdAt: string; lastUsedAt: string | null };
 
 function StatusBadge({ on, onLabel, offLabel }: { on: boolean; onLabel: string; offLabel?: string }) {
   if (!on && !offLabel) {
@@ -55,6 +83,15 @@ export default function AccountPage() {
   const [communicationStyle, setCommunicationStyle] = useState('');
   const [isSuggestingCommunicationStyle, setIsSuggestingCommunicationStyle] = useState(false);
   const COMMUNICATION_STYLE_MAX_LENGTH = 500;
+
+  const [platformStyleGuides, setPlatformStyleGuides] = useState<Record<string, string>>({});
+  const [brandHashtag, setBrandHashtag] = useState('');
+  const [isSavingStyleGuides, setIsSavingStyleGuides] = useState(false);
+
+  const [integrationKeys, setIntegrationKeys] = useState<IntegrationKeyRow[]>([]);
+  const [newKeyName, setNewKeyName] = useState('');
+  const [isCreatingKey, setIsCreatingKey] = useState(false);
+  const [createdKeyPlaintext, setCreatedKeyPlaintext] = useState<string | null>(null);
 
   // Web equivalent of the Telegram /autopilot on|off|status command - same User.autopilotEnabled
   // field, so toggling here has the exact same effect as typing the command in the bot.
@@ -104,12 +141,16 @@ export default function AccountPage() {
       .get<{
         businessDescription: string | null;
         communicationStyle: string | null;
+        platformStyleGuides: Record<string, string> | null;
+        brandHashtag: string | null;
         autopilotEnabled: boolean;
         twoFactorEnabled: boolean;
       }>('/auth/me')
       .then((response) => {
         setBusinessDescription(response.data.businessDescription ?? '');
         setCommunicationStyle(response.data.communicationStyle ?? '');
+        setPlatformStyleGuides(response.data.platformStyleGuides ?? {});
+        setBrandHashtag(response.data.brandHashtag ?? '');
         setAutopilotEnabled(response.data.autopilotEnabled ?? false);
         setTwoFactorEnabled(response.data.twoFactorEnabled ?? false);
       })
@@ -152,6 +193,57 @@ export default function AccountPage() {
       toast.error('Nie udało się zapisać. Spróbuj ponownie.');
     } finally {
       setIsSavingBusinessDescription(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    }
+    apiClient
+      .get<{ keys: IntegrationKeyRow[] }>('/integration-keys')
+      .then((response) => setIntegrationKeys(response.data.keys))
+      .catch(() => {});
+  }, [isAuthenticated]);
+
+  const handleSaveStyleGuides = async () => {
+    try {
+      setIsSavingStyleGuides(true);
+      await apiClient.patch('/auth/me', { platformStyleGuides, brandHashtag });
+      toast.success('Zapisano zasady pisania.');
+    } catch {
+      toast.error('Nie udało się zapisać. Sprawdź długość tekstów i spróbuj ponownie.');
+    } finally {
+      setIsSavingStyleGuides(false);
+    }
+  };
+
+  const handleCreateIntegrationKey = async () => {
+    try {
+      setIsCreatingKey(true);
+      const response = await apiClient.post<{ key: IntegrationKeyRow; plaintext: string }>('/integration-keys', {
+        name: newKeyName.trim(),
+      });
+      setIntegrationKeys((keys) => [response.data.key, ...keys]);
+      setCreatedKeyPlaintext(response.data.plaintext);
+      setNewKeyName('');
+    } catch {
+      toast.error('Nie udało się utworzyć klucza.');
+    } finally {
+      setIsCreatingKey(false);
+    }
+  };
+
+  const handleRevokeIntegrationKey = async (id: string) => {
+    if (!window.confirm('Unieważnić ten klucz? Strona, która go używa, przestanie wysyłać treści do Postfly.')) {
+      return;
+    }
+    try {
+      await apiClient.delete(`/integration-keys/${id}`);
+      setIntegrationKeys((keys) => keys.filter((key) => key.id !== id));
+      toast.success('Klucz unieważniony.');
+    } catch {
+      toast.error('Nie udało się unieważnić klucza.');
     }
   };
 
@@ -415,6 +507,150 @@ export default function AccountPage() {
         >
           {isSavingBusinessDescription ? 'Zapisywanie...' : 'Zapisz'}
         </button>
+      </CollapsibleSection>
+
+      <CollapsibleSection
+        title="Styl pisania na platformy"
+        description="Twoje zasady dla każdej platformy - długość, ton, forma zwracania się, emoji, hashtagi, CTA. AI stosuje je przy każdym generowanym poście i mają pierwszeństwo przed ogólnymi konwencjami."
+        badge={
+          <StatusBadge
+            on={Object.values(platformStyleGuides).some((text) => text.trim())}
+            onLabel="Ustawione"
+          />
+        }
+        open={openSection === 'style'}
+        onOpenChange={toggleSection('style')}
+      >
+        {STYLE_GUIDE_FIELDS.map(({ platform, label, placeholder }) => {
+          const value = platformStyleGuides[platform] ?? '';
+          return (
+            <div key={platform}>
+              <label className="block text-sm font-medium text-foreground mb-1">{label}</label>
+              <textarea
+                value={value}
+                onChange={(event) =>
+                  setPlatformStyleGuides((guides) => ({
+                    ...guides,
+                    [platform]: event.target.value.slice(0, STYLE_GUIDE_MAX_LENGTH),
+                  }))
+                }
+                rows={4}
+                maxLength={STYLE_GUIDE_MAX_LENGTH}
+                className="w-full rounded-lg border border-border bg-secondary/30 px-3 py-2 text-sm text-foreground"
+                placeholder={placeholder}
+              />
+              <p className="text-xs text-muted-foreground mt-1 text-right">
+                {value.length}/{STYLE_GUIDE_MAX_LENGTH}
+              </p>
+            </div>
+          );
+        })}
+
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-1">Hashtag marki</label>
+          <p className="text-xs text-muted-foreground mb-2">Zawsze dołączany do hashtagów, np. #twojafirma.</p>
+          <input
+            value={brandHashtag}
+            onChange={(event) => setBrandHashtag(event.target.value.slice(0, 60))}
+            className="w-full rounded-lg border border-border bg-secondary/30 px-3 py-2 text-sm text-foreground"
+            placeholder="#twojafirma"
+          />
+        </div>
+
+        <button
+          type="button"
+          onClick={handleSaveStyleGuides}
+          disabled={isSavingStyleGuides}
+          className="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-secondary/40 transition-colors text-sm font-medium disabled:opacity-50"
+        >
+          {isSavingStyleGuides ? 'Zapisywanie...' : 'Zapisz'}
+        </button>
+      </CollapsibleSection>
+
+      <CollapsibleSection
+        title="Integracje API"
+        description="Klucze dla Twojej strony lub systemu (np. blog, CRM z ofertami), które same wysyłają nowe treści do Postfly. Szkice trafiają na to konto i czekają na Twoje zatwierdzenie."
+        badge={<StatusBadge on={integrationKeys.length > 0} onLabel={`Aktywne: ${integrationKeys.length}`} />}
+        open={openSection === 'integrations'}
+        onOpenChange={toggleSection('integrations')}
+      >
+        {createdKeyPlaintext && (
+          <div className="rounded-lg border border-amber-500/50 bg-amber-500/10 p-3 space-y-2">
+            <p className="text-sm font-medium text-foreground">
+              Skopiuj klucz teraz - nie pokażemy go ponownie.
+            </p>
+            <code className="block break-all rounded bg-secondary/40 p-2 text-xs">{createdKeyPlaintext}</code>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard?.writeText(createdKeyPlaintext).then(
+                    () => toast.success('Skopiowano.'),
+                    () => toast.error('Nie udało się skopiować - zaznacz i skopiuj ręcznie.'),
+                  );
+                }}
+                className="text-xs text-primary hover:underline font-medium"
+              >
+                Kopiuj
+              </button>
+              <button
+                type="button"
+                onClick={() => setCreatedKeyPlaintext(null)}
+                className="text-xs text-muted-foreground hover:underline"
+              >
+                Gotowe, schowaj
+              </button>
+            </div>
+          </div>
+        )}
+
+        <p className="text-xs text-muted-foreground">
+          Użycie: <span className="font-mono">POST /api/external/content-intake</span> z nagłówkiem{' '}
+          <span className="font-mono">Authorization: Bearer &lt;klucz&gt;</span>.
+        </p>
+
+        {integrationKeys.length > 0 && (
+          <ul className="divide-y divide-border rounded-lg border border-border">
+            {integrationKeys.map((key) => (
+              <li key={key.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                <div>
+                  <p className="font-medium text-foreground">{key.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    <span className="font-mono">{key.keyPrefix}…</span> · utworzony{' '}
+                    {new Date(key.createdAt).toLocaleDateString('pl-PL')} ·{' '}
+                    {key.lastUsedAt
+                      ? `ostatnio użyty ${new Date(key.lastUsedAt).toLocaleString('pl-PL')}`
+                      : 'jeszcze nieużyty'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleRevokeIntegrationKey(key.id)}
+                  className="text-xs text-red-500 hover:underline font-medium"
+                >
+                  Unieważnij
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <div className="flex gap-2">
+          <input
+            value={newKeyName}
+            onChange={(event) => setNewKeyName(event.target.value.slice(0, 60))}
+            className="flex-1 rounded-lg border border-border bg-secondary/30 px-3 py-2 text-sm text-foreground"
+            placeholder="Nazwa, np. Strona www"
+          />
+          <button
+            type="button"
+            onClick={handleCreateIntegrationKey}
+            disabled={isCreatingKey || !newKeyName.trim()}
+            className="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-secondary/40 transition-colors text-sm font-medium disabled:opacity-50"
+          >
+            {isCreatingKey ? 'Tworzenie...' : 'Utwórz klucz'}
+          </button>
+        </div>
       </CollapsibleSection>
 
       <CollapsibleSection

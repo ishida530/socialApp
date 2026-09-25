@@ -1,21 +1,41 @@
-// External content intake (2026-09-23) - server-to-server entry point for other in-house sites
-// (Prymat Nieruchomości: a new blog post going live, a new Asari listing appearing) to create a
-// DRAFT social post here, waiting for approval like any other draft. Bearer-secret auth, same
-// shape as app/api/cron/publish's CRON_SECRET check - this is machine-to-machine, not a logged-in
-// browser session, so the cookie-based getAuthUserFromRequest doesn't apply here.
+// External content intake (2026-09-23) - server-to-server entry point for a customer's website
+// (e.g. Pryzmat Nieruchomości: a new blog post going live, a new CRM listing appearing) to create
+// a DRAFT social post here, waiting for approval like any other draft. Machine-to-machine, not a
+// logged-in browser session, so the cookie-based getAuthUserFromRequest doesn't apply here.
+//
+// Auth (2026-09-25, multi-tenant): "Authorization: Bearer <integration key>" - the key decides
+// which account receives the drafts (its social accounts, its writing settings). Legacy: the
+// shared EXTERNAL_CONTENT_SECRET still works and targets the instance owner (first account), so
+// integrations set up before per-account keys keep working until they switch to a key.
+import { timingSafeEqual } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { badRequest, serverError, unauthorized } from '@/lib/server/http';
 import { ingestExternalContent, type ExternalContentPayload } from '@/lib/server/external-content';
+import { resolveIntegrationKey } from '@/lib/server/integration-keys';
+import { prisma } from '@/lib/server/prisma';
+import { STYLE_GUIDE_MAX_LENGTH, STYLE_GUIDE_PLATFORMS } from '@/lib/server/platform-style-guides';
 
 export const dynamic = 'force-dynamic';
 
-function isAuthorized(request: NextRequest): boolean {
-  const secret = process.env.EXTERNAL_CONTENT_SECRET;
-  if (!secret) {
-    throw new Error('Missing required config: EXTERNAL_CONTENT_SECRET');
-  }
+function safeEqual(a: string, b: string): boolean {
+  const left = Buffer.from(a);
+  const right = Buffer.from(b);
+  return left.length === right.length && timingSafeEqual(left, right);
+}
 
-  return request.headers.get('authorization') === `Bearer ${secret}`;
+async function resolveTargetUserId(request: NextRequest): Promise<string | null> {
+  const bearer = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '').trim();
+  if (!bearer) return null;
+
+  const byKey = await resolveIntegrationKey(bearer);
+  if (byKey) return byKey.userId;
+
+  const legacySecret = process.env.EXTERNAL_CONTENT_SECRET;
+  if (legacySecret && safeEqual(bearer, legacySecret)) {
+    const owner = await prisma.user.findFirst({ orderBy: { createdAt: 'asc' }, select: { id: true } });
+    return owner?.id ?? null;
+  }
+  return null;
 }
 
 type IntakeBody = {
@@ -28,7 +48,13 @@ type IntakeBody = {
   price?: number;
   location?: string;
   category?: string;
+  brandContext?: string;
+  platformGuides?: Record<string, string>;
+  brandHashtag?: string;
+  siteLabel?: string;
 };
+
+const MAX_BRAND_CONTEXT_LENGTH = 2000;
 
 function validate(body: IntakeBody): string[] {
   const errors: string[] = [];
@@ -51,6 +77,34 @@ function validate(body: IntakeBody): string[] {
   if (!body.imageUrl || typeof body.imageUrl !== 'string') {
     errors.push('imageUrl: wymagany string');
   }
+  if (
+    body.brandContext !== undefined &&
+    (typeof body.brandContext !== 'string' || body.brandContext.length > MAX_BRAND_CONTEXT_LENGTH)
+  ) {
+    errors.push(`brandContext: string do ${MAX_BRAND_CONTEXT_LENGTH} znaków, jeśli podany`);
+  }
+  if (body.platformGuides !== undefined) {
+    const guides = body.platformGuides;
+    const valid =
+      guides !== null &&
+      typeof guides === 'object' &&
+      !Array.isArray(guides) &&
+      Object.entries(guides).every(
+        ([platform, text]) =>
+          (STYLE_GUIDE_PLATFORMS as readonly string[]).includes(platform) &&
+          typeof text === 'string' &&
+          text.length <= STYLE_GUIDE_MAX_LENGTH,
+      );
+    if (!valid) {
+      errors.push(`platformGuides: obiekt { PLATFORMA: tekst do ${STYLE_GUIDE_MAX_LENGTH} znaków }`);
+    }
+  }
+  for (const field of ['brandHashtag', 'siteLabel'] as const) {
+    const value = body[field];
+    if (value !== undefined && (typeof value !== 'string' || value.length > 100)) {
+      errors.push(`${field}: string do 100 znaków, jeśli podany`);
+    }
+  }
   if (body.price !== undefined && typeof body.price !== 'number') {
     errors.push('price: musi być liczbą, jeśli podane');
   }
@@ -60,8 +114,9 @@ function validate(body: IntakeBody): string[] {
 
 export async function POST(request: NextRequest) {
   try {
-    if (!isAuthorized(request)) {
-      return unauthorized('Invalid content-intake secret');
+    const userId = await resolveTargetUserId(request);
+    if (!userId) {
+      return unauthorized('Invalid integration key');
     }
 
     const body = (await request.json()) as IntakeBody;
@@ -80,11 +135,18 @@ export async function POST(request: NextRequest) {
       price: body.price,
       location: body.location,
       category: body.category,
+      brandContext: body.brandContext,
+      platformGuides: body.platformGuides,
+      brandHashtag: body.brandHashtag,
+      siteLabel: body.siteLabel,
     };
 
-    const result = await ingestExternalContent(payload);
+    const result = await ingestExternalContent(userId, payload);
 
     if (!result.ok) {
+      if (result.retryable) {
+        return NextResponse.json({ message: result.error, retryable: true }, { status: 503, headers: { 'Retry-After': '3600' } });
+      }
       return badRequest(result.error);
     }
 

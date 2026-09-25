@@ -91,6 +91,8 @@ describe('POST /api/external/content-intake', () => {
   });
 
   it('rejects a payload missing required fields', async () => {
+    const { user } = await createTestUser(); // the legacy secret needs a target account to exist
+    cleanupUserId = user.id;
     const response = await POST(intakeRequest({ type: 'listing' }, authHeader()));
     expect(response.status).toBe(400);
     const body = await response.json();
@@ -98,6 +100,8 @@ describe('POST /api/external/content-intake', () => {
   });
 
   it('rejects an unknown type', async () => {
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
     const response = await POST(intakeRequest({ ...validListingBody, type: 'newsletter' }, authHeader()));
     expect(response.status).toBe(400);
   });
@@ -133,9 +137,14 @@ describe('POST /api/external/content-intake', () => {
 
     expect(jobs).toHaveLength(2);
     expect(jobs.map((j) => j.socialAccount.platform).sort()).toEqual(['FACEBOOK', 'INSTAGRAM']);
+    const byPlatform = Object.fromEntries(jobs.map((j) => [j.socialAccount.platform, j]));
+    // Facebook: the clickable URL is guaranteed as the last line; Instagram: no dead URL text.
+    expect(byPlatform.FACEBOOK.caption).toBe(
+      `Nowa oferta w Olsztynie!\n\n${validListingBody.url}?utm_source=facebook&utm_medium=social&utm_campaign=oferta`,
+    );
+    expect(byPlatform.INSTAGRAM.caption).toBe('Nowa oferta w Olsztynie!');
     jobs.forEach((job) => {
       expect(job.status).toBe('DRAFT');
-      expect(job.caption).toBe('Nowa oferta w Olsztynie!');
       expect(job.hashtags).toEqual(['#Olsztyn', '#PrymatNieruchomosci']);
       expect(job.video.sourceKind).toBe('LISTING');
       expect(job.video.sourceRef).toBe('asari-999');
@@ -203,6 +212,124 @@ describe('POST /api/external/content-intake', () => {
     expect(pathname).toMatch(/\.jpg$/);
     expect(options.contentType).toBe('image/jpeg');
     expect([...(bytes as Buffer).subarray(0, 2)]).toEqual([0xff, 0xd8]);
+  });
+
+  it('regenerates a caption with invented numbers and creates no offer post if it persists (retryable)', async () => {
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
+    await createSocialAccount(user.id, 'FACEBOOK');
+
+    const claudeCalls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string, init?: { body?: string }) => {
+        if (typeof url === 'string' && url.includes('anthropic.com')) {
+          claudeCalls.push(init?.body ?? '');
+          // "4. piętro" and "72 m²" are not in the listing data - must never be published.
+          return claudeToolResponse({ caption: 'Mieszkanie 72 m² na 4. piętrze', hashtags: ['#Olsztyn'] });
+        }
+        return fakeImageResponse();
+      }),
+    );
+
+    const response = await POST(intakeRequest({ ...validListingBody, sourceRef: 'asari-1001' }, authHeader()));
+    // No spammy data-only offer post: the caller gets a retryable error and nothing is stored,
+    // so a later retry starts clean.
+    expect(response.status).toBe(503);
+    expect((await response.json()).retryable).toBe(true);
+
+    expect(claudeCalls).toHaveLength(2); // one retry with feedback
+    expect(claudeCalls[1]).toContain('72');
+    expect(await prisma.video.count({ where: { userId: user.id } })).toBe(0);
+  });
+
+  it('falls back to a plain article post on Facebook (not Instagram) when AI is unavailable', async () => {
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
+    await createSocialAccount(user.id, 'FACEBOOK');
+    await createSocialAccount(user.id, 'INSTAGRAM');
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        if (typeof url === 'string' && url.includes('anthropic.com')) {
+          return { ok: false, status: 529, json: async () => ({}), text: async () => 'overloaded' };
+        }
+        return fakeImageResponse();
+      }),
+    );
+
+    const blogBody = {
+      type: 'blog',
+      sourceRef: 'blog:podatki',
+      title: 'Podatki przy sprzedaży mieszkania',
+      excerpt: 'Co warto policzyć przed wystawieniem oferty.',
+      url: 'https://www.example.pl/poradnik/podatki',
+      imageUrl: 'https://img.example.com/og.png',
+    };
+    const response = await POST(intakeRequest(blogBody, authHeader()));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+
+    const jobs = await prisma.publishJob.findMany({ where: { postGroupId: body.postGroupId }, include: { socialAccount: true } });
+    expect(jobs.map((j) => j.socialAccount.platform)).toEqual(['FACEBOOK']);
+    expect(jobs[0].caption).toContain('utm_source=facebook');
+  });
+
+  it('routes a request authorized with an integration key to that key owner, using their own style settings', async () => {
+    const { createIntegrationKey } = await import('@/lib/server/integration-keys');
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
+    await createSocialAccount(user.id, 'FACEBOOK');
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        businessDescription: 'Montujemy fotowoltaikę na Warmii.',
+        platformStyleGuides: { FACEBOOK: 'ZASADA-KONTA: pisz bardzo krótko.' },
+        brandHashtag: '#firmaoze',
+      },
+    });
+    const { plaintext } = await createIntegrationKey(user.id, 'Strona www');
+
+    const claudeBodies: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string, init?: { body?: string }) => {
+        if (typeof url === 'string' && url.includes('anthropic.com')) {
+          claudeBodies.push(init?.body ?? '');
+          return claudeToolResponse({ caption: 'Nowa realizacja', hashtags: ['#warmia'] });
+        }
+        return fakeImageResponse();
+      }),
+    );
+
+    const response = await POST(
+      intakeRequest(
+        { ...validListingBody, sourceRef: 'realizacja-1', platformGuides: { FACEBOOK: 'ZASADA-Z-PAYLOADU' }, brandHashtag: '#inny' },
+        { Authorization: `Bearer ${plaintext}` },
+      ),
+    );
+    expect(response.status).toBe(200);
+    const body = await response.json();
+
+    const [job] = await prisma.publishJob.findMany({ where: { postGroupId: body.postGroupId }, include: { video: true } });
+    expect(job.video.userId).toBe(user.id);
+    expect(job.hashtags).toEqual(['#warmia', '#firmaoze']);
+    // Account settings win over what the calling site sent.
+    expect(claudeBodies[0]).toContain('ZASADA-KONTA');
+    expect(claudeBodies[0]).toContain('fotowoltaik');
+    expect(claudeBodies[0]).not.toContain('ZASADA-Z-PAYLOADU');
+  });
+
+  it('rejects a revoked integration key', async () => {
+    const { createIntegrationKey } = await import('@/lib/server/integration-keys');
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
+    const { key, plaintext } = await createIntegrationKey(user.id, 'Stara strona');
+    await prisma.integrationKey.update({ where: { id: key.id }, data: { revokedAt: new Date() } });
+
+    const response = await POST(intakeRequest(validListingBody, { Authorization: `Bearer ${plaintext}` }));
+    expect(response.status).toBe(401);
   });
 
   it('returns 400 when no connected account matches the target platforms', async () => {

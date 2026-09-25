@@ -69,6 +69,36 @@ export async function sendPasswordResetEmail(userEmail: string, resetLink: strin
   }
 }
 
+// Account created by an admin (2026-09-25): the new user sets their own password through this
+// link - the admin never knows it. Same PasswordResetToken mechanism as the reset flow, longer TTL.
+export async function sendAccountInviteEmail(userEmail: string, userName: string, setPasswordLink: string, ttlHours: number) {
+  const from = process.env.EMAIL_FROM ?? 'PostFly <hello@postfly.pl>';
+  const safeLink = escapeHtml(setPasswordLink);
+  const safeName = escapeHtml(userName);
+
+  const result = await getResendClient().emails.send({
+    from,
+    to: userEmail,
+    subject: 'PostFly - Twoje konto jest gotowe',
+    text:
+      `Cześć ${userName},\n\n` +
+      'Utworzyliśmy dla Ciebie konto w PostFly. Ustaw hasło, żeby się zalogować:\n' +
+      `${setPasswordLink}\n\n` +
+      `Link jest ważny przez ${ttlHours} godzin. Jeśli wygaśnie, poproś administratora o nowe zaproszenie.`,
+    html:
+      '<div style="font-family:Inter,Arial,sans-serif;line-height:1.6;color:#111827">' +
+      `<p>Cześć ${safeName},</p>` +
+      '<p>Utworzyliśmy dla Ciebie konto w PostFly. Ustaw hasło, żeby się zalogować:</p>' +
+      `<p><a href="${safeLink}" target="_blank" rel="noopener noreferrer">Ustaw hasło</a></p>` +
+      `<p>Link jest ważny przez <strong>${ttlHours} godzin</strong>. Jeśli wygaśnie, poproś administratora o nowe zaproszenie.</p>` +
+      '</div>',
+  });
+
+  if (result.error) {
+    throw new Error(`[mail] Resend error ${result.error.statusCode}: ${result.error.message}`);
+  }
+}
+
 export async function sendPaymentFailedEmail(userEmail: string, userName: string) {
   const from = process.env.EMAIL_FROM ?? 'PostFly <hello@postfly.pl>';
   const safeName = escapeHtml(userName?.trim() || 'Twórco');

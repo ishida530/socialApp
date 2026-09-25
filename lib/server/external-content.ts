@@ -1,6 +1,7 @@
-// External content intake (2026-09-23): the bridge for other in-house sites (starting with the
-// Prymat Nieruchomości real-estate site) to turn "a blog post went live" / "a new listing
-// appeared" into a DRAFT post here, without a human ever re-typing the announcement by hand.
+// External content intake (2026-09-23): the bridge for a customer's own website/CRM (first user:
+// the Pryzmat Nieruchomości real-estate site) to turn "a blog post went live" / "a new offer
+// appeared" into a DRAFT post on THAT customer's account (resolved from its integration key, see
+// app/api/external/content-intake), without a human ever re-typing the announcement by hand.
 // Deliberately mirrors the shape of createDraftGroupForVideo (lib/server/publish-jobs.ts) and
 // generateFacebookTextPostSuggestion (lib/server/content-suggestions.ts) rather than reusing
 // generatePlatformBundles/orchestrateContent - that pipeline is built around the user's own
@@ -13,7 +14,8 @@ import { put } from '@vercel/blob';
 import { MediaType, Platform, Prisma, VideoStatus } from '@prisma/client';
 import { prisma } from './prisma';
 import { callClaudeTool, CLAUDE_MODELS } from './anthropic-client';
-import { PLATFORM_ALGORITHM_KNOWLEDGE } from './platform-knowledge';
+import { buildAnnouncementSystemPrompt, getPlatformMechanics, type PlatformMechanics } from './external-content-style';
+import { readPlatformStyleGuides } from './platform-style-guides';
 import { sendTelegramMessageWithButtons } from './telegram';
 import { logError, logEvent } from './observability';
 
@@ -32,12 +34,22 @@ export type ExternalContentPayload = {
   price?: number;
   location?: string;
   category?: string;
+  // Brand settings owned by the CALLER, not by Postfly (each in-house site has its own voice):
+  // brandContext - who the business is (services, region, tone), threaded into every prompt;
+  // platformGuides - the business's own style guide per platform (FACEBOOK/INSTAGRAM/LINKEDIN);
+  // brandHashtag - always kept in the hashtag set, even when trimming to the platform limit;
+  // siteLabel - short site name for "link in bio" platforms where a URL is not clickable.
+  brandContext?: string;
+  platformGuides?: Partial<Record<Platform, string>>;
+  brandHashtag?: string;
+  siteLabel?: string;
 };
 
 export type IngestResult =
   | { ok: true; skipped: true; reason: string }
   | { ok: true; skipped: false; postGroupId: string; jobCount: number }
-  | { ok: false; error: string };
+  // retryable: a temporary condition (e.g. AI outage) - the caller should try again later.
+  | { ok: false; error: string; retryable?: boolean };
 
 // LinkedIn is scoped to a personal profile in this integration (see the Platform enum comment in
 // schema.prisma) - fine for expert/blog content shared by the agency's own representative, odd
@@ -49,17 +61,6 @@ const LISTING_PLATFORMS: Platform[] = [Platform.FACEBOOK, Platform.INSTAGRAM];
 
 function targetPlatformsFor(kind: ExternalContentKind): Platform[] {
   return kind === 'BLOG_POST' ? BLOG_PLATFORMS : LISTING_PLATFORMS;
-}
-
-// APP_MODE=personal (see README) already closes registration after the first account - every
-// other cron/webhook entry point in this codebase makes the same single-owner assumption. There
-// is exactly one account to resolve here, not a userId carried in the request.
-async function getOwnerUser() {
-  const user = await prisma.user.findFirst({ orderBy: { createdAt: 'asc' } });
-  if (!user) {
-    throw new Error('No Postfly account exists yet - connect at least one account before using content intake.');
-  }
-  return user;
 }
 
 function isSourceRefConflict(error: unknown): boolean {
@@ -98,33 +99,105 @@ async function reuploadImage(sourceUrl: string): Promise<{ blobUrl: string }> {
   return { blobUrl: blob.url };
 }
 
-const BLOG_ANNOUNCEMENT_SYSTEM_PROMPT = [
-  'Piszesz GOTOWY do publikacji post zapowiadający nowy artykuł na blogu biura nieruchomości, po polsku - nie pomysł, gotowa treść.',
-  'Dopasuj ton do platformy: Facebook/Instagram - naturalny, lokalny, bezpośredni, zero korpomowy. LinkedIn - rzeczowy, ekspercki, adresowany do inwestorów/klientów biznesowych, bez emoji-spamu.',
-  'Zawsze zachęcaj do kliknięcia w link i przeczytania całości, nigdy nie streszczaj artykułu na tyle dokładnie, żeby czytelnik nie musiał już kliknąć.',
-  'Zaproponuj 3-6 trafnych hashtagów po polsku (miasto, temat, marka) - nigdy generycznych ("#nieruchomosci" samo w sobie to za mało, dodaj kontekst miasta/tematu).',
-  'Bazuj WYŁĄCZNIE na podanych danych (tytuł, fragment, kategoria) - nigdy nie zmyślaj cen, adresów ani faktów, których nie ma w danych.',
-  PLATFORM_ALGORITHM_KNOWLEDGE,
-].join(' ');
-
-const LISTING_ANNOUNCEMENT_SYSTEM_PROMPT = [
-  'Piszesz GOTOWY do publikacji post ogłaszający nową ofertę nieruchomości biura, po polsku - nie pomysł, gotowa treść.',
-  'Ton naturalny i lokalny, jak polecenie od znajomego z branży, nigdy szablonowy język typu "Mamy przyjemność zaoferować Państwu...".',
-  'Podaj wprost typ nieruchomości, lokalizację i cenę jeśli są w danych - to najważniejsza informacja dla kogoś przewijającego feed.',
-  'Zachęć do kliknięcia w link po pełne szczegóły/zdjęcia, nigdy nie zmyślaj szczegółów (metraż, liczba pokoi, stan), których nie ma w danych.',
-  'Zaproponuj 3-6 trafnych hashtagów po polsku (miasto, typ nieruchomości, marka).',
-  PLATFORM_ALGORITHM_KNOWLEDGE,
-].join(' ');
-
 type AnnouncementToolResult = { caption?: string; hashtags?: string[] };
 
-async function generateCaption(
+const digitsOnly = (value: string) => value.replace(/\D/g, '');
+
+// Every number in a generated caption must come from the source data - a hallucinated floor,
+// area or tax rate in a listing/announcement post is the one failure that damages the client's
+// credibility the most. Allowed: numbers present in any input field, plus price per m² derived
+// from price and an area found in the data (+-1 zł for rounding).
+export function findUnsupportedNumbers(caption: string, payload: ExternalContentPayload): string[] {
+  // brandContext is included so the business's own contact number/founding year may appear.
+  const source = [payload.title, payload.excerpt, payload.location, payload.category, payload.url, payload.brandContext]
+    .filter(Boolean)
+    .join(' ');
+  const allowed = new Set<string>();
+  for (const match of source.match(/\d[\d\s ]*\d|\d/g) ?? []) {
+    allowed.add(digitsOnly(match));
+    for (const part of match.split(/[\s ]+/)) allowed.add(digitsOnly(part));
+  }
+  for (const match of source.match(/\d+/g) ?? []) allowed.add(match);
+  if (payload.price !== undefined) {
+    allowed.add(String(Math.round(payload.price)));
+    const areaMatch = source.match(/(\d+(?:[.,]\d+)?)\s*m(?:2|²|\s*kw)/i);
+    const area = areaMatch ? Number(areaMatch[1].replace(',', '.')) : NaN;
+    if (area > 0) {
+      const perM2 = Math.round(payload.price / area);
+      [perM2 - 1, perM2, perM2 + 1].forEach((n) => allowed.add(String(n)));
+    }
+  }
+
+  const unsupported: string[] = [];
+  for (const match of caption.match(/\d[\d\s ]*\d|\d/g) ?? []) {
+    const whole = digitsOnly(match);
+    const parts = match.split(/[\s ]+/).map(digitsOnly);
+    // "489 000" must match as a whole; "62 3" (two numbers split by a space) as separate parts.
+    if (allowed.has(whole) || parts.every((p) => allowed.has(p))) continue;
+    unsupported.push(match.trim());
+  }
+  return unsupported;
+}
+
+// Per-platform UTM tags, so the customer's analytics shows which network actually brings visits.
+// Existing utm_* params on the caller's URL are left alone.
+export function withUtm(url: string, platform: Platform, kind: ExternalContentKind): string {
+  try {
+    const parsed = new URL(url);
+    if ([...parsed.searchParams.keys()].some((key) => key.startsWith('utm_'))) return url;
+    parsed.searchParams.set('utm_source', platform.toLowerCase());
+    parsed.searchParams.set('utm_medium', 'social');
+    parsed.searchParams.set('utm_campaign', kind === 'BLOG_POST' ? 'artykul' : 'oferta');
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+}
+
+// Platform rules enforced in code regardless of what the model wrote.
+function applyPlatformRules(
+  caption: string,
+  hashtags: string[],
+  mechanics: PlatformMechanics | null,
+  payload: ExternalContentPayload,
+  trackedUrl: string,
+): { caption: string; hashtags: string[] } {
+  const normalizeTag = (tag: string) => `#${tag.trim().replace(/^#+/, '')}`;
+  const tags = Array.from(new Set(hashtags.filter((t) => t.replace(/#/g, '').trim()).map(normalizeTag)));
+
+  // The caller's brand tag survives trimming to the platform limit.
+  const brandTag = payload.brandHashtag ? normalizeTag(payload.brandHashtag) : null;
+  const rest = brandTag ? tags.filter((t) => t.toLowerCase() !== brandTag.toLowerCase()) : tags;
+  const maxTags = mechanics?.maxHashtags ?? 5;
+  const finalTags = brandTag
+    ? [...rest.slice(0, Math.max(0, maxTags - 1)), brandTag]
+    : rest.slice(0, maxTags);
+
+  let text = caption.trim();
+  if (mechanics?.urlMode === 'none') {
+    text = text.split(payload.url).join(payload.siteLabel ?? '').trim();
+  } else if (text.includes(payload.url)) {
+    text = text.split(payload.url).join(trackedUrl);
+  } else {
+    text = `${text}\n\n${trackedUrl}`;
+  }
+  return { caption: text, hashtags: finalTags };
+}
+
+// null = no post for this platform. When AI is unavailable (or keeps inventing numbers):
+// - offers get NO automatic post - a bare "title · price" post looks like spam and stays in the
+//   profile's history; the intake reports a retryable error and the caller retries later;
+// - articles get a plain title + description post, only where the link is clickable (FB/LinkedIn),
+//   never on Instagram where it would have no call to action.
+export async function generateAnnouncementCaption(
   kind: ExternalContentKind,
   platform: Platform,
   payload: ExternalContentPayload,
-): Promise<{ caption: string; hashtags: string[] }> {
-  const system = kind === 'BLOG_POST' ? BLOG_ANNOUNCEMENT_SYSTEM_PROMPT : LISTING_ANNOUNCEMENT_SYSTEM_PROMPT;
-  const userContent = JSON.stringify({
+): Promise<{ caption: string; hashtags: string[] } | null> {
+  const mechanics = getPlatformMechanics(platform);
+  const trackedUrl = withUtm(payload.url, platform, kind);
+  const system = buildAnnouncementSystemPrompt(kind, platform, payload);
+  const data = {
     platform,
     title: payload.title,
     excerpt: payload.excerpt,
@@ -132,39 +205,46 @@ async function generateCaption(
     price: payload.price,
     location: payload.location,
     category: payload.category,
-  });
+  };
 
-  const result = await callClaudeTool<AnnouncementToolResult>({
-    scope: kind === 'BLOG_POST' ? 'blog-announcement' : 'listing-announcement',
-    model: CLAUDE_MODELS.contentGeneration,
-    system,
-    userContent,
-    tool: {
-      name: 'write_announcement_post',
-      description: 'Write a ready-to-publish social post announcing this content, with matching hashtags.',
-      input_schema: {
-        type: 'object',
-        properties: {
-          caption: { type: 'string' },
-          hashtags: { type: 'array', items: { type: 'string' } },
+  let feedback = '';
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const result = await callClaudeTool<AnnouncementToolResult>({
+      scope: kind === 'BLOG_POST' ? 'blog-announcement' : 'listing-announcement',
+      model: CLAUDE_MODELS.contentGeneration,
+      system,
+      userContent: `${JSON.stringify(data)}${feedback}`,
+      tool: {
+        name: 'write_announcement_post',
+        description: 'Write a ready-to-publish social post announcing this content, with matching hashtags.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            caption: { type: 'string' },
+            hashtags: { type: 'array', items: { type: 'string' } },
+          },
+          required: ['caption', 'hashtags'],
         },
-        required: ['caption', 'hashtags'],
       },
-    },
-    maxTokens: 500,
-    timeoutMs: 20000,
-  });
+      maxTokens: 1500,
+      timeoutMs: 30000,
+    });
 
-  if (!result?.caption?.trim()) {
-    // Claude unconfigured/unavailable must never silently drop a real announcement - fall back to
-    // a plain, honest deterministic post instead of failing the whole intake.
-    return {
-      caption: [payload.title, payload.excerpt, payload.url].filter(Boolean).join('\n\n'),
-      hashtags: [],
-    };
+    if (!result?.caption?.trim()) break;
+
+    const unsupported = findUnsupportedNumbers(result.caption, payload);
+    if (unsupported.length === 0) {
+      return applyPlatformRules(result.caption, result.hashtags ?? [], mechanics, payload, trackedUrl);
+    }
+    logEvent('external-content', 'caption-unsupported-numbers', { platform, unsupported: unsupported.join(', ') });
+    feedback = `\n\nPoprzednia wersja zawierała liczby, których NIE MA w danych: ${unsupported.join(', ')}. Napisz post od nowa bez nich.`;
   }
 
-  return { caption: result.caption.trim(), hashtags: result.hashtags ?? [] };
+  if (kind === 'LISTING' || mechanics?.urlMode === 'none') {
+    return null;
+  }
+  const fallback = [payload.title, payload.excerpt].filter(Boolean).join('\n\n');
+  return applyPlatformRules(fallback, [], mechanics, payload, trackedUrl);
 }
 
 async function sendIntakePreview(
@@ -203,13 +283,54 @@ async function sendIntakePreview(
   }
 }
 
-export async function ingestExternalContent(payload: ExternalContentPayload): Promise<IngestResult> {
-  const alreadyIngested = await prisma.video.findUnique({ where: { sourceRef: payload.sourceRef } });
+// The receiving account's own settings win over whatever the calling site sent: the payload's
+// brand fields are only defaults for an account that hasn't configured itself yet.
+export function mergeBrandSettings(
+  payload: ExternalContentPayload,
+  account: {
+    businessDescription: string | null;
+    communicationStyle: string | null;
+    platformStyleGuides: Prisma.JsonValue | null;
+    brandHashtag: string | null;
+  },
+): ExternalContentPayload {
+  const accountContext = [
+    account.businessDescription?.trim(),
+    account.communicationStyle?.trim() ? `Styl wypowiedzi: ${account.communicationStyle.trim()}` : null,
+  ]
+    .filter(Boolean)
+    .join('\n');
+  return {
+    ...payload,
+    brandContext: accountContext || payload.brandContext,
+    platformGuides: { ...payload.platformGuides, ...readPlatformStyleGuides(account.platformStyleGuides) },
+    brandHashtag: account.brandHashtag ?? payload.brandHashtag,
+  };
+}
+
+export async function ingestExternalContent(userId: string, input: ExternalContentPayload): Promise<IngestResult> {
+  const alreadyIngested = await prisma.video.findUnique({
+    where: { userId_sourceRef: { userId, sourceRef: input.sourceRef } },
+  });
   if (alreadyIngested) {
     return { ok: true, skipped: true, reason: `sourceRef already ingested as video ${alreadyIngested.id}` };
   }
 
-  const owner = await getOwnerUser();
+  const owner = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      telegramChatId: true,
+      businessDescription: true,
+      communicationStyle: true,
+      platformStyleGuides: true,
+      brandHashtag: true,
+    },
+  });
+  if (!owner) {
+    return { ok: false, error: 'Konto docelowe nie istnieje.' };
+  }
+  const payload = mergeBrandSettings(input, owner);
 
   const socialAccounts = await prisma.socialAccount.findMany({ where: { userId: owner.id } });
   const accountByPlatform = new Map(socialAccounts.map((account) => [account.platform, account]));
@@ -220,6 +341,21 @@ export async function ingestExternalContent(payload: ExternalContentPayload): Pr
       ok: false,
       error: 'Żadne podłączone konto social nie pasuje do platform docelowych dla tego typu treści.',
     };
+  }
+
+  // Captions first: if none can be written (AI unavailable / keeps inventing numbers) nothing is
+  // stored, so the caller's retry later starts clean instead of hitting "already ingested".
+  const captions = (
+    await Promise.all(
+      platforms.map(async (platform) => ({
+        platform,
+        post: await generateAnnouncementCaption(payload.type, platform, payload),
+      })),
+    )
+  ).filter((entry): entry is { platform: Platform; post: { caption: string; hashtags: string[] } } => entry.post !== null);
+
+  if (captions.length === 0) {
+    return { ok: false, retryable: true, error: 'Nie udało się teraz przygotować treści posta (AI niedostępne) — spróbuj ponownie później.' };
   }
 
   let blobUrl: string;
@@ -256,9 +392,8 @@ export async function ingestExternalContent(payload: ExternalContentPayload): Pr
   const postGroupId = randomUUID();
 
   const jobs = await Promise.all(
-    platforms.map(async (platform) => {
+    captions.map(({ platform, post: { caption, hashtags } }) => {
       const account = accountByPlatform.get(platform)!;
-      const { caption, hashtags } = await generateCaption(payload.type, platform, payload);
 
       return prisma.publishJob.create({
         data: {
