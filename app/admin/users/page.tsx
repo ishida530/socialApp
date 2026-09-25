@@ -33,6 +33,7 @@ export default function AdminUsersPage() {
   const [name, setName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [manualLink, setManualLink] = useState<string | null>(null);
+  const [createdKey, setCreatedKey] = useState<{ email: string; plaintext: string } | null>(null);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -75,6 +76,22 @@ export default function AdminUsersPage() {
     } catch (error) {
       const message = (error as { response?: { data?: { message?: string } } }).response?.data?.message;
       toast.error(message ?? 'Nie udało się utworzyć konta.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const createKeyFor = async (user: AdminUser) => {
+    const keyName = window.prompt(`Nazwa klucza dla ${user.email} (np. "Strona www"):`, 'Strona www');
+    if (keyName === null) return;
+    try {
+      setIsSubmitting(true);
+      const response = await apiClient.post<{ plaintext: string }>(`/admin/users/${user.id}/integration-keys`, {
+        name: keyName,
+      });
+      setCreatedKey({ email: user.email, plaintext: response.data.plaintext });
+    } catch {
+      toast.error('Nie udało się utworzyć klucza.');
     } finally {
       setIsSubmitting(false);
     }
@@ -133,6 +150,19 @@ export default function AdminUsersPage() {
         )}
       </section>
 
+      {createdKey && (
+        <section className="rounded-xl border border-amber-500/50 bg-amber-500/10 p-4 space-y-2">
+          <p className="text-sm font-medium text-foreground">
+            Klucz integracji dla {createdKey.email} - skopiuj teraz, nie pokażemy go ponownie. Wpisz go w stronie
+            klienta jako nagłówek <span className="font-mono">Authorization: Bearer &lt;klucz&gt;</span>.
+          </p>
+          <code className="block break-all rounded bg-secondary/40 p-2 text-xs">{createdKey.plaintext}</code>
+          <button type="button" onClick={() => setCreatedKey(null)} className="text-xs text-muted-foreground hover:underline">
+            Gotowe, schowaj
+          </button>
+        </section>
+      )}
+
       <section className="bg-card border border-border rounded-xl p-6 space-y-3">
         <h3 className="font-medium text-foreground">Konta</h3>
         {loading ? (
@@ -150,16 +180,26 @@ export default function AdminUsersPage() {
                     {user.hasPassword ? 'aktywne' : 'czeka na ustawienie hasła'}
                   </p>
                 </div>
-                {!user.hasPassword && (
+                <div className="flex flex-col items-end gap-1">
+                  {!user.hasPassword && (
+                    <button
+                      type="button"
+                      onClick={() => invite(user.email, user.name)}
+                      disabled={isSubmitting}
+                      className="text-xs text-primary hover:underline font-medium disabled:opacity-50"
+                    >
+                      Wyślij ponownie
+                    </button>
+                  )}
                   <button
                     type="button"
-                    onClick={() => invite(user.email, user.name)}
+                    onClick={() => createKeyFor(user)}
                     disabled={isSubmitting}
                     className="text-xs text-primary hover:underline font-medium disabled:opacity-50"
                   >
-                    Wyślij ponownie
+                    Klucz integracji
                   </button>
-                )}
+                </div>
               </li>
             ))}
           </ul>
