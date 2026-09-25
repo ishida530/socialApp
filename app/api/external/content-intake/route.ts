@@ -144,6 +144,9 @@ export async function POST(request: NextRequest) {
     const result = await ingestExternalContent(userId, payload);
 
     if (!result.ok) {
+      if (result.retryable) {
+        return NextResponse.json({ message: result.error, retryable: true }, { status: 503, headers: { 'Retry-After': '3600' } });
+      }
       return badRequest(result.error);
     }
 

@@ -139,7 +139,9 @@ describe('POST /api/external/content-intake', () => {
     expect(jobs.map((j) => j.socialAccount.platform).sort()).toEqual(['FACEBOOK', 'INSTAGRAM']);
     const byPlatform = Object.fromEntries(jobs.map((j) => [j.socialAccount.platform, j]));
     // Facebook: the clickable URL is guaranteed as the last line; Instagram: no dead URL text.
-    expect(byPlatform.FACEBOOK.caption).toBe(`Nowa oferta w Olsztynie!\n\n${validListingBody.url}`);
+    expect(byPlatform.FACEBOOK.caption).toBe(
+      `Nowa oferta w Olsztynie!\n\n${validListingBody.url}?utm_source=facebook&utm_medium=social&utm_campaign=oferta`,
+    );
     expect(byPlatform.INSTAGRAM.caption).toBe('Nowa oferta w Olsztynie!');
     jobs.forEach((job) => {
       expect(job.status).toBe('DRAFT');
@@ -212,7 +214,7 @@ describe('POST /api/external/content-intake', () => {
     expect([...(bytes as Buffer).subarray(0, 2)]).toEqual([0xff, 0xd8]);
   });
 
-  it('regenerates a caption with invented numbers and falls back to a data-only post if it persists', async () => {
+  it('regenerates a caption with invented numbers and creates no offer post if it persists (retryable)', async () => {
     const { user } = await createTestUser();
     cleanupUserId = user.id;
     await createSocialAccount(user.id, 'FACEBOOK');
@@ -231,16 +233,47 @@ describe('POST /api/external/content-intake', () => {
     );
 
     const response = await POST(intakeRequest({ ...validListingBody, sourceRef: 'asari-1001' }, authHeader()));
-    expect(response.status).toBe(200);
-    const body = await response.json();
+    // No spammy data-only offer post: the caller gets a retryable error and nothing is stored,
+    // so a later retry starts clean.
+    expect(response.status).toBe(503);
+    expect((await response.json()).retryable).toBe(true);
 
     expect(claudeCalls).toHaveLength(2); // one retry with feedback
     expect(claudeCalls[1]).toContain('72');
+    expect(await prisma.video.count({ where: { userId: user.id } })).toBe(0);
+  });
 
-    const [job] = await prisma.publishJob.findMany({ where: { postGroupId: body.postGroupId } });
-    expect(job.caption).not.toContain('72');
-    expect(job.caption).toContain('650 000 zł');
-    expect(job.caption).toContain(validListingBody.url);
+  it('falls back to a plain article post on Facebook (not Instagram) when AI is unavailable', async () => {
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
+    await createSocialAccount(user.id, 'FACEBOOK');
+    await createSocialAccount(user.id, 'INSTAGRAM');
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        if (typeof url === 'string' && url.includes('anthropic.com')) {
+          return { ok: false, status: 529, json: async () => ({}), text: async () => 'overloaded' };
+        }
+        return fakeImageResponse();
+      }),
+    );
+
+    const blogBody = {
+      type: 'blog',
+      sourceRef: 'blog:podatki',
+      title: 'Podatki przy sprzedaży mieszkania',
+      excerpt: 'Co warto policzyć przed wystawieniem oferty.',
+      url: 'https://www.example.pl/poradnik/podatki',
+      imageUrl: 'https://img.example.com/og.png',
+    };
+    const response = await POST(intakeRequest(blogBody, authHeader()));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+
+    const jobs = await prisma.publishJob.findMany({ where: { postGroupId: body.postGroupId }, include: { socialAccount: true } });
+    expect(jobs.map((j) => j.socialAccount.platform)).toEqual(['FACEBOOK']);
+    expect(jobs[0].caption).toContain('utm_source=facebook');
   });
 
   it('routes a request authorized with an integration key to that key owner, using their own style settings', async () => {

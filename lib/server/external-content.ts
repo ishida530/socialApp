@@ -48,7 +48,8 @@ export type ExternalContentPayload = {
 export type IngestResult =
   | { ok: true; skipped: true; reason: string }
   | { ok: true; skipped: false; postGroupId: string; jobCount: number }
-  | { ok: false; error: string };
+  // retryable: a temporary condition (e.g. AI outage) - the caller should try again later.
+  | { ok: false; error: string; retryable?: boolean };
 
 // LinkedIn is scoped to a personal profile in this integration (see the Platform enum comment in
 // schema.prisma) - fine for expert/blog content shared by the agency's own representative, odd
@@ -107,7 +108,8 @@ const digitsOnly = (value: string) => value.replace(/\D/g, '');
 // credibility the most. Allowed: numbers present in any input field, plus price per m² derived
 // from price and an area found in the data (+-1 zł for rounding).
 export function findUnsupportedNumbers(caption: string, payload: ExternalContentPayload): string[] {
-  const source = [payload.title, payload.excerpt, payload.location, payload.category, payload.url]
+  // brandContext is included so the business's own contact number/founding year may appear.
+  const source = [payload.title, payload.excerpt, payload.location, payload.category, payload.url, payload.brandContext]
     .filter(Boolean)
     .join(' ');
   const allowed = new Set<string>();
@@ -137,12 +139,28 @@ export function findUnsupportedNumbers(caption: string, payload: ExternalContent
   return unsupported;
 }
 
+// Per-platform UTM tags, so the customer's analytics shows which network actually brings visits.
+// Existing utm_* params on the caller's URL are left alone.
+export function withUtm(url: string, platform: Platform, kind: ExternalContentKind): string {
+  try {
+    const parsed = new URL(url);
+    if ([...parsed.searchParams.keys()].some((key) => key.startsWith('utm_'))) return url;
+    parsed.searchParams.set('utm_source', platform.toLowerCase());
+    parsed.searchParams.set('utm_medium', 'social');
+    parsed.searchParams.set('utm_campaign', kind === 'BLOG_POST' ? 'artykul' : 'oferta');
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+}
+
 // Platform rules enforced in code regardless of what the model wrote.
 function applyPlatformRules(
   caption: string,
   hashtags: string[],
   mechanics: PlatformMechanics | null,
   payload: ExternalContentPayload,
+  trackedUrl: string,
 ): { caption: string; hashtags: string[] } {
   const normalizeTag = (tag: string) => `#${tag.trim().replace(/^#+/, '')}`;
   const tags = Array.from(new Set(hashtags.filter((t) => t.replace(/#/g, '').trim()).map(normalizeTag)));
@@ -158,18 +176,26 @@ function applyPlatformRules(
   let text = caption.trim();
   if (mechanics?.urlMode === 'none') {
     text = text.split(payload.url).join(payload.siteLabel ?? '').trim();
-  } else if (!text.includes(payload.url)) {
-    text = `${text}\n\n${payload.url}`;
+  } else if (text.includes(payload.url)) {
+    text = text.split(payload.url).join(trackedUrl);
+  } else {
+    text = `${text}\n\n${trackedUrl}`;
   }
   return { caption: text, hashtags: finalTags };
 }
 
+// null = no post for this platform. When AI is unavailable (or keeps inventing numbers):
+// - offers get NO automatic post - a bare "title · price" post looks like spam and stays in the
+//   profile's history; the intake reports a retryable error and the caller retries later;
+// - articles get a plain title + description post, only where the link is clickable (FB/LinkedIn),
+//   never on Instagram where it would have no call to action.
 export async function generateAnnouncementCaption(
   kind: ExternalContentKind,
   platform: Platform,
   payload: ExternalContentPayload,
-): Promise<{ caption: string; hashtags: string[] }> {
+): Promise<{ caption: string; hashtags: string[] } | null> {
   const mechanics = getPlatformMechanics(platform);
+  const trackedUrl = withUtm(payload.url, platform, kind);
   const system = buildAnnouncementSystemPrompt(kind, platform, payload);
   const data = {
     platform,
@@ -208,20 +234,17 @@ export async function generateAnnouncementCaption(
 
     const unsupported = findUnsupportedNumbers(result.caption, payload);
     if (unsupported.length === 0) {
-      return applyPlatformRules(result.caption, result.hashtags ?? [], mechanics, payload);
+      return applyPlatformRules(result.caption, result.hashtags ?? [], mechanics, payload, trackedUrl);
     }
     logEvent('external-content', 'caption-unsupported-numbers', { platform, unsupported: unsupported.join(', ') });
     feedback = `\n\nPoprzednia wersja zawierała liczby, których NIE MA w danych: ${unsupported.join(', ')}. Napisz post od nowa bez nich.`;
   }
 
-  // Claude unavailable, or it kept inventing numbers: never drop a real announcement and never
-  // publish a hallucination - fall back to a plain, honest post built only from the input.
-  const fallback = kind === 'LISTING'
-    ? [payload.title, payload.price !== undefined ? `${payload.price.toLocaleString('pl-PL').replace(/\s/g, ' ')} zł` : null, payload.location]
-        .filter(Boolean)
-        .join(' · ')
-    : [payload.title, payload.excerpt].filter(Boolean).join('\n\n');
-  return applyPlatformRules(fallback, [], mechanics, payload);
+  if (kind === 'LISTING' || mechanics?.urlMode === 'none') {
+    return null;
+  }
+  const fallback = [payload.title, payload.excerpt].filter(Boolean).join('\n\n');
+  return applyPlatformRules(fallback, [], mechanics, payload, trackedUrl);
 }
 
 async function sendIntakePreview(
@@ -320,6 +343,21 @@ export async function ingestExternalContent(userId: string, input: ExternalConte
     };
   }
 
+  // Captions first: if none can be written (AI unavailable / keeps inventing numbers) nothing is
+  // stored, so the caller's retry later starts clean instead of hitting "already ingested".
+  const captions = (
+    await Promise.all(
+      platforms.map(async (platform) => ({
+        platform,
+        post: await generateAnnouncementCaption(payload.type, platform, payload),
+      })),
+    )
+  ).filter((entry): entry is { platform: Platform; post: { caption: string; hashtags: string[] } } => entry.post !== null);
+
+  if (captions.length === 0) {
+    return { ok: false, retryable: true, error: 'Nie udało się teraz przygotować treści posta (AI niedostępne) — spróbuj ponownie później.' };
+  }
+
   let blobUrl: string;
   try {
     ({ blobUrl } = await reuploadImage(payload.imageUrl));
@@ -354,9 +392,8 @@ export async function ingestExternalContent(userId: string, input: ExternalConte
   const postGroupId = randomUUID();
 
   const jobs = await Promise.all(
-    platforms.map(async (platform) => {
+    captions.map(({ platform, post: { caption, hashtags } }) => {
       const account = accountByPlatform.get(platform)!;
-      const { caption, hashtags } = await generateAnnouncementCaption(payload.type, platform, payload);
 
       return prisma.publishJob.create({
         data: {
