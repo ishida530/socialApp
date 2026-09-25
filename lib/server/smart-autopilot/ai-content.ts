@@ -1,6 +1,7 @@
 import { callClaudeTool, CLAUDE_MODELS } from '@/lib/server/anthropic-client';
 import { redactPotentialPii } from './safety';
 import type { AnalysisOutput, OrchestrateContentInput, PlatformBundle } from './types';
+import type { PlatformStyleGuides } from '@/lib/server/platform-style-guides';
 
 // Same per-platform caption limits the composer UI enforces client-side
 // (components/composer/types.ts PLATFORM_CAPTION_LIMIT) - kept independently here since this
@@ -30,6 +31,9 @@ const CONTENT_SYSTEM_PROMPT = [
   // "pizdowato" dla jego konta) - communicationStyle to NADRZĘDNA instrukcja co do tonu/slownictwa,
   // wazniejsza niz ogolne dopasowanie tonu do accountContext w linii wyzej, kiedy jest podana.
   'Jesli w danych podano communicationStyle (styl wypowiedzi wlasciciela konta) - to NADRZĘDNA instrukcja co do tonu i slownictwa, wazniejsza niz cokolwiek innego w tym prompcie. Trzymaj sie jej doslownie.',
+  // 2026-09-25: wlasciciel konta definiuje wlasne zasady pisania per platforma (panel Konto) -
+  // Postfly obsluguje rozne branze, wiec to on decyduje, jak ma wygladac jego post na LinkedIn.
+  'Jesli w danych podano platformStyleGuides[PLATFORMA] - to NADRZĘDNE zasady pisania tekstu na te platforme (dlugosc, struktura, ton, emoji, hashtagi, CTA); maja pierwszenstwo przed ogolnymi konwencjami platform opisanymi wyzej. Nigdy nie zmyslaj faktow, liczb ani cech, ktorych nie ma w opisie tresci.',
 ].join(' ');
 
 type GeneratedBundlesToolResult = {
@@ -48,6 +52,8 @@ export async function generateBundlesWithClaude(
   targetPlatforms: PlatformBundle['platform'][],
   businessDescription?: string | null,
   communicationStyle?: string | null,
+  platformStyleGuides?: PlatformStyleGuides,
+  brandHashtag?: string | null,
 ): Promise<PlatformBundle[] | null> {
   if (targetPlatforms.length === 0) {
     return null;
@@ -63,6 +69,11 @@ export async function generateBundlesWithClaude(
     contentDescription: safeDescription || '(brak opisu od uzytkownika - napisz neutralny, chwytliwy tekst)',
     accountContext: safeAccountContext || '',
     communicationStyle: safeCommunicationStyle || '',
+    platformStyleGuides: Object.fromEntries(
+      targetPlatforms
+        .filter((platform) => platformStyleGuides?.[platform])
+        .map((platform) => [platform, redactPotentialPii(platformStyleGuides![platform]!)]),
+    ),
     persona: analysis.persona,
     intent: analysis.intent,
     contentType: analysis.contentType,
@@ -118,14 +129,20 @@ export async function generateBundlesWithClaude(
       return null;
     }
 
+    const tags = bundle.hashtags
+      .filter((tag): tag is string => typeof tag === 'string' && tag.trim().length > 0)
+      .map((tag) => tag.trim().replace(/^#/, ''));
+    // The account's brand tag always survives the cut (stored here without '#', like the rest).
+    const brandTag = brandHashtag?.replace(/^#+/, '').trim();
+    const finalTags = brandTag
+      ? [...tags.filter((t) => t.toLowerCase() !== brandTag.toLowerCase()).slice(0, 7), brandTag]
+      : tags.slice(0, 8);
+
     ordered.push({
       platform,
       title: bundle.title?.trim() ? bundle.title.trim().slice(0, 100) : undefined,
       caption: bundle.caption.trim().slice(0, PLATFORM_CAPTION_LIMIT[platform]),
-      hashtags: bundle.hashtags
-        .filter((tag): tag is string => typeof tag === 'string' && tag.trim().length > 0)
-        .slice(0, 8)
-        .map((tag) => tag.trim().replace(/^#/, '')),
+      hashtags: finalTags,
       cta: bundle.cta?.trim() ? bundle.cta.trim().slice(0, 200) : undefined,
     });
   }

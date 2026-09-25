@@ -85,6 +85,16 @@ model User {
   // businessDescription (patrz każde miejsce z "accountContext" w lib/server/*), więc jedna
   // zmiana poprawia WSZYSTKIE miejsca generujące treść naraz, nie tylko sugestie na Facebooka.
   communicationStyle String?
+  // 2026-09-25: the account owner's own writing rules per platform ({ "FACEBOOK": "...",
+  // "LINKEDIN": "...", ... }) - Postfly serves very different businesses (real estate, solar/
+  // electrical contractors, artists), so what "a good LinkedIn post" means is the user's call, not
+  // a hardcoded prompt. Overrides the generic per-platform tone in every generator that writes
+  // platform copy (smart-autopilot bundles, external content intake). Validation and prompt
+  // formatting: lib/server/platform-style-guides.ts.
+  platformStyleGuides Json?
+  // Always kept in generated hashtag sets (e.g. "#pryzmatnieruchomosci"), even when trimming to a
+  // platform's limit.
+  brandHashtag   String?
   telegramChatId String?         @unique
   publishingPaused Boolean       @default(false)
   // Set while the bot is waiting for a free-text reply answering the onboarding
@@ -126,6 +136,7 @@ model User {
   updatedAt      DateTime        @updatedAt
   socialAccounts SocialAccount[]
   videos         Video[]
+  integrationKeys IntegrationKey[]
   subscription   Subscription?
   usageCounters  UsageCounter[]
   passwordResetTokens PasswordResetToken[]
@@ -261,9 +272,31 @@ model Video {
   // the caller's own stable id for the source item (e.g. "blog:{slug}", "asari-{listingId}") - the
   // uniqueness constraint IS the idempotency guard against a retried webhook/cron sync creating a
   // second post for the same article/listing. Postgres unique index allows any number of NULL rows,
-  // so ordinary (non-external) videos are unaffected.
+  // so ordinary (non-external) videos are unaffected. 2026-09-25: scoped per user - two different
+  // customers' sites may legitimately use the same id ("blog:cennik").
   sourceKind   String?
-  sourceRef    String?      @unique
+  sourceRef    String?
+
+  @@unique([userId, sourceRef])
+  @@index([userId])
+}
+
+// 2026-09-25: per-account API keys for server-to-server integrations (a customer's own website
+// pushing "new article"/"new offer" into POST /api/external/content-intake). The key decides WHICH
+// account receives the drafts - with that account's social accounts and writing settings - so one
+// Postfly deployment serves many businesses. Only a SHA-256 hash is stored; the plaintext is shown
+// exactly once at creation (same posture as GitHub/Stripe keys).
+model IntegrationKey {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  keyHash    String    @unique
+  // First characters of the plaintext, shown in the UI so the owner can tell keys apart.
+  keyPrefix  String
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
 
   @@index([userId])
 }

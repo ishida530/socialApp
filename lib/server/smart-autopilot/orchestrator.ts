@@ -3,6 +3,7 @@ import { prisma } from '@/lib/server/prisma';
 import { logError, logEvent } from '@/lib/server/observability';
 import { analyzeInput } from './analysis';
 import { generateBundlesWithClaude } from './ai-content';
+import { readPlatformStyleGuides } from '@/lib/server/platform-style-guides';
 import { optimizeSchedule } from './schedule';
 import { getRealPerformanceData } from './performance-data';
 import { buildStrategySummary } from './strategy';
@@ -163,7 +164,10 @@ export async function orchestrateContent(userId: string, input: OrchestrateConte
   // lib/server/smart-autopilot/performance-data.ts.
   const [subscription, user, realPerformanceData] = await Promise.all([
     prisma.subscription.findUnique({ where: { userId }, select: { plan: true } }),
-    prisma.user.findUnique({ where: { id: userId }, select: { businessDescription: true, communicationStyle: true } }),
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { businessDescription: true, communicationStyle: true, platformStyleGuides: true, brandHashtag: true },
+    }),
     input.performanceData ? Promise.resolve(null) : getRealPerformanceData(userId, input.timezone),
   ]);
 
@@ -216,6 +220,8 @@ export async function orchestrateContent(userId: string, input: OrchestrateConte
         [...requestedPlatforms],
         user?.businessDescription,
         user?.communicationStyle,
+        readPlatformStyleGuides(user?.platformStyleGuides),
+        user?.brandHashtag,
       )) ?? transformByPersona(analysis, input);
 
     if (input.targetPlatforms && input.targetPlatforms.length > 0) {

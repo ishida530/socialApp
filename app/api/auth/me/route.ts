@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUserFromRequest } from '@/lib/server/auth';
 import { prisma } from '@/lib/server/prisma';
 import { badRequest, unauthorized } from '@/lib/server/http';
+import {
+  BRAND_HASHTAG_MAX_LENGTH,
+  normalizeBrandHashtag,
+  parsePlatformStyleGuidesInput,
+  readPlatformStyleGuides,
+  type PlatformStyleGuides,
+} from '@/lib/server/platform-style-guides';
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,12 +18,21 @@ export async function GET(request: NextRequest) {
     // reshaping `user`.
     const profile = await prisma.user.findUnique({
       where: { id: user.userId },
-      select: { businessDescription: true, communicationStyle: true, autopilotEnabled: true, twoFactorEnabled: true },
+      select: {
+        businessDescription: true,
+        communicationStyle: true,
+        platformStyleGuides: true,
+        brandHashtag: true,
+        autopilotEnabled: true,
+        twoFactorEnabled: true,
+      },
     });
     return NextResponse.json({
       user,
       businessDescription: profile?.businessDescription ?? null,
       communicationStyle: profile?.communicationStyle ?? null,
+      platformStyleGuides: readPlatformStyleGuides(profile?.platformStyleGuides),
+      brandHashtag: profile?.brandHashtag ?? null,
       autopilotEnabled: profile?.autopilotEnabled ?? false,
       twoFactorEnabled: profile?.twoFactorEnabled ?? false,
     });
@@ -35,6 +51,8 @@ export async function PATCH(request: NextRequest) {
       defaultExplicitContent?: boolean;
       businessDescription?: string;
       communicationStyle?: string;
+      platformStyleGuides?: unknown;
+      brandHashtag?: string;
       autopilotEnabled?: boolean;
     };
 
@@ -42,6 +60,8 @@ export async function PATCH(request: NextRequest) {
       defaultExplicitContent?: boolean;
       businessDescription?: string | null;
       communicationStyle?: string | null;
+      platformStyleGuides?: PlatformStyleGuides;
+      brandHashtag?: string | null;
       autopilotEnabled?: boolean;
     } = {};
 
@@ -80,6 +100,21 @@ export async function PATCH(request: NextRequest) {
       data.communicationStyle = trimmed || null;
     }
 
+    if (body.platformStyleGuides !== undefined) {
+      const parsed = parsePlatformStyleGuidesInput(body.platformStyleGuides);
+      if (!parsed.ok) {
+        return badRequest('Validation failed', parsed.errors);
+      }
+      data.platformStyleGuides = parsed.value;
+    }
+
+    if (body.brandHashtag !== undefined) {
+      if (typeof body.brandHashtag !== 'string' || body.brandHashtag.trim().length > BRAND_HASHTAG_MAX_LENGTH) {
+        return badRequest('Validation failed', [`brandHashtag: tekst do ${BRAND_HASHTAG_MAX_LENGTH} znaków`]);
+      }
+      data.brandHashtag = normalizeBrandHashtag(body.brandHashtag);
+    }
+
     if (body.autopilotEnabled !== undefined) {
       if (typeof body.autopilotEnabled !== 'boolean') {
         return badRequest('Validation failed', ['autopilotEnabled: wymagana wartość boolean']);
@@ -99,6 +134,8 @@ export async function PATCH(request: NextRequest) {
         defaultExplicitContent: true,
         businessDescription: true,
         communicationStyle: true,
+        platformStyleGuides: true,
+        brandHashtag: true,
         autopilotEnabled: true,
       },
     });
