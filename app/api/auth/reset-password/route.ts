@@ -1,7 +1,7 @@
 import { createHash } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { hashPassword } from '@/lib/server/crypto';
-import { hasTrippedHoneypot } from '@/lib/server/honeypot';
+import { logEvent } from '@/lib/server/observability';
 import { badRequest, serverError, tooManyRequests } from '@/lib/server/http';
 import { prisma } from '@/lib/server/prisma';
 import { consumeRateLimit, getRequestIp } from '@/lib/server/rate-limit';
@@ -29,9 +29,10 @@ export async function POST(request: NextRequest) {
       formStartedAt?: number | string;
     };
 
-    if (hasTrippedHoneypot(body)) {
-      return badRequest('Token resetu hasła jest nieprawidłowy lub wygasł.');
-    }
+    // No honeypot here (2026-09-25): the form has no username field, so password managers fill the
+    // saved login into the hidden hpWebsite field and real users got "token invalid" on a valid
+    // token (seen on an admin-created account's first set-password). The endpoint is useless to a
+    // bot anyway without a valid 256-bit token, and the IP rate limit above still applies.
 
     if (!body.token || !body.password) {
       return badRequest('Validation failed', [
@@ -60,6 +61,8 @@ export async function POST(request: NextRequest) {
 
     const now = new Date();
     if (!resetToken || resetToken.usedAt || resetToken.expiresAt <= now) {
+      const reason = !resetToken ? 'not-found' : resetToken.usedAt ? 'already-used' : 'expired';
+      logEvent('auth', 'reset-password-rejected', { reason });
       return badRequest('Token resetu hasła jest nieprawidłowy lub wygasł.');
     }
 
