@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/auth-context';
 import { apiClient } from '@/lib/api-client';
@@ -138,7 +139,12 @@ export default function AdminJobsPage() {
 
   return (
     <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 lg:pb-6 space-y-4">
-          <h2 className="text-lg font-semibold text-foreground">Admin: statusy jobów</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-foreground">Admin: statusy jobów</h2>
+            <Link href="/admin/users" className="text-sm text-primary hover:underline">
+              Konta klientów →
+            </Link>
+          </div>
 
           {loading && <p className="text-sm text-muted-foreground">Ładowanie...</p>}
 
