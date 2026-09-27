@@ -114,6 +114,24 @@ export function CommunityPanel() {
     }
   };
 
+  const [isRefreshingComments, setIsRefreshingComments] = useState(false);
+
+  const refreshComments = async () => {
+    try {
+      setIsRefreshingComments(true);
+      const response = await apiClient.post<{ commentsDetected: number }>('/comments/refresh');
+      const found = response.data.commentsDetected;
+      toast.success(found > 0 ? `Nowe komentarze: ${found}.` : 'Brak nowych komentarzy.');
+      const commentsResponse = await apiClient.get<{ comments: SocialComment[] }>('/comments');
+      setComments(commentsResponse.data.comments);
+    } catch (error) {
+      const status = (error as { response?: { status?: number } }).response?.status;
+      toast.error(status === 429 ? 'Za często - spróbuj za kilka minut.' : 'Nie udało się sprawdzić komentarzy.');
+    } finally {
+      setIsRefreshingComments(false);
+    }
+  };
+
   const actOnComment = async (comment: SocialComment, action: 'accept' | 'ignore' | 'reply') => {
     const text = replyDraft[comment.id]?.trim();
     if (action === 'reply' && !text) {
@@ -139,14 +157,28 @@ export function CommunityPanel() {
 
   return (
     <div className="space-y-6">
-      {comments.length > 0 && (
-        <section className="bg-card border border-primary/30 rounded-xl p-6 space-y-4 max-w-2xl">
-          <div>
-            <h2 className="text-lg font-semibold text-foreground">💬 Komentarze czekające na reakcję</h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              Wykryte pod Twoimi postami na Instagramie/Facebooku - dokładnie te same przyciski co na Telegramie.
-            </p>
+      <section className="bg-card border border-primary/30 rounded-xl p-6 space-y-4 max-w-2xl">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">💬 Komentarze czekające na reakcję</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                Wykryte pod Twoimi postami na Instagramie/Facebooku - dokładnie te same przyciski co na Telegramie.
+                Sprawdzamy je automatycznie raz dziennie.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={refreshComments}
+              disabled={isRefreshingComments}
+              className="px-3 py-1.5 rounded-lg border border-border text-xs text-foreground hover:bg-secondary/40 transition-colors disabled:opacity-50 whitespace-nowrap"
+            >
+              {isRefreshingComments ? 'Sprawdzam...' : '🔄 Sprawdź komentarze teraz'}
+            </button>
           </div>
+
+          {comments.length === 0 && (
+            <p className="text-sm text-muted-foreground">Brak nowych komentarzy pod postami z ostatnich 30 dni.</p>
+          )}
 
           <ul className="space-y-4">
             {comments.map((comment) => (
@@ -205,7 +237,6 @@ export function CommunityPanel() {
             ))}
           </ul>
         </section>
-      )}
 
       {summary && (
         <section className="bg-card border border-border rounded-xl p-6 max-w-2xl">

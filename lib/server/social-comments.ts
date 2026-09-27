@@ -152,8 +152,12 @@ const MAX_JOBS_PER_SWEEP = 100;
 
 // Called once daily from the same cron sweep as the rest of lib/server/telegram-notifications.ts
 // (app/api/cron/telegram-digest) - no new cron slot, same free-tier constraint as every other
-// background job in this app.
-export async function detectAndNotifyNewComments(): Promise<{ jobsChecked: number; commentsDetected: number }> {
+// background job in this app. 2026-09-27: also on demand for one user ("Sprawdź komentarze teraz"
+// in the community panel, POST /api/comments/refresh), and no longer limited to users with Telegram
+// linked - comments land in the web panel either way; the Telegram alert is sent only if linked.
+export async function detectAndNotifyNewComments(
+  options: { userId?: string } = {},
+): Promise<{ jobsChecked: number; commentsDetected: number }> {
   const lookbackCutoff = new Date(Date.now() - COMMENTS_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
 
   const jobs = await prisma.publishJob.findMany({
@@ -162,7 +166,7 @@ export async function detectAndNotifyNewComments(): Promise<{ jobsChecked: numbe
       remotePostId: { not: null },
       publishedAt: { gte: lookbackCutoff },
       socialAccount: { platform: { in: ['INSTAGRAM', 'FACEBOOK'] } },
-      video: { user: { telegramChatId: { not: null } } },
+      ...(options.userId ? { video: { userId: options.userId } } : {}),
     },
     take: MAX_JOBS_PER_SWEEP,
     orderBy: { publishedAt: 'desc' },
@@ -175,7 +179,7 @@ export async function detectAndNotifyNewComments(): Promise<{ jobsChecked: numbe
     try {
       const platform = job.socialAccount.platform as 'INSTAGRAM' | 'FACEBOOK';
       const chatId = job.video.user.telegramChatId;
-      if (!chatId || !job.remotePostId) {
+      if (!job.remotePostId) {
         continue;
       }
 
@@ -220,6 +224,11 @@ export async function detectAndNotifyNewComments(): Promise<{ jobsChecked: numbe
             telegramChatId: chatId,
           },
         });
+        commentsDetected += 1;
+
+        if (!chatId) {
+          continue; // visible in the web community panel; no Telegram linked to alert
+        }
 
         const buttons = [
           suggestedReply ? [{ text: '✅ Wyślij', callback_data: `commentreply:${record.id}` }] : [],
@@ -238,7 +247,6 @@ export async function detectAndNotifyNewComments(): Promise<{ jobsChecked: numbe
           if (sent?.messageId) {
             await prisma.socialComment.update({ where: { id: record.id }, data: { telegramMessageId: sent.messageId } });
           }
-          commentsDetected += 1;
         } catch (error) {
           logError('social-comments', 'send-comment-alert-error', error, { commentId: record.id });
         }
