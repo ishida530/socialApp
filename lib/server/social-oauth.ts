@@ -804,14 +804,45 @@ async function fetchMetaManagedPages(accessToken: string) {
   return payload.data ?? [];
 }
 
+// 2026-09-25 (multi-account): one Facebook user often manages several pages - e.g. an agency owner
+// who manages their own page AND a customer's page, each connected to a DIFFERENT Postfly account.
+// Taking simply the first page from /me/accounts picked the owner's own page (already connected to
+// the owner's Postfly account -> "already connected to another user") when connecting from the
+// customer's account. Rank candidates instead: this account's own previously connected page first,
+// then pages not connected to any Postfly account, never a page that belongs to another account.
+async function rankMetaCandidates<T>(
+  ownerId: string,
+  platform: 'FACEBOOK' | 'INSTAGRAM',
+  candidates: T[],
+  externalIdOf: (candidate: T) => string,
+): Promise<T[]> {
+  const ids = candidates.map(externalIdOf);
+  const connected = await prisma.socialAccount.findMany({
+    where: { platform, externalId: { in: ids } },
+    select: { externalId: true, userId: true },
+  });
+  const ownerOf = new Map(connected.map((account) => [account.externalId, account.userId]));
+
+  const mine = candidates.filter((c) => ownerOf.get(externalIdOf(c)) === ownerId);
+  const free = candidates.filter((c) => !ownerOf.has(externalIdOf(c)));
+  return [...mine, ...free];
+}
+
 async function resolveMetaPublishingContext(
   provider: 'facebook' | 'instagram',
   userAccessToken: string,
+  ownerId: string,
 ) {
   const pages = await fetchMetaManagedPages(userAccessToken);
 
   if (provider === 'facebook') {
-    const page = pages.find((item) => !!item.id && !!item.access_token);
+    const withToken = pages.filter((item) => !!item.id && !!item.access_token);
+    const [page] = await rankMetaCandidates(ownerId, 'FACEBOOK', withToken, (item) => item.id!);
+    if (withToken.length > 0 && !page) {
+      throw new Error(
+        'Wszystkie strony Facebook tego konta są już połączone z innymi kontami Postfly. W oknie Facebooka wybierz stronę, którą chcesz podłączyć (Edytuj ustawienia).',
+      );
+    }
     if (!page?.id || !page.access_token) {
       throw new Error('Brak zarządzanej strony Facebook z aktywnym access tokenem');
     }
@@ -825,9 +856,18 @@ async function resolveMetaPublishingContext(
     };
   }
 
-  const pageWithInstagram = pages.find(
-    (item) => !!item.access_token && !!item.instagram_business_account?.id,
+  const withInstagram = pages.filter((item) => !!item.access_token && !!item.instagram_business_account?.id);
+  const [pageWithInstagram] = await rankMetaCandidates(
+    ownerId,
+    'INSTAGRAM',
+    withInstagram,
+    (item) => item.instagram_business_account!.id!,
   );
+  if (withInstagram.length > 0 && !pageWithInstagram) {
+    throw new Error(
+      'Wszystkie konta Instagram Business tego konta Facebook są już połączone z innymi kontami Postfly. W oknie Facebooka wybierz właściwą stronę (Edytuj ustawienia).',
+    );
+  }
 
   if (!pageWithInstagram?.access_token || !pageWithInstagram.instagram_business_account?.id) {
     throw new Error('Brak konta Instagram Business powiązanego z zarządzaną stroną Facebook');
@@ -871,7 +911,7 @@ export async function handleOAuthCallback(
 
   const metaContext =
     provider === 'facebook' || provider === 'instagram'
-      ? await resolveMetaPublishingContext(provider, tokenResult.accessToken)
+      ? await resolveMetaPublishingContext(provider, tokenResult.accessToken, ownerId)
       : null;
 
   const profile =
