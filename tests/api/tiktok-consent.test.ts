@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/lib/server/tiktok-creator-info', () => ({
+vi.mock('@/lib/server/tiktok-creator-info', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/server/tiktok-creator-info')>()),
   fetchTikTokCreatorInfo: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -114,6 +115,7 @@ describe(`POST /api/publish-jobs/enqueue TikTok consent (APP_MODE=${currentAppMo
       socialAccountId: account.id,
       postGroupId,
       tiktokPrivacyLevel: 'PUBLIC_TO_EVERYONE',
+      tiktokConsentAt: new Date(Date.now() - 60_000),
     });
 
     const response = await POST(
@@ -135,5 +137,36 @@ describe(`POST /api/publish-jobs/enqueue TikTok consent (APP_MODE=${currentAppMo
     const updated = await prisma.publishJob.findUnique({ where: { id: job.id } });
     expect(updated?.status).toBe('PENDING');
     expect(updated?.tiktokConsentAt).not.toBeNull();
+  });
+  // Guideline 5c (2026-09-30): the request flag alone is not consent - Telegram and the
+  // optimal-time path used to hard-code it. Only the declaration ticked in the web composer
+  // (persisted tiktokConsentAt) lets a TikTok job through.
+  it('rejects a TikTok target when the request claims consent but the user never ticked the declaration', async () => {
+    const { user, token } = await createTestUser();
+    cleanupUserId = user.id;
+    const account = await createSocialAccount(user.id, 'TIKTOK');
+    const video = await createVideo(user.id);
+    const postGroupId = `group-${user.id}`;
+    const job = await createDraftJob({
+      videoId: video.id,
+      socialAccountId: account.id,
+      postGroupId,
+      tiktokPrivacyLevel: 'PUBLIC_TO_EVERYONE',
+    });
+
+    const response = await POST(
+      jsonRequest(
+        ENQUEUE_URL,
+        { postGroupId, publishNow: true, targetPlatforms: ['TIKTOK'], tiktokPostingConsent: true },
+        authHeaders(token),
+      ),
+    );
+
+    expect(response.status).toBe(400);
+    const body = await response.json();
+    expect(body.message).toMatch(/Music Usage Confirmation/);
+
+    const stillDraft = await prisma.publishJob.findUnique({ where: { id: job.id } });
+    expect(stillDraft?.status).toBe('DRAFT');
   });
 });

@@ -29,9 +29,11 @@ test('a broken TikTok token shows a friendly error, not the raw crypto error', a
     await page.goto(`${BASE_URL}/dashboard`);
     await page.getByRole('button', { name: 'Nowy post' }).click();
     await page.getByRole('button', { name: 'Wróć do posta' }).click();
+    // TikTok settings live on the final publish step since 2026-09-30 (TikTok audit guidelines).
+    await page.getByRole('button', { name: 'Dalej' }).click();
 
-    // The TikTok settings panel starts loading automatically (single connected platform).
-    await expect(page.getByText('Nie udało się pobrać ustawień publikacji TikTok.')).toBeVisible({
+    // creator_info loads automatically there; the route's friendly message reaches the UI.
+    await expect(page.getByText('Nie udało się pobrać ustawień konta TikTok. Spróbuj ponownie później.').first()).toBeVisible({
       timeout: 10_000,
     });
     await expect(page.getByText('Invalid encrypted payload format')).toHaveCount(0);

@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Hash, AtSign, RefreshCw, TriangleAlert } from 'lucide-react';
-import { TikTokSettingsPanel } from './TikTokSettingsPanel';
 import { MetaFormatPanel } from './MetaFormatPanel';
 import { PLATFORM_CAPTION_LIMIT } from './types';
 import type { DraftJob } from './types';
@@ -74,7 +73,13 @@ export function PlatformCaptionTab({
   onRegenerate: (jobId: string) => Promise<void>;
 }) {
   const [isRegenerating, setIsRegenerating] = useState(false);
-  const limit = PLATFORM_CAPTION_LIMIT[job.socialAccount.platform];
+  const isTikTok = job.socialAccount.platform === 'TIKTOK';
+  const isTikTokPhoto = isTikTok && job.video.mediaType === 'IMAGE';
+  // TikTok guideline 2a ("allow users to enter ... Title"): for a TikTok video the caption IS the
+  // post title TikTok receives (post_info.title); for a photo post there's a separate title
+  // (max 90) plus a description - both labelled as what TikTok calls them.
+  const captionLabel = isTikTokPhoto ? 'Opis (Description)' : isTikTok ? 'Tytuł (Title)' : 'Caption';
+  const limit = isTikTokPhoto ? 4000 : PLATFORM_CAPTION_LIMIT[job.socialAccount.platform];
   const remaining = limit - job.caption.length;
   const showCounter = remaining <= CHAR_WARNING_THRESHOLD;
 
@@ -102,7 +107,7 @@ export function PlatformCaptionTab({
 
       <div>
         <div className="flex items-center justify-between mb-2">
-          <label className="text-sm font-medium text-foreground">Caption</label>
+          <label className="text-sm font-medium text-foreground">{captionLabel}</label>
           <div className="flex items-center gap-3">
             {showCounter && (
               <span className={`text-xs font-medium ${remaining < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
@@ -127,11 +132,14 @@ export function PlatformCaptionTab({
         />
       </div>
 
-      {job.socialAccount.platform === 'YOUTUBE' && (
+      {(job.socialAccount.platform === 'YOUTUBE' || isTikTokPhoto) && (
         <div>
-          <label className="text-sm font-medium text-foreground mb-2 block">Tytuł</label>
+          <label className="text-sm font-medium text-foreground mb-2 block">
+            {isTikTokPhoto ? 'Tytuł (Title)' : 'Tytuł'}
+          </label>
           <input
             value={job.title ?? ''}
+            maxLength={isTikTokPhoto ? 90 : undefined}
             onChange={(event) => onUpdateField(job.id, { title: event.target.value })}
             className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
           />
@@ -156,27 +164,37 @@ export function PlatformCaptionTab({
         />
       </div>
 
-      <div>
-        <label className="flex items-center gap-2 text-sm font-medium text-foreground mb-2">
-          <AtSign className="w-4 h-4" />
-          Oznacz artystę (feat.)
-        </label>
-        <ChipInput
-          values={job.mentions}
-          placeholder="Dodaj @ i naciśnij Enter"
-          prefix="@"
-          onAdd={(value) => {
-            const normalized = value.replace(/^@/, '');
-            if (!job.mentions.includes(normalized)) {
-              onUpdateField(job.id, { mentions: [...job.mentions, normalized] });
-            }
-          }}
-          onRemove={(value) => onUpdateField(job.id, { mentions: job.mentions.filter((m) => m !== value) })}
-        />
-      </div>
+      {/* Hidden for TikTok: mentions are never sent there (guideline 5b - no field that silently
+          does nothing to what gets posted). */}
+      {!isTikTok && (
+        <div>
+          <label className="flex items-center gap-2 text-sm font-medium text-foreground mb-2">
+            <AtSign className="w-4 h-4" />
+            Oznacz artystę (feat.)
+          </label>
+          <ChipInput
+            values={job.mentions}
+            placeholder="Dodaj @ i naciśnij Enter"
+            prefix="@"
+            onAdd={(value) => {
+              const normalized = value.replace(/^@/, '');
+              if (!job.mentions.includes(normalized)) {
+                onUpdateField(job.id, { mentions: [...job.mentions, normalized] });
+              }
+            }}
+            onRemove={(value) => onUpdateField(job.id, { mentions: job.mentions.filter((m) => m !== value) })}
+          />
+        </div>
+      )}
 
-      {job.socialAccount.platform === 'TIKTOK' && (
-        <TikTokSettingsPanel job={job} onSaveNow={(patch) => onSaveNow(job.id, patch)} />
+      {isTikTok && (
+        // The TikTok settings themselves (privacy, interactions, commercial content disclosure)
+        // live on the final "Post to TikTok" step, next to the creator nickname, the declaration
+        // and the Publish button - see ScheduleStep.
+        <p className="rounded-lg border border-border bg-background/40 p-3 text-xs text-muted-foreground">
+          Ustawienia publikacji TikTok (kto może zobaczyć post, komentarze/Duet/Stitch, oznaczenie treści
+          komercyjnej) wybierzesz w ostatnim kroku, tuż przed publikacją.
+        </p>
       )}
 
       {(job.socialAccount.platform === 'FACEBOOK' || job.socialAccount.platform === 'INSTAGRAM') &&

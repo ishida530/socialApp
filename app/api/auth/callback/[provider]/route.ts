@@ -4,6 +4,7 @@ import {
   getFrontendUrl,
   handleOAuthCallback,
   OAuthCallbackQuery,
+  OAuthUserFacingError,
 } from '@/lib/server/social-oauth';
 import { logError, logEvent } from '@/lib/server/observability';
 
@@ -35,7 +36,11 @@ export async function GET(
 
       const cookiePayload = request.cookies.get(TIKTOK_PKCE_COOKIE)?.value;
       if (!cookiePayload) {
-        throw new Error('Missing TikTok PKCE cookie');
+        // Expired (10 min) or the flow was started on a different domain than the redirect URI
+        // (e.g. *.vercel.app vs the custom domain) - the cookie is host-bound.
+        throw new OAuthUserFacingError(
+          'Sesja łączenia TikToka wygasła. Kliknij „Połącz” ponownie i dokończ logowanie w ciągu kilku minut.',
+        );
       }
 
       const parsed = decodePkcePayload(cookiePayload);
@@ -82,7 +87,12 @@ export async function GET(
     // The real error (raw social-oauth/TikTok/Google API text, incl. token/crypto
     // details) is logged above — it must not leak into a URL the browser displays.
     redirectUrl.searchParams.set('status', 'error');
-    redirectUrl.searchParams.set('message', 'Nie udało się połączyć konta. Spróbuj ponownie.');
+    // OAuthUserFacingError messages are written for the user and carry nothing sensitive - they're
+    // the actionable ones (cancelled consent, no IG Business account, plan limit...).
+    redirectUrl.searchParams.set(
+      'message',
+      error instanceof OAuthUserFacingError ? error.message : 'Nie udało się połączyć konta. Spróbuj ponownie.',
+    );
 
     const response = NextResponse.redirect(redirectUrl, 302);
     if (isTikTok) {

@@ -4,7 +4,7 @@ Data sprawdzenia: **2026-09-13**
 
 ## TikTok — Content Posting API
 
-**Status: złożony, czeka na decyzję.**
+**Status: odrzucony (ref. `20260913074631`). Kod poprawiony 2026-09-30, ponowne zgłoszenie opisuje [tiktok-audit-ponowne-zgloszenie.md](tiktok-audit-ponowne-zgloszenie.md).**
 
 - Appka działa dziś produkcyjnie na kontach dodanych jako target users w TikTok Developer Portal (Sandbox), z pełnym scope OAuth (`video.publish`, `video.upload`, `user.info.profile`, `user.info.stats`, `video.list` — patrz `TIKTOK_OAUTH_SCOPES` w `.env.example`).
 - Wniosek o pełny audyt produkcyjny (dostęp dla dowolnego konta TikTok, nie tylko dodanych ręcznie jako testowe) został złożony. Standardowy czas decyzji TikTok: 2-4 tygodnie.

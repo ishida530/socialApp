@@ -332,6 +332,19 @@ export async function enqueueDraftGroup(userId: string, params: EnqueueDraftGrou
         error: 'Treść sponsorowana ("Branded Content") na TikToku nie może być prywatna - zmień prywatność na publiczną/dla obserwujących.',
       };
     }
+
+    // Guideline 5c ("only start sending content materials to TikTok after the user has expressly
+    // consented") - 2026-09-30, audit rejection ref 20260913074631. `tiktokPostingConsent` alone
+    // wasn't enough: the web composer used to send it as "TikTok is selected", and the Telegram /
+    // optimal-time paths hard-code it. The persisted tiktokConsentAt is only ever set by the user
+    // ticking the Music Usage Confirmation declaration next to the web "Publish" button.
+    if (!tiktokJob.tiktokConsentAt) {
+      return {
+        ok: false,
+        error:
+          'Dla TikTok zaznacz zgodę (Music Usage Confirmation) przy przycisku publikacji w panelu web Postfly.',
+      };
+    }
   }
 
   const bothFormatCount = targetPlatforms.filter((platform) => draftJobByPlatform.get(platform)!.metaPostFormat === 'BOTH').length;
@@ -506,7 +519,10 @@ export async function enqueueDraftGroupOptimally(userId: string, postGroupId: st
     return { ok: false, error: 'Nie znaleziono niedokończonego posta dla podanego postGroupId.' };
   }
 
-  const readyJobs = draftJobs.filter((job) => job.socialAccount.platform !== 'TIKTOK' || !!job.tiktokPrivacyLevel);
+  // TikTok never goes through the automatic/optimal-time path (2026-09-30, guideline 5c): its
+  // consent has to be given by clicking Publish in the web composer, so it always stays a DRAFT
+  // here (preserved via skippedPlatforms below) for the user to finish there.
+  const readyJobs = draftJobs.filter((job) => job.socialAccount.platform !== 'TIKTOK');
   const skippedPlatforms = draftJobs
     .filter((job) => !readyJobs.includes(job))
     .map((job) => job.socialAccount.platform as SocialPlatform);
@@ -545,10 +561,35 @@ export type TriggerPublishJobResult =
   | { ok: true; publishJob: PublishJobWithRelations; immediateOutcome: string }
   | { ok: false; error: string };
 
+// TikTok Content Sharing Guidelines 5c / 2b (2026-09-30, audit rejection ref 20260913074631):
+// /trigger, Telegram's /approve <id> and /retry <id> used to push ANY job to PENDING - including
+// a TikTok DRAFT whose privacy was never picked and whose declaration was never accepted. A TikTok
+// job may only (re)enter the pipeline once the user has done both in the web composer.
+const TIKTOK_WEB_ONLY_ERROR =
+  'Post na TikTok dokończ i opublikuj w panelu Postfly (TikTok wymaga ręcznego wyboru prywatności i zgody przed publikacją).';
+
+function tiktokJobBlockedFromDirectPublish(job: {
+  status: string;
+  tiktokPrivacyLevel: string | null;
+  tiktokConsentAt: Date | null;
+  socialAccount: { platform: string };
+}) {
+  return (
+    job.socialAccount.platform === 'TIKTOK' &&
+    (job.status === 'DRAFT' || !job.tiktokPrivacyLevel || !job.tiktokConsentAt)
+  );
+}
+
 export async function triggerPublishJob(userId: string, jobId: string): Promise<TriggerPublishJobResult> {
   const job = await prisma.publishJob.findFirst({
     where: { id: jobId, video: { userId } },
-    select: { id: true, status: true },
+    select: {
+      id: true,
+      status: true,
+      tiktokPrivacyLevel: true,
+      tiktokConsentAt: true,
+      socialAccount: { select: { platform: true } },
+    },
   });
 
   if (!job) {
@@ -557,6 +598,10 @@ export async function triggerPublishJob(userId: string, jobId: string): Promise<
 
   if (job.status === 'SUCCESS') {
     return { ok: false, error: 'Nie można wywołać trigger dla zakończonego sukcesem zadania' };
+  }
+
+  if (tiktokJobBlockedFromDirectPublish(job)) {
+    return { ok: false, error: TIKTOK_WEB_ONLY_ERROR };
   }
 
   await prisma.publishJob.update({
@@ -624,7 +669,13 @@ export type RetryPublishJobResult =
 export async function retryPublishJob(userId: string, jobId: string): Promise<RetryPublishJobResult> {
   const job = await prisma.publishJob.findFirst({
     where: { id: jobId, video: { userId } },
-    select: { id: true, status: true },
+    select: {
+      id: true,
+      status: true,
+      tiktokPrivacyLevel: true,
+      tiktokConsentAt: true,
+      socialAccount: { select: { platform: true } },
+    },
   });
 
   if (!job) {
@@ -633,6 +684,10 @@ export async function retryPublishJob(userId: string, jobId: string): Promise<Re
 
   if (job.status !== 'FAILED' && job.status !== 'CANCELED') {
     return { ok: false, error: 'Retry jest dostępny tylko dla statusu FAILED lub CANCELED' };
+  }
+
+  if (tiktokJobBlockedFromDirectPublish(job)) {
+    return { ok: false, error: TIKTOK_WEB_ONLY_ERROR };
   }
 
   await prisma.publishJob.update({

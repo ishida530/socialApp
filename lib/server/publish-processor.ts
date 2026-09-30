@@ -1,6 +1,12 @@
 import { prisma } from './prisma';
 import { logError, logEvent } from './observability';
 import { decryptToken, refreshSocialAccessToken } from './social-oauth';
+import {
+  queryTikTokCreatorInfo,
+  TikTokCreatorCannotPostError,
+  TikTokCreatorInfoAuthError,
+} from './tiktok-creator-info';
+import { scheduleQStashPublish } from './qstash';
 import { readFile } from 'fs/promises';
 import { buildSignedVideoSourceUrl } from './video-source-signature';
 import { cleanupMediaAfterFullPublish } from './media-lifecycle';
@@ -44,6 +50,14 @@ function isPermanentOAuthScopeError(message: string) {
     normalized.includes('did not authorize the scope') ||
     normalized.includes('insufficient scope')
   );
+}
+
+// TikTok states that retrying can't fix within the retry window (2026-09-30): creator_info says
+// the creator can't post right now (guideline 1b - the user must be told to try again later, not
+// have it silently retried 3 more times), or the job reached the processor without the manually
+// chosen privacy level (e.g. created outside the web composer).
+function isPermanentTikTokPublishBlock(message: string) {
+  return message.includes('[tiktok-cannot-post:') || message.includes('[tiktok-settings-missing]');
 }
 
 function isPermanentTikTokConfigurationError(message: string) {
@@ -157,6 +171,11 @@ async function scheduleTikTokStatusPoll(jobId: string, publishId: string, pollAt
     },
   });
 
+  // Without this the "+60s" status check only ran on the next cron sweep (once a day on Vercel
+  // Hobby), so the composer's status screen sat on "processing" (TikTok guideline 5e). No-op
+  // when QStash isn't configured - the status screen's own refresh call covers that case.
+  await scheduleQStashPublish(jobId, nextRun);
+
   logEvent('publish-processor', 'job-tiktok-status-poll-scheduled', {
     jobId,
     publishId,
@@ -242,6 +261,8 @@ async function fetchTikTokPublishStatus(publishId: string, accessToken: string) 
       public_post_url?: string;
       fail_reason?: string;
       reason?: string;
+      // TikTok's own spelling (sic) - the documented field carrying the public post id(s).
+      publicaly_available_post_id?: Array<string | number>;
     };
     error?: {
       code?: string | number;
@@ -256,7 +277,12 @@ async function fetchTikTokPublishStatus(publishId: string, accessToken: string) 
   return {
     finalState,
     rawStatus,
-    postId: payload.data?.post_id ?? payload.data?.item_id,
+    postId:
+      payload.data?.post_id ??
+      payload.data?.item_id ??
+      (payload.data?.publicaly_available_post_id?.[0] !== undefined
+        ? String(payload.data.publicaly_available_post_id[0])
+        : undefined),
     postUrl: payload.data?.public_post_url ?? payload.data?.share_url,
     reason: payload.data?.fail_reason ?? payload.data?.reason ?? payload.error?.message,
   };
@@ -326,10 +352,13 @@ function resolvePublicVideoUrl(sourceUrl: string) {
   return new URL(sourceUrl, frontendUrl).toString();
 }
 
-function buildTikTokPullSourceUrl(videoId: string, fallbackSourceUrl: string) {
+// PULL_FROM_URL must point at a domain verified in the TikTok developer portal (Manage URL
+// properties) - that's FRONTEND_URL. Falling back to the raw storage URL (2026-09-30: removed)
+// sent TikTok to an unverified host, which it rejects.
+function buildTikTokPullSourceUrl(videoId: string) {
   const frontendUrl = process.env.FRONTEND_URL;
   if (!frontendUrl) {
-    return resolvePublicVideoUrl(fallbackSourceUrl);
+    throw new Error('[tiktok-settings-missing] Brak FRONTEND_URL - TikTok może pobierać media tylko ze zweryfikowanej domeny.');
   }
 
   return buildSignedVideoSourceUrl(frontendUrl, videoId, 60 * 60);
@@ -515,8 +544,45 @@ async function publishToYouTube(job: PublishInputJob, accessToken: string): Prom
   };
 }
 
+// No silent SELF_ONLY fallback (2026-09-30, TikTok audit rejection ref 20260913074631): privacy
+// must be the user's own manual pick ("no default value") - enqueueDraftGroup already refuses a
+// TikTok job without one, so reaching here without it is a bug worth failing loudly on.
+function requireTikTokPrivacyLevel(job: PublishInputJob) {
+  const privacyLevel = job.tiktokSettings?.privacyLevel;
+  if (!privacyLevel) {
+    throw new Error(
+      '[tiktok-settings-missing] Brak wybranej prywatności TikTok - dokończ post w panelu Postfly (Nowy post) i opublikuj go stamtąd.',
+    );
+  }
+  return privacyLevel;
+}
+
+// Guideline 1b, enforced at send time too: a scheduled post can reach this point hours after the
+// composer last checked creator_info, so re-check right before uploading. A TikTokCreatorCannotPost
+// error is a plain Error here on purpose - the regular retry/backoff path is the "try again later".
+async function assertTikTokCreatorCanPost(job: PublishInputJob, accessToken: string) {
+  // Cheap local check first - no point spending a creator_info call on a job that can't be sent.
+  requireTikTokPrivacyLevel(job);
+
+  try {
+    await queryTikTokCreatorInfo(accessToken);
+  } catch (error) {
+    if (error instanceof TikTokCreatorCannotPostError) {
+      // The code stays in the message: unaudited_client_* must still hit
+      // isPermanentTikTokConfigurationError, everything else isPermanentTikTokPublishBlock.
+      throw new Error(`[tiktok-cannot-post:${error.code}] ${error.userMessage}`);
+    }
+    if (error instanceof TikTokCreatorInfoAuthError) {
+      // Same treatment as a 401/403 from publish init: refresh the token and retry once, or the
+      // permanent [oauth-scope-missing] path for scope_not_authorized.
+      throw new PublishAuthError(error.message, error.status);
+    }
+    throw error;
+  }
+}
+
 async function publishToTikTok(job: PublishInputJob, accessToken: string): Promise<PublishTransportResult> {
-  const sourceUrl = buildTikTokPullSourceUrl(job.video.id, job.video.sourceUrl);
+  const sourceUrl = buildTikTokPullSourceUrl(job.video.id);
   const caption = composeCaption(job.caption, job.hashtags);
 
   const response = await fetch('https://open.tiktokapis.com/v2/post/publish/video/init/', {
@@ -528,7 +594,7 @@ async function publishToTikTok(job: PublishInputJob, accessToken: string): Promi
     body: JSON.stringify({
       post_info: {
         title: caption.slice(0, 2200),
-        privacy_level: job.tiktokSettings?.privacyLevel ?? 'SELF_ONLY',
+        privacy_level: requireTikTokPrivacyLevel(job),
         disable_comment: !(job.tiktokSettings?.allowComment ?? false),
         disable_duet: !(job.tiktokSettings?.allowDuet ?? false),
         disable_stitch: !(job.tiktokSettings?.allowStitch ?? false),
@@ -575,7 +641,7 @@ async function publishToTikTok(job: PublishInputJob, accessToken: string): Promi
 }
 
 async function publishToTikTokPhoto(job: PublishInputJob, accessToken: string): Promise<PublishTransportResult> {
-  const sourceUrl = buildTikTokPullSourceUrl(job.video.id, job.video.sourceUrl);
+  const sourceUrl = buildTikTokPullSourceUrl(job.video.id);
   const caption = composeCaption(job.caption, job.hashtags);
 
   const response = await fetch('https://open.tiktokapis.com/v2/post/publish/content/init/', {
@@ -586,9 +652,11 @@ async function publishToTikTokPhoto(job: PublishInputJob, accessToken: string): 
     },
     body: JSON.stringify({
       post_info: {
-        title: (job.title?.trim() || job.video.title).slice(0, 90),
+        // Only what the user saw and could edit (guideline 2a/5b) - no hidden fallback to the
+        // uploaded file's name.
+        ...(job.title?.trim() ? { title: job.title.trim().slice(0, 90) } : {}),
         description: caption.slice(0, 4000),
-        privacy_level: job.tiktokSettings?.privacyLevel ?? 'SELF_ONLY',
+        privacy_level: requireTikTokPrivacyLevel(job),
         disable_comment: !(job.tiktokSettings?.allowComment ?? false),
         brand_organic_toggle: job.tiktokSettings?.brandOrganic ?? false,
         brand_content_toggle: job.tiktokSettings?.brandedContent ?? false,
@@ -1228,6 +1296,7 @@ async function publishToPlatform(job: PublishInputJob, accessToken: string): Pro
     }
 
     if (job.socialAccount.platform === 'TIKTOK') {
+      await assertTikTokCreatorCanPost(job, accessToken);
       return publishToTikTokPhoto(job, accessToken);
     }
 
@@ -1251,6 +1320,7 @@ async function publishToPlatform(job: PublishInputJob, accessToken: string): Pro
   }
 
   if (job.socialAccount.platform === 'TIKTOK') {
+    await assertTikTokCreatorCanPost(job, accessToken);
     return publishToTikTok(job, accessToken);
   }
 
@@ -1736,6 +1806,21 @@ async function processClaimedJobCore(jobId: string) {
     }
 
     const reason = error instanceof Error ? error.message : 'Unknown publish error';
+
+    if (isPermanentTikTokPublishBlock(reason) && !isPermanentTikTokConfigurationError(reason)) {
+      await prisma.publishJob.update({
+        where: { id: job.id },
+        data: { status: 'FAILED', errorMessage: reason },
+      });
+
+      logEvent('publish-processor', 'job-failed-final', {
+        jobId: job.id,
+        attempt: nextAttempt,
+        reason: 'tiktok-publish-blocked',
+      });
+
+      return 'failed' as const;
+    }
 
     if (isPermanentTikTokConfigurationError(reason)) {
       await prisma.publishJob.update({

@@ -1,20 +1,69 @@
-import { useState } from 'react';
-import { CheckCircle2, Clock, XCircle, RotateCw, ExternalLink } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { CheckCircle2, Clock, XCircle, RotateCw, ExternalLink, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
 import { PLATFORM_LABEL } from './types';
 import type { DraftJob } from './types';
 import { getJobStatusDisplay } from './job-status-display';
 
-export function PostStatusScreen({ jobs, onStartNewPost }: { jobs: DraftJob[]; onStartNewPost: () => void }) {
+// TikTok guideline 5e ("users can understand the status of their posts"): the server already
+// polls TikTok's publish/status/fetch - this screen now re-reads the jobs so that progress
+// actually reaches the user instead of freezing on the snapshot taken right after "Publish".
+const STATUS_POLL_INTERVAL_MS = 10_000;
+const STATUS_POLL_MAX_MS = 15 * 60 * 1000;
+
+export function PostStatusScreen({ jobs: initialJobs, onStartNewPost }: { jobs: DraftJob[]; onStartNewPost: () => void }) {
+  const [jobs, setJobs] = useState(initialJobs);
   const [busyJobId, setBusyJobId] = useState<string | null>(null);
   const video = jobs[0]?.video;
+  const postGroupId = initialJobs[0]?.postGroupId;
+  const anyInProgress = jobs.some((job) => getJobStatusDisplay(job).kind === 'processing');
+  const hasTikTok = jobs.some((job) => job.socialAccount.platform === 'TIKTOK');
+
+  useEffect(() => {
+    setJobs(initialJobs);
+  }, [initialJobs]);
+
+  useEffect(() => {
+    if (!postGroupId || !anyInProgress) {
+      return;
+    }
+
+    const startedAt = Date.now();
+    let cancelled = false;
+    const timer = setInterval(async () => {
+      if (Date.now() - startedAt > STATUS_POLL_MAX_MS) {
+        clearInterval(timer);
+        return;
+      }
+      try {
+        // Runs any TikTok status check that's due now (see status-refresh route) before reading.
+        await apiClient.post('/publish-jobs/status-refresh', { postGroupId }).catch(() => null);
+        const response = await apiClient.get<DraftJob[]>('/publish-jobs', { params: { postGroupId } });
+        if (!cancelled && response.data.length > 0) {
+          setJobs(response.data);
+        }
+      } catch {
+        // transient - the next tick retries
+      }
+    }, STATUS_POLL_INTERVAL_MS);
+
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [postGroupId, anyInProgress]);
 
   const handleRetry = async (jobId: string) => {
     setBusyJobId(jobId);
     try {
       await apiClient.post(`/publish-jobs/${jobId}/retry`);
       toast.success('Ponowiono próbę publikacji.');
+      setJobs((current) =>
+        current.map((job) =>
+          job.id === jobId ? { ...job, status: 'PENDING', errorMessage: null, scheduledFor: new Date().toISOString() } : job,
+        ),
+      );
     } catch {
       toast.error('Nie udało się ponowić publikacji.');
     } finally {
@@ -46,6 +95,14 @@ export function PostStatusScreen({ jobs, onStartNewPost }: { jobs: DraftJob[]; o
         </div>
       </div>
 
+      {hasTikTok && (
+        <p className="text-xs text-muted-foreground flex items-start gap-1.5">
+          <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+          TikTok może potrzebować kilku minut na przetworzenie posta, zanim pojawi się on na Twoim profilu. Status
+          poniżej odświeża się automatycznie.
+        </p>
+      )}
+
       <div className="space-y-2">
         {jobs.map((job) => {
           const platform = job.socialAccount.platform;
@@ -63,7 +120,12 @@ export function PostStatusScreen({ jobs, onStartNewPost }: { jobs: DraftJob[]; o
                   <Clock className="w-5 h-5 text-amber-500 shrink-0" />
                 )}
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-foreground">{PLATFORM_LABEL[platform]}</p>
+                  <p className="text-sm font-medium text-foreground">
+                    {PLATFORM_LABEL[platform]}
+                    {job.socialAccount.handle ? (
+                      <span className="text-muted-foreground font-normal"> · {job.socialAccount.handle}</span>
+                    ) : null}
+                  </p>
                   <p className="text-xs text-muted-foreground truncate">
                     {display.kind === 'failed' ? `${platform}: ${display.label}` : display.label}
                   </p>

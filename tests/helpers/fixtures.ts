@@ -61,6 +61,7 @@ export async function createDraftJob(params: {
   socialAccountId: string;
   postGroupId: string;
   tiktokPrivacyLevel?: string | null;
+  tiktokConsentAt?: Date | null;
 }) {
   return prisma.publishJob.create({
     data: {
@@ -71,6 +72,7 @@ export async function createDraftJob(params: {
       videoId: params.videoId,
       socialAccountId: params.socialAccountId,
       tiktokPrivacyLevel: params.tiktokPrivacyLevel ?? null,
+      tiktokConsentAt: params.tiktokConsentAt ?? null,
     },
   });
 }

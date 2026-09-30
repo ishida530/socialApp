@@ -3,7 +3,7 @@ import { getAuthUserFromRequest } from '@/lib/server/auth';
 import { prisma } from '@/lib/server/prisma';
 import { badRequest, notFound, tooManyRequests, unauthorized } from '@/lib/server/http';
 import { consumeRateLimit } from '@/lib/server/rate-limit';
-import { fetchTikTokCreatorInfo } from '@/lib/server/tiktok-creator-info';
+import { fetchTikTokCreatorInfo, TikTokCreatorCannotPostError } from '@/lib/server/tiktok-creator-info';
 import { collectContentWarnings } from '@/lib/server/content-safety';
 
 type PatchBody = {
@@ -31,7 +31,10 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
 
     const rateLimit = await consumeRateLimit({
       key: `publish-jobs:drafts-patch:${user.userId}`,
-      limit: 30,
+      // 120, not 30 (2026-09-30): every TikTok toggle, the consent checkbox and each debounced
+      // caption edit is its own PATCH - a single careful pass through the composer (exactly what
+      // a TikTok audit reviewer's demo does) could exhaust 30 and fail the save with a 429.
+      limit: 120,
       windowMs: 15 * 60 * 1000,
     });
     if (!rateLimit.allowed) {
@@ -87,23 +90,38 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
         return badRequest('Ustawienia TikToka dotyczą tylko zadania dla platformy TikTok.');
       }
 
-      if (!body.tiktokPrivacyLevel) {
-        return badRequest('Dla TikTok wybierz poziom prywatności publikacji.');
+      // "Creator can't post right now" (guideline 1b) must not lock the draft: the user still has
+      // to be able to untick things. Publishing is blocked elsewhere (composer + enqueue +
+      // processor); here only a privacy change needs the live options, so only that is refused.
+      let creatorInfo: Awaited<ReturnType<typeof fetchTikTokCreatorInfo>> | null = null;
+      try {
+        creatorInfo = await fetchTikTokCreatorInfo(job.socialAccountId);
+      } catch (error) {
+        if (!(error instanceof TikTokCreatorCannotPostError) || body.tiktokPrivacyLevel !== undefined) {
+          throw error;
+        }
       }
 
-      const creatorInfo = await fetchTikTokCreatorInfo(job.socialAccountId);
-      const privacyOptions = Array.isArray(creatorInfo?.privacy_level_options)
-        ? creatorInfo.privacy_level_options
-        : [];
+      // Privacy is only validated/saved when this request sets it (2026-09-30): the interaction
+      // checkboxes are saved independently, in whatever order the user ticks them - requiring the
+      // privacy level on every one of those PATCHes made a checkbox ticked before picking privacy
+      // fail with a 400. enqueueDraftGroup still refuses to publish without a privacy level.
+      if (body.tiktokPrivacyLevel !== undefined) {
+        const privacyOptions = Array.isArray(creatorInfo?.privacy_level_options)
+          ? creatorInfo.privacy_level_options
+          : [];
 
-      if (!privacyOptions.includes(body.tiktokPrivacyLevel)) {
-        return badRequest(`Niepoprawna prywatność TikTok. Dozwolone: ${privacyOptions.join(', ')}`);
-      }
+        if (!body.tiktokPrivacyLevel || !privacyOptions.includes(body.tiktokPrivacyLevel)) {
+          return badRequest(`Niepoprawna prywatność TikTok. Dozwolone: ${privacyOptions.join(', ')}`);
+        }
 
-      // Mirrors the check in the Commercial Content Disclosure block below, for the reverse
-      // order: brandedContent already saved as true, THIS request is the one changing privacy.
-      if (body.tiktokPrivacyLevel === 'SELF_ONLY' && job.tiktokBrandedContent) {
-        return badRequest('Treść sponsorowana ("Branded Content") na TikToku nie może być prywatna.');
+        // Mirrors the check in the Commercial Content Disclosure block below, for the reverse
+        // order: brandedContent already saved as true, THIS request is the one changing privacy.
+        if (body.tiktokPrivacyLevel === 'SELF_ONLY' && job.tiktokBrandedContent) {
+          return badRequest('Treść sponsorowana ("Branded Content") na TikToku nie może być prywatna.');
+        }
+
+        data.tiktokPrivacyLevel = body.tiktokPrivacyLevel;
       }
 
       // Defaults to OFF, not on (2026-09-30, TikTok Content Posting API audit rejection, ref
@@ -112,20 +130,28 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
       // `true` on the job must resolve to `false`, never inherit an implicit "on".
       const allowComment =
         body.tiktokAllowComment !== undefined ? body.tiktokAllowComment === true : job.tiktokAllowComment === true;
+      // Duet/Stitch don't exist for photo posts (guideline 2c: "for Photo Posts, only 'Allow
+      // Comment' can be displayed") - never persist them as on for an image.
+      const isPhotoPost = job.video.mediaType === 'IMAGE';
       const allowDuet =
-        body.tiktokAllowDuet !== undefined ? body.tiktokAllowDuet === true : job.tiktokAllowDuet === true;
+        !isPhotoPost &&
+        (body.tiktokAllowDuet !== undefined ? body.tiktokAllowDuet === true : job.tiktokAllowDuet === true);
       const allowStitch =
-        body.tiktokAllowStitch !== undefined ? body.tiktokAllowStitch === true : job.tiktokAllowStitch === true;
+        !isPhotoPost &&
+        (body.tiktokAllowStitch !== undefined ? body.tiktokAllowStitch === true : job.tiktokAllowStitch === true);
 
-      if (creatorInfo?.comment_disabled && allowComment) {
+      // Explicitly turning on something the creator disabled in TikTok is refused. A value that
+      // was saved as on BEFORE the creator disabled it is switched off silently instead - the UI
+      // shows that checkbox greyed out and unticked, so a 400 there would be unfixable for the user.
+      if (creatorInfo?.comment_disabled && body.tiktokAllowComment === true) {
         return badRequest('Na tym koncie TikTok komentarze są wyłączone. Odznacz komentarze.');
       }
 
-      if (job.video.mediaType === 'VIDEO' && creatorInfo?.duet_disabled && allowDuet) {
+      if (job.video.mediaType === 'VIDEO' && creatorInfo?.duet_disabled && body.tiktokAllowDuet === true) {
         return badRequest('Na tym koncie TikTok duet jest wyłączony. Odznacz duet.');
       }
 
-      if (job.video.mediaType === 'VIDEO' && creatorInfo?.stitch_disabled && allowStitch) {
+      if (job.video.mediaType === 'VIDEO' && creatorInfo?.stitch_disabled && body.tiktokAllowStitch === true) {
         return badRequest('Na tym koncie TikTok stitch jest wyłączony. Odznacz stitch.');
       }
 
@@ -140,10 +166,9 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
         );
       }
 
-      data.tiktokPrivacyLevel = body.tiktokPrivacyLevel;
-      data.tiktokAllowComment = allowComment;
-      data.tiktokAllowDuet = allowDuet;
-      data.tiktokAllowStitch = allowStitch;
+      data.tiktokAllowComment = allowComment && !creatorInfo?.comment_disabled;
+      data.tiktokAllowDuet = allowDuet && !creatorInfo?.duet_disabled;
+      data.tiktokAllowStitch = allowStitch && !creatorInfo?.stitch_disabled;
     }
 
     // Commercial Content Disclosure (TikTok Content Sharing Guidelines section 3, 2026-09-30
@@ -217,6 +242,18 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
       data.contentWarnings = collectContentWarnings(data.caption, job.socialAccount.platform);
     }
 
+    // Consent is to THIS exact post (guideline 5c, and 4: the declaration text itself depends on
+    // the Branded Content choice). Any later change to a TikTok draft - caption, hashtags, privacy,
+    // interactions, disclosure - voids an earlier tick, so the user re-confirms what they now see.
+    if (
+      job.socialAccount.platform === 'TIKTOK' &&
+      body.tiktokConsent === undefined &&
+      job.tiktokConsentAt &&
+      Object.keys(data).length > 0
+    ) {
+      data.tiktokConsentAt = null;
+    }
+
     if (Object.keys(data).length === 0) {
       return NextResponse.json(job);
     }
@@ -250,6 +287,10 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return unauthorized();
+    }
+
+    if (error instanceof TikTokCreatorCannotPostError) {
+      return badRequest(error.userMessage);
     }
 
     // Same failure mode as social-accounts/tiktok/creator-info: fetchTikTokCreatorInfo can

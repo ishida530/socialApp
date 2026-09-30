@@ -3,7 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // One Facebook user managing several pages, each belonging to a different Postfly account (an
 // agency owner's own page + a customer's page): connecting from the customer's account must pick
 // the customer's page, never the page already connected to the owner's account.
-const { buildAuthUrl, handleOAuthCallback } = await import('@/lib/server/social-oauth');
+const { buildAuthUrl, handleOAuthCallback, refreshSocialAccessToken, decryptToken } = await import(
+  '@/lib/server/social-oauth'
+);
 const { prisma } = await import('@/lib/server/prisma');
 const { createTestUser, deleteTestUser } = await import('../helpers/fixtures');
 
@@ -89,5 +91,65 @@ describe('Meta page selection across Postfly accounts', () => {
     await expect(handleOAuthCallback('facebook', { code: 'abc', state: stateFor(customer.id) })).rejects.toThrow(
       /już połączone z innymi kontami Postfly/,
     );
+  });
+});
+
+// 2026-09-30: the code exchange yields a short-lived user token, and a Page token read with it
+// lives ~1 hour. The callback now swaps for a long-lived user token first, stores the resulting
+// (non-expiring) Page token with expiresAt=null and keeps the long-lived user token to re-derive
+// the Page token on refresh.
+describe('Meta durable Page tokens', () => {
+  function stubDurableMeta() {
+    const calls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (url: string) => {
+        calls.push(url);
+        if (url.includes('/oauth/access_token') && url.includes('grant_type=fb_exchange_token')) {
+          return { ok: true, json: async () => ({ access_token: 'long-lived-user-token', expires_in: 5183944 }) };
+        }
+        if (url.includes('/oauth/access_token')) {
+          return { ok: true, json: async () => ({ access_token: 'short-user-token', expires_in: 3600 }) };
+        }
+        if (url.includes('/me/accounts')) {
+          const token = new URL(url).searchParams.get('access_token');
+          return {
+            ok: true,
+            json: async () => ({
+              data: [{ ...CUSTOMER_PAGE, access_token: token === 'long-lived-user-token' ? 'durable-page-token' : 'short-page-token' }],
+            }),
+          };
+        }
+        return { ok: false, text: async () => 'unexpected', statusText: 'unexpected' };
+      }),
+    );
+    return calls;
+  }
+
+  it('stores a Page token derived from the long-lived user token, with no expiry', async () => {
+    const { user } = await createTestUser();
+    cleanup.push(user.id);
+    stubDurableMeta();
+
+    await handleOAuthCallback('facebook', { code: 'abc', state: stateFor(user.id) });
+
+    const account = await prisma.socialAccount.findFirstOrThrow({ where: { userId: user.id, platform: 'FACEBOOK' } });
+    expect(decryptToken(account.accessToken)).toBe('durable-page-token');
+    expect(decryptToken(account.refreshToken)).toBe('long-lived-user-token');
+    expect(account.expiresAt).toBeNull();
+  });
+
+  it('refresh re-derives the Page token from the stored long-lived user token', async () => {
+    const { user } = await createTestUser();
+    cleanup.push(user.id);
+    stubDurableMeta();
+    await handleOAuthCallback('facebook', { code: 'abc', state: stateFor(user.id) });
+    const account = await prisma.socialAccount.findFirstOrThrow({ where: { userId: user.id, platform: 'FACEBOOK' } });
+
+    const refreshed = await refreshSocialAccessToken(account.id);
+
+    expect(refreshed.accessToken).toBe('durable-page-token');
+    const after = await prisma.socialAccount.findUniqueOrThrow({ where: { id: account.id } });
+    expect(after.expiresAt).toBeNull();
   });
 });

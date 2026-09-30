@@ -19,6 +19,9 @@ type PlatformCard = {
   icon: typeof Youtube;
   color: string;
   apiPlatform: 'youtube' | 'tiktok' | 'instagram' | 'facebook' | 'linkedin';
+  // Shown BEFORE connecting (2026-09-30): the platform-side prerequisites that otherwise surface
+  // only as a failed connection - most new users hit the Instagram/Facebook ones.
+  requirement: string;
 };
 
 const platforms: PlatformCard[] = [
@@ -27,30 +30,37 @@ const platforms: PlatformCard[] = [
     icon: Youtube,
     color: 'text-red-500',
     apiPlatform: 'youtube',
+    requirement: 'Zaloguj się kontem Google, które ma kanał YouTube, i zaznacz wszystkie uprawnienia na ekranie zgody.',
   },
   {
     name: 'TikTok',
     icon: Music2,
     color: 'text-slate-400',
     apiPlatform: 'tiktok',
+    requirement: 'Zaloguj się w oknie TikToka na konto, na którym chcesz publikować. Każdy post zatwierdzasz ręcznie w Postfly.',
   },
   {
     name: 'Instagram',
     icon: Instagram,
     color: 'text-pink-500',
     apiPlatform: 'instagram',
+    requirement:
+      'Wymaga konta Instagram firmowego lub twórcy, połączonego ze Stroną Facebook. Logujesz się przez Facebooka — zaznacz tam tę Stronę i konto Instagram.',
   },
   {
     name: 'Facebook',
     icon: Facebook,
     color: 'text-blue-500',
     apiPlatform: 'facebook',
+    requirement:
+      'Publikujemy na Stronie Facebook (nie na profilu prywatnym). Musisz być jej administratorem — w oknie Facebooka wybierz Stronę do podłączenia.',
   },
   {
     name: 'LinkedIn',
     icon: Linkedin,
     color: 'text-sky-600',
     apiPlatform: 'linkedin',
+    requirement: 'Publikujemy na Twoim profilu osobistym. LinkedIn wymaga ponownego połączenia co ok. 60 dni.',
   },
 ];
 
@@ -137,8 +147,11 @@ export function ConnectedPlatforms() {
       }
 
       window.location.assign(payload.url);
-    } catch {
-      toast.error('Nie udało się rozpocząć procesu łączenia konta.');
+    } catch (error: unknown) {
+      toast.error(
+        (error as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+          'Nie udało się rozpocząć procesu łączenia konta.',
+      );
     } finally {
       setLoadingPlatform(null);
     }
@@ -220,7 +233,8 @@ export function ConnectedPlatforms() {
               </div>
             </div>
             
-            <h3 className="text-sm font-semibold text-foreground mb-3">{platform.name}</h3>
+            <h3 className="text-sm font-semibold text-foreground mb-1">{platform.name}</h3>
+            <p className="text-[11px] text-muted-foreground mb-3">{platform.requirement}</p>
 
             {connected ? (
               <p className="text-xs text-muted-foreground mb-3">
