@@ -16,6 +16,9 @@ type PatchBody = {
   tiktokAllowDuet?: boolean;
   tiktokAllowStitch?: boolean;
   tiktokConsent?: boolean;
+  tiktokDisclosureEnabled?: boolean;
+  tiktokBrandOrganic?: boolean;
+  tiktokBrandedContent?: boolean;
   isExplicit?: boolean;
   metaPostFormat?: string;
 };
@@ -97,12 +100,22 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
         return badRequest(`Niepoprawna prywatność TikTok. Dozwolone: ${privacyOptions.join(', ')}`);
       }
 
+      // Mirrors the check in the Commercial Content Disclosure block below, for the reverse
+      // order: brandedContent already saved as true, THIS request is the one changing privacy.
+      if (body.tiktokPrivacyLevel === 'SELF_ONLY' && job.tiktokBrandedContent) {
+        return badRequest('Treść sponsorowana ("Branded Content") na TikToku nie może być prywatna.');
+      }
+
+      // Defaults to OFF, not on (2026-09-30, TikTok Content Posting API audit rejection, ref
+      // 20260913074631): "Users must manually turn on these interaction settings and none should
+      // be checked by default." A field neither present in this request nor already saved as
+      // `true` on the job must resolve to `false`, never inherit an implicit "on".
       const allowComment =
-        body.tiktokAllowComment !== undefined ? body.tiktokAllowComment !== false : job.tiktokAllowComment !== false;
+        body.tiktokAllowComment !== undefined ? body.tiktokAllowComment === true : job.tiktokAllowComment === true;
       const allowDuet =
-        body.tiktokAllowDuet !== undefined ? body.tiktokAllowDuet !== false : job.tiktokAllowDuet !== false;
+        body.tiktokAllowDuet !== undefined ? body.tiktokAllowDuet === true : job.tiktokAllowDuet === true;
       const allowStitch =
-        body.tiktokAllowStitch !== undefined ? body.tiktokAllowStitch !== false : job.tiktokAllowStitch !== false;
+        body.tiktokAllowStitch !== undefined ? body.tiktokAllowStitch === true : job.tiktokAllowStitch === true;
 
       if (creatorInfo?.comment_disabled && allowComment) {
         return badRequest('Na tym koncie TikTok komentarze są wyłączone. Odznacz komentarze.');
@@ -131,6 +144,43 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
       data.tiktokAllowComment = allowComment;
       data.tiktokAllowDuet = allowDuet;
       data.tiktokAllowStitch = allowStitch;
+    }
+
+    // Commercial Content Disclosure (TikTok Content Sharing Guidelines section 3, 2026-09-30
+    // audit rejection ref 20260913074631). Saved independently of the privacy/interaction block
+    // above - a user can toggle disclosure on before picking a privacy level. The "at least one
+    // of Your Brand / Branded Content must be chosen once disclosure is on" rule is enforced at
+    // enqueue time (lib/server/publish-jobs.ts's enqueueDraftGroup), not here, so a user can save
+    // "disclosure on" as an intermediate state while still deciding.
+    const touchesTikTokDisclosure =
+      body.tiktokDisclosureEnabled !== undefined ||
+      body.tiktokBrandOrganic !== undefined ||
+      body.tiktokBrandedContent !== undefined;
+
+    if (touchesTikTokDisclosure) {
+      if (job.socialAccount.platform !== 'TIKTOK') {
+        return badRequest('Ujawnienie treści komercyjnej dotyczy tylko zadania dla platformy TikTok.');
+      }
+
+      if (body.tiktokDisclosureEnabled !== undefined) {
+        data.tiktokDisclosureEnabled = body.tiktokDisclosureEnabled;
+      }
+      if (body.tiktokBrandOrganic !== undefined) {
+        data.tiktokBrandOrganic = body.tiktokBrandOrganic;
+      }
+      if (body.tiktokBrandedContent !== undefined) {
+        data.tiktokBrandedContent = body.tiktokBrandedContent;
+      }
+
+      const brandedContent = body.tiktokBrandedContent ?? job.tiktokBrandedContent ?? false;
+      const effectivePrivacy = data.tiktokPrivacyLevel ?? job.tiktokPrivacyLevel;
+
+      // "Branded content visibility cannot be set to private" - guideline section 3b. Checked
+      // here too (not just when the privacy dropdown itself changes) since this PATCH can be the
+      // one that flips brandedContent on while SELF_ONLY was already saved from an earlier save.
+      if (brandedContent && effectivePrivacy === 'SELF_ONLY') {
+        return badRequest('Treść sponsorowana ("Branded Content") na TikToku nie może być prywatna.');
+      }
     }
 
     if (body.metaPostFormat !== undefined) {
@@ -180,20 +230,17 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     // Remember this as the account's new "sticky" default - read back by createDraftGroupForVideo
     // for the NEXT draft on this account, on either channel (web or Telegram). Best-effort: a
     // failure here must not fail the save the user is actually waiting on.
-    if (touchesTikTokSettings || body.metaPostFormat !== undefined) {
+    //
+    // TikTok settings (privacy/allow*/disclosure) are deliberately EXCLUDED from this (2026-09-30,
+    // Content Posting API audit rejection ref 20260913074631) - see the comment on
+    // SocialAccount.lastTiktokPrivacyLevel in schema.prisma. metaPostFormat (Meta only) is
+    // unaffected by TikTok's guidelines and keeps its sticky default.
+    if (body.metaPostFormat !== undefined) {
       await prisma.socialAccount
         .update({
           where: { id: job.socialAccountId },
           data: {
-            ...(touchesTikTokSettings
-              ? {
-                  lastTiktokPrivacyLevel: data.tiktokPrivacyLevel as string,
-                  lastTiktokAllowComment: data.tiktokAllowComment as boolean,
-                  lastTiktokAllowDuet: data.tiktokAllowDuet as boolean,
-                  lastTiktokAllowStitch: data.tiktokAllowStitch as boolean,
-                }
-              : {}),
-            ...(body.metaPostFormat !== undefined ? { lastMetaPostFormat: data.metaPostFormat as string } : {}),
+            lastMetaPostFormat: data.metaPostFormat as string,
           },
         })
         .catch((error) => console.error('[publish-jobs/drafts/:id] failed to persist sticky account defaults', error));

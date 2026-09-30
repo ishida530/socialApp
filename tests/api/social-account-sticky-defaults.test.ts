@@ -49,7 +49,11 @@ afterEach(async () => {
 });
 
 describe('SocialAccount sticky defaults', () => {
-  it('PATCH of tiktokPrivacyLevel persists it as the account default', async () => {
+  // 2026-09-30 (TikTok Content Posting API audit rejection, ref 20260913074631): TikTok
+  // deliberately has NO sticky defaults anymore - its Content Sharing Guidelines require privacy
+  // level and each interaction toggle to have no default value / be unchecked on every single
+  // post. These two tests used to assert the opposite (inheritance); they now assert its absence.
+  it('PATCH of tiktokPrivacyLevel does NOT persist it as an account-level default', async () => {
     const { user, token } = await createTestUser();
     cleanupUserId = user.id;
     const account = await createSocialAccount(user.id, 'TIKTOK');
@@ -63,13 +67,13 @@ describe('SocialAccount sticky defaults', () => {
     expect(response.status).toBe(200);
 
     const updatedAccount = await prisma.socialAccount.findUniqueOrThrow({ where: { id: account.id } });
-    expect(updatedAccount.lastTiktokPrivacyLevel).toBe('PUBLIC_TO_EVERYONE');
-    expect(updatedAccount.lastTiktokAllowComment).toBe(true);
-    expect(updatedAccount.lastTiktokAllowDuet).toBe(true);
-    expect(updatedAccount.lastTiktokAllowStitch).toBe(true);
+    expect(updatedAccount.lastTiktokPrivacyLevel).toBeNull();
+    expect(updatedAccount.lastTiktokAllowComment).toBeNull();
+    expect(updatedAccount.lastTiktokAllowDuet).toBeNull();
+    expect(updatedAccount.lastTiktokAllowStitch).toBeNull();
   });
 
-  it('a new draft on that account inherits the previously saved privacy level, not the hardcoded fallback', async () => {
+  it('a new TikTok draft never inherits privacy level or interaction toggles from a previous draft on the same account', async () => {
     const { user, token } = await createTestUser();
     cleanupUserId = user.id;
     const account = await createSocialAccount(user.id, 'TIKTOK');
@@ -81,7 +85,7 @@ describe('SocialAccount sticky defaults', () => {
       postGroupId: `group-first-${user.id}`,
     });
     await PATCH(
-      patchRequest(firstJob.id, { tiktokPrivacyLevel: 'PUBLIC_TO_EVERYONE' }, authHeaders(token)),
+      patchRequest(firstJob.id, { tiktokPrivacyLevel: 'PUBLIC_TO_EVERYONE', tiktokAllowComment: true }, authHeaders(token)),
       { params: Promise.resolve({ id: firstJob.id }) },
     );
 
@@ -93,7 +97,8 @@ describe('SocialAccount sticky defaults', () => {
     const secondTiktokJob = await prisma.publishJob.findFirst({
       where: { postGroupId: body.postGroupId, socialAccountId: account.id },
     });
-    expect(secondTiktokJob?.tiktokPrivacyLevel).toBe('PUBLIC_TO_EVERYONE');
+    expect(secondTiktokJob?.tiktokPrivacyLevel).toBeNull();
+    expect(secondTiktokJob?.tiktokAllowComment).toBeNull();
   });
 
   it('PATCH of metaPostFormat persists it, and a new Instagram draft inherits FEED instead of the REELS fallback', async () => {

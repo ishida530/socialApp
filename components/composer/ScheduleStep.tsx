@@ -49,7 +49,15 @@ export function ScheduleStep({
 
   const tiktokJob = jobs.find((job) => job.socialAccount.platform === 'TIKTOK');
   const tiktokSelected = selectedPlatforms.has('TIKTOK');
-  const tiktokReady = !tiktokSelected || (Boolean(tiktokJob?.tiktokPrivacyLevel) && Boolean(tiktokJob?.tiktokConsentAt));
+  // Commercial Content Disclosure (2026-09-30, TikTok audit rejection ref 20260913074631): if
+  // the disclosure toggle is on, at least one of Your Brand / Branded Content must be chosen -
+  // "if the toggle is turned on but no options are selected, the publish button should be
+  // disabled" (guideline section 3a).
+  const tiktokDisclosureReady =
+    !tiktokJob?.tiktokDisclosureEnabled || Boolean(tiktokJob?.tiktokBrandOrganic || tiktokJob?.tiktokBrandedContent);
+  const tiktokReady =
+    !tiktokSelected ||
+    (Boolean(tiktokJob?.tiktokPrivacyLevel) && Boolean(tiktokJob?.tiktokConsentAt) && tiktokDisclosureReady);
 
   const canPublishNow = selectedPlatforms.size > 0 && tiktokReady;
   const canSchedule = canPublishNow && Boolean(scheduledAt);
@@ -88,7 +96,9 @@ export function ScheduleStep({
 
           {tiktokSelected && !tiktokReady && (
             <p className="text-xs text-destructive">
-              Dla TikToka uzupełnij prywatność i zaznacz zgodę na warunki publikacji w kroku przeglądu.
+              {tiktokDisclosureReady
+                ? 'Dla TikToka uzupełnij prywatność i zaznacz zgodę na warunki publikacji w kroku przeglądu.'
+                : 'Dla TikToka zaznacz „Twoja marka” i/lub „Treść sponsorowana”, albo wyłącz ujawnienie treści komercyjnej, w kroku przeglądu.'}
             </p>
           )}
 

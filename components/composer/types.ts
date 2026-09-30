@@ -21,6 +21,9 @@ export type DraftJob = {
   tiktokAllowDuet: boolean | null;
   tiktokAllowStitch: boolean | null;
   tiktokConsentAt: string | null;
+  tiktokDisclosureEnabled: boolean | null;
+  tiktokBrandOrganic: boolean | null;
+  tiktokBrandedContent: boolean | null;
   metaPostFormat: string | null;
   scheduledFor: string;
   publishedAt: string | null;

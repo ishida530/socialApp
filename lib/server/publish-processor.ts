@@ -21,6 +21,10 @@ type TikTokPublishSettings = {
   allowComment: boolean;
   allowDuet: boolean;
   allowStitch: boolean;
+  // Commercial Content Disclosure (2026-09-30, TikTok audit rejection ref 20260913074631) -
+  // map 1:1 to TikTok's own `post_info.brand_organic_toggle` / `brand_content_toggle`.
+  brandOrganic: boolean;
+  brandedContent: boolean;
 };
 
 class PublishAuthError extends Error {
@@ -525,9 +529,11 @@ async function publishToTikTok(job: PublishInputJob, accessToken: string): Promi
       post_info: {
         title: caption.slice(0, 2200),
         privacy_level: job.tiktokSettings?.privacyLevel ?? 'SELF_ONLY',
-        disable_comment: !(job.tiktokSettings?.allowComment ?? true),
-        disable_duet: !(job.tiktokSettings?.allowDuet ?? true),
-        disable_stitch: !(job.tiktokSettings?.allowStitch ?? true),
+        disable_comment: !(job.tiktokSettings?.allowComment ?? false),
+        disable_duet: !(job.tiktokSettings?.allowDuet ?? false),
+        disable_stitch: !(job.tiktokSettings?.allowStitch ?? false),
+        brand_organic_toggle: job.tiktokSettings?.brandOrganic ?? false,
+        brand_content_toggle: job.tiktokSettings?.brandedContent ?? false,
       },
       source_info: {
         source: 'PULL_FROM_URL',
@@ -583,7 +589,9 @@ async function publishToTikTokPhoto(job: PublishInputJob, accessToken: string): 
         title: (job.title?.trim() || job.video.title).slice(0, 90),
         description: caption.slice(0, 4000),
         privacy_level: job.tiktokSettings?.privacyLevel ?? 'SELF_ONLY',
-        disable_comment: !(job.tiktokSettings?.allowComment ?? true),
+        disable_comment: !(job.tiktokSettings?.allowComment ?? false),
+        brand_organic_toggle: job.tiktokSettings?.brandOrganic ?? false,
+        brand_content_toggle: job.tiktokSettings?.brandedContent ?? false,
       },
       source_info: {
         source: 'PULL_FROM_URL',
@@ -1374,9 +1382,13 @@ async function processClaimedJobCore(jobId: string) {
     job.socialAccount.platform === 'TIKTOK' && job.tiktokPrivacyLevel
       ? {
           privacyLevel: job.tiktokPrivacyLevel,
-          allowComment: job.tiktokAllowComment ?? true,
-          allowDuet: job.tiktokAllowDuet ?? true,
-          allowStitch: job.tiktokAllowStitch ?? true,
+          // Default OFF (2026-09-30, TikTok audit rejection ref 20260913074631) - unset must
+          // never resolve to "on" at publish time either, same rule as the PATCH endpoint.
+          allowComment: job.tiktokAllowComment ?? false,
+          allowDuet: job.tiktokAllowDuet ?? false,
+          allowStitch: job.tiktokAllowStitch ?? false,
+          brandOrganic: job.tiktokBrandOrganic ?? false,
+          brandedContent: job.tiktokBrandedContent ?? false,
         }
       : undefined;
 

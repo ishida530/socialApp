@@ -151,6 +151,11 @@ export function PostComposer() {
             // outside the scrollable tab content (unlike the rest of TikTokSettingsPanel) so it's
             // always visible next to the actual submit action, not something a user can miss by
             // not scrolling to the bottom of a long per-platform form.
+            //
+            // 2026-09-30 (Content Posting API audit rejection, ref 20260913074631, guideline
+            // section 4): the declaration text itself must change depending on the Commercial
+            // Content Disclosure selection — Branded Content adds a reference to TikTok's Branded
+            // Content Policy, regardless of whether Your Brand is also checked.
             <label className="flex items-start gap-2 rounded-lg border border-border bg-background/40 p-3">
               <Checkbox
                 checked={Boolean(tiktokJob.tiktokConsentAt)}
@@ -161,7 +166,9 @@ export function PostComposer() {
               />
               <span className="text-xs text-muted-foreground">
                 Potwierdzam, że publikacja na TikTok jest inicjowana ręcznie przeze mnie i zgadza się z warunkami
-                TikTok Music Usage Confirmation.
+                {tiktokJob.tiktokBrandedContent === true
+                  ? ' TikTok Branded Content Policy oraz Music Usage Confirmation.'
+                  : ' TikTok Music Usage Confirmation.'}
               </span>
             </label>
           )}

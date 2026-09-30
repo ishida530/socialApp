@@ -354,18 +354,30 @@ async function handleIncomingMedia(
       return;
     }
 
-    // BUG-003: enqueueDraftGroup wymaga tiktokPrivacyLevel na DRAFT jobie TikToka zanim
-    // pozwoli opublikować - kreator web ustawia to w kroku przeglądu, ale upload z Telegrama
-    // nie przechodzi przez ten krok, więc bez tego "Publikuj" zawsze failowałby dla TikToka
-    // (i tym samym dla WSZYSTKICH platform naraz, bo enqueueDraftGroup jest wszystko-albo-nic).
-    // Domyślny SELF_ONLY (najbezpieczniejszy, tylko dla autora) - kliknięcie "Publikuj" na
-    // Telegramie liczy się jako zgoda, dokładnie jak opisano w logu ról TASK-3.1.2.
+    // BUG-003 fix superseded (2026-09-30, TikTok Content Posting API audit rejection, ref
+    // 20260913074631): the old fix auto-set tiktokPrivacyLevel to SELF_ONLY so "Publikuj" on
+    // Telegram wouldn't fail the whole group (enqueueDraftGroup is all-or-nothing) - but an
+    // auto-applied privacy value is exactly what TikTok's guidelines forbid ("no default value",
+    // manual selection required), and Telegram's inline-keyboard UI has no room for the full
+    // required flow (privacy dropdown, per-post interaction toggles, Commercial Content
+    // Disclosure). Instead: exclude TikTok from THIS auto-publish by default (same mechanism as
+    // manually unchecking a platform, see excludedFromPublish/toggle: below) - every other
+    // platform still publishes normally on "Publikuj", TikTok stays a DRAFT the user finishes in
+    // the web composer, where the required UX actually exists.
     const tiktokJob = draftResult.jobs.find((job) => job.socialAccount.platform === 'TIKTOK');
-    if (tiktokJob && !tiktokJob.tiktokPrivacyLevel) {
+    if (tiktokJob) {
+      // Mutates the object already referenced inside draftResult.jobs, so the preview
+      // message/buttons built below (and the autopilot branch above, which reads the same
+      // array) immediately reflect the exclusion instead of showing a stale "✅ TIKTOK".
+      tiktokJob.excludedFromPublish = true;
       await prisma.publishJob.update({
         where: { id: tiktokJob.id },
-        data: { tiktokPrivacyLevel: 'SELF_ONLY' },
+        data: { excludedFromPublish: true },
       });
+      await sendTelegramMessage(
+        chatIdStr,
+        'ℹ️ TikTok wymaga dodatkowych ustawień (prywatność, zgoda, ewentualne oznaczenie treści komercyjnej) - dokończ go w panelu Postfly, ten post na razie pominie TikTok.',
+      ).catch((error) => logError('telegram', 'send-tiktok-web-required-note-failed', error, { chatId: chatIdStr }));
     }
 
     // Autopilot (2026-09-14): opt-in zero-tap path - skips the manual preview entirely for

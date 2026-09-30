@@ -321,13 +321,13 @@ describe('POST /api/telegram/webhook — media upload (TASK-3.1.2)', () => {
     expect(mockSendTelegramMessage.mock.calls[0][1]).toMatch(/za duży/);
   });
 
-  // BUG-003: pierwszy realny przebieg TASK-3.3.1 (prawdziwy bot, prawdziwy klik "Publikuj")
-  // failował dla TikToka: "Dla TikTok wybierz poziom prywatności publikacji w kroku przeglądu."
-  // - żadna platforma nie została opublikowana, nie tylko TikTok (enqueueDraftGroup jest
-  // wszystko-albo-nic). Przyczyna: DRAFT tworzony przez upload z Telegrama nigdy nie dostawał
-  // domyślnego tiktokPrivacyLevel, mimo że dokładnie to zachowanie było opisane jako decyzja
-  // Architekta w logu ról TASK-3.1.2 - udokumentowane, ale nigdy nie zaimplementowane.
-  it('sets a default tiktokPrivacyLevel on the TikTok DRAFT job created from a Telegram upload (BUG-003)', async () => {
+  // BUG-003 fix superseded (2026-09-30, TikTok Content Posting API audit rejection, ref
+  // 20260913074631): the old fix auto-set tiktokPrivacyLevel to SELF_ONLY on upload so
+  // "Publikuj" wouldn't fail the whole group - but an auto-applied privacy value is exactly what
+  // TikTok's Content Sharing Guidelines forbid ("no default value", manual selection required).
+  // The correct fix now excludes TikTok from THIS auto-publish instead (same mechanism as
+  // manually unchecking a platform) - see app/api/telegram/webhook/route.ts's handleMediaMessage.
+  it('excludes TikTok from auto-publish on a Telegram upload instead of defaulting its privacy level', async () => {
     const { user } = await createTestUser();
     cleanupUserId = user.id;
     await createSocialAccount(user.id, 'TIKTOK', { accessToken: encrypt('real-looking-tiktok-access-token') });
@@ -342,41 +342,37 @@ describe('POST /api/telegram/webhook — media upload (TASK-3.1.2)', () => {
     );
 
     const tiktokJob = await prisma.publishJob.findFirstOrThrow({ where: { videoId: fakeVideo.id } });
-    expect(tiktokJob.tiktokPrivacyLevel).toBeTruthy();
+    expect(tiktokJob.tiktokPrivacyLevel).toBeNull();
+    expect(tiktokJob.excludedFromPublish).toBe(true);
 
-    // Domknięcie pełnego cyklu: z domyślnym poziomem prywatności ustawionym, kliknięcie
-    // "Publikuj" musi faktycznie ruszyć publikację TikTok, nie powtórzyć ten sam błąd.
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({ data: { publish_id: 'tiktok-publish-1' } }),
-        text: async () => '',
-      }),
-    );
+    // Ack ("Odebrano...") + the TikTok-needs-the-web-app note - never a fake success and never
+    // a call into TikTok's publish API for a job that was never configured by a human.
+    expect(mockSendTelegramMessage).toHaveBeenCalledTimes(2);
+    expect(mockSendTelegramMessage.mock.calls[1][1]).toMatch(/TikTok wymaga dodatkowych ustawień/);
+
+    // With TikTok the only platform and now excluded, "Publikuj" has nothing left to publish -
+    // it must say so, not silently fabricate a TikTok publish.
+    const fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
 
     const response = await POST(
       webhookRequest({
         callback_query: {
-          id: 'cbq-bug003',
+          id: 'cbq-excluded-tiktok',
           data: `publish:${tiktokJob.postGroupId}`,
           message: { chat: { id: Number(chatId) }, message_id: 55 },
         },
       }),
     );
     expect(response.status).toBe(200);
+    expect(fetchSpy).not.toHaveBeenCalled();
     vi.unstubAllGlobals();
 
-    const refreshed = await prisma.publishJob.findUniqueOrThrow({ where: { id: tiktokJob.id } });
-    // TikTok publish jest async (init -> poll status), więc po "Publikuj" job jest PENDING
-    // ze znacznikiem śledzenia, NIE z powrotem w DRAFT ani z błędem braku poziomu prywatności.
-    expect(refreshed.status).toBe('PENDING');
-    expect(refreshed.errorMessage).toMatch(/tiktok-tracking/);
+    expect(mockAnswerTelegramCallbackQuery).toHaveBeenCalledWith('cbq-excluded-tiktok', expect.stringMatching(/odznaczone/));
+    expect(mockEditTelegramMessage).not.toHaveBeenCalled();
 
-    // 2 calls: the immediate "⏳ Publikuję..." processing ack, then the final result.
-    expect(mockEditTelegramMessage).toHaveBeenCalledTimes(2);
-    expect(mockEditTelegramMessage.mock.calls[0][2]).toMatch(/Publikuję/);
-    expect(mockEditTelegramMessage.mock.calls.at(-1)?.[2]).not.toMatch(/poziom prywatności/);
+    const refreshed = await prisma.publishJob.findUniqueOrThrow({ where: { id: tiktokJob.id } });
+    expect(refreshed.status).toBe('DRAFT');
   });
 });
 
@@ -460,10 +456,9 @@ describe('POST /api/telegram/webhook — autopilot (opt-in zero-tap scheduling)'
 
 // The "🎯 Zaplanuj optymalnie" button drives the exact same enqueueDraftGroupOptimally logic as
 // autopilot mode - exercised here via a manually-built draft group (bypassing the upload flow,
-// whose BUG-003 default already sets TikTok's privacy level, so a genuinely not-ready TikTok
-// draft can't occur through a real upload in practice) to confirm the remainder-preview behavior
-// end to end: a not-ready platform survives as DRAFT with its own manual preview/buttons, instead
-// of being silently dropped.
+// which now always excludes TikTok from auto-publish by default - see the test above) to confirm
+// the remainder-preview behavior end to end: a not-ready platform survives as DRAFT with its own
+// manual preview/buttons, instead of being silently dropped.
 describe('POST /api/telegram/webhook — 🎯 Zaplanuj optymalnie button', () => {
   afterEach(async () => {
     if (cleanupUserId) {

@@ -120,14 +120,12 @@ export async function createDraftGroupForVideo(
           // inherited value instead of a hardcoded default every time. Same lesson as BUG-003
           // (a client-only default never reached the Telegram channel).
           metaPostFormat: isMetaVideo ? (account.lastMetaPostFormat ?? 'REELS') : undefined,
-          ...(platform === Platform.TIKTOK
-            ? {
-                tiktokPrivacyLevel: account.lastTiktokPrivacyLevel ?? undefined,
-                tiktokAllowComment: account.lastTiktokAllowComment ?? undefined,
-                tiktokAllowDuet: account.lastTiktokAllowDuet ?? undefined,
-                tiktokAllowStitch: account.lastTiktokAllowStitch ?? undefined,
-              }
-            : {}),
+          // TikTok deliberately has NO sticky defaults (2026-09-30, Content Posting API audit
+          // rejection, ref 20260913074631) - every new draft starts with privacyLevel/allow*/
+          // disclosure all unset. TikTok's Content Sharing Guidelines require privacy level and
+          // each interaction toggle to have no default value / be unchecked on every post; a
+          // value inherited from a previous post is exactly what that forbids. See the comment
+          // on SocialAccount.lastTiktokPrivacyLevel in schema.prisma.
         },
         include: PUBLISH_JOB_INCLUDE,
       });
@@ -316,6 +314,23 @@ export async function enqueueDraftGroup(userId: string, params: EnqueueDraftGrou
 
     if (!tiktokJob.tiktokPrivacyLevel) {
       return { ok: false, error: 'Dla TikTok wybierz poziom prywatności publikacji w kroku przeglądu.' };
+    }
+
+    // Commercial Content Disclosure (TikTok Content Sharing Guidelines section 3) - server-side
+    // mirror of the same block the composer UI already enforces, so a job can never reach
+    // TikTok's publish API in a state the audit explicitly forbids.
+    if (tiktokJob.tiktokDisclosureEnabled && !tiktokJob.tiktokBrandOrganic && !tiktokJob.tiktokBrandedContent) {
+      return {
+        ok: false,
+        error: 'Dla TikTok zaznacz "Twoja marka" i/lub "Treść sponsorowana", albo wyłącz ujawnienie treści komercyjnej.',
+      };
+    }
+
+    if (tiktokJob.tiktokBrandedContent && tiktokJob.tiktokPrivacyLevel === 'SELF_ONLY') {
+      return {
+        ok: false,
+        error: 'Treść sponsorowana ("Branded Content") na TikToku nie może być prywatna - zmień prywatność na publiczną/dla obserwujących.',
+      };
     }
   }
 

@@ -240,6 +240,14 @@ model SocialAccount {
   // these fields, read when a NEW draft is created (web or Telegram) so Telegram - which has
   // no UI for these settings - inherits what the user last chose in the web composer, instead
   // of a hardcoded default every time.
+  //
+  // 2026-09-30 (TikTok Content Posting API audit rejection, ref 20260913074631): the four
+  // lastTiktok* fields below are DEAD - no longer written or read (see lib/server/publish-jobs.ts)
+  // and app/api/publish-jobs/drafts/[id]/route.ts). TikTok's Content Sharing Guidelines require
+  // privacy level and each interaction toggle to have NO default value / be unchecked by default
+  // on every single post - "stickiness" across posts is exactly what that forbids. Left in the
+  // schema (not dropped) to avoid a destructive migration for an otherwise-harmless idle column;
+  // safe to drop in a future migration.
   lastTiktokPrivacyLevel String?
   lastTiktokAllowComment Boolean?
   lastTiktokAllowDuet    Boolean?
@@ -316,6 +324,16 @@ model PublishJob {
   tiktokAllowDuet    Boolean?
   tiktokAllowStitch  Boolean?
   tiktokConsentAt    DateTime?
+  // Commercial Content Disclosure (2026-09-30, TikTok Content Sharing Guidelines section 3):
+  // tiktokDisclosureEnabled is the master "does this promote yourself/a brand/a product" toggle,
+  // OFF by default. When true, at least one of tiktokBrandOrganic ("Your Brand") /
+  // tiktokBrandedContent ("Branded Content") must be chosen before the post can be enqueued (see
+  // enqueueDraftGroup in lib/server/publish-jobs.ts) - both are also off by default, per the
+  // guideline's explicit "none checked by default" requirement. tiktokBrandedContent additionally
+  // forbids SELF_ONLY privacy (enforced both in the UI and again server-side as a safety net).
+  tiktokDisclosureEnabled Boolean?
+  tiktokBrandOrganic      Boolean?
+  tiktokBrandedContent    Boolean?
   metaPostFormat  String?
   // Telegram-only: per-platform toggle on the preview message's inline keyboard, before the
   // final Publikuj tap. Not exposed in the web composer (that has its own platform checkboxes
