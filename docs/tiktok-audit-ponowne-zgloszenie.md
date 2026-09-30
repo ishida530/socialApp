@@ -9,12 +9,9 @@ Stan na 2026-09-30: ✅ zrobione, ⏳ wymaga Twojej decyzji albo logowania na Tw
 
 ## 1. Konfiguracja produkcji (Vercel)
 
-- ⏳ `APP_MODE=commercial` i `NEXT_PUBLIC_APP_MODE=commercial`. W trybie `personal` rejestracja jest
-  zamknięta po pierwszym koncie (`/api/auth/register-status` → `{"open":false}`), a recenzent nie
-  założy konta. **Najpierw** trzeba podnieść istniejące konta do planu BUSINESS, bo w trybie
-  `commercial` Twoje konto spadnie do FREE (1 kanał, 3 posty/mies.). Nowi użytkownicy dostają 7 dni
-  PRO. Automatyczny tryb uprawnień zablokował tę zmianę na produkcyjnej bazie, więc potrzebna jest
-  Twoja zgoda.
+- ✅ `APP_MODE=commercial` i `NEXT_PUBLIC_APP_MODE=commercial` (2026-09-30). Rejestracja jest
+  otwarta (`/api/auth/register-status` → `{"open":true}`). Istniejące konta mają plan BUSINESS,
+  nowi użytkownicy dostają 7 dni PRO.
 - ✅ Domena `postfly.pl`: `FRONTEND_URL` i wszystkie `*_REDIRECT_URI` są spójne.
 - ✅ Linki `/terms` i `/privacy` są w stopce strony głównej.
 - ✅ QStash jest skonfigurowany. Status TikToka sprawdza się co minutę, a ekran statusu dodatkowo
