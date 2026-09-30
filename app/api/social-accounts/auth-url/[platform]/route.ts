@@ -79,11 +79,13 @@ export async function GET(
       return unauthorized();
     }
 
-    if (
-      error instanceof Error &&
-      (error.message.startsWith('Missing required config') ||
-        error.message.startsWith('Unsupported platform.'))
-    ) {
+    if (error instanceof Error && error.message.startsWith('Missing required config')) {
+      // Env var names are an operator detail - the composer/settings UI shows this message as-is.
+      console.error('[social-accounts/auth-url] platform not configured', error.message);
+      return badRequest('Łączenie z tą platformą jest chwilowo niedostępne. Spróbuj później lub napisz do nas.');
+    }
+
+    if (error instanceof Error && error.message.startsWith('Unsupported platform.')) {
       return badRequest(error.message);
     }
 

@@ -9,7 +9,8 @@ import { NextRequest } from 'next/server';
 // user fills the panel in) and enqueueDraftGroup (the hard gate before anything reaches TikTok's
 // publish API).
 
-vi.mock('@/lib/server/tiktok-creator-info', () => ({
+vi.mock('@/lib/server/tiktok-creator-info', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/server/tiktok-creator-info')>()),
   fetchTikTokCreatorInfo: vi.fn().mockResolvedValue({
     privacy_level_options: ['SELF_ONLY', 'PUBLIC_TO_EVERYONE', 'FOLLOWER_OF_CREATOR'],
     duet_disabled: false,
@@ -183,6 +184,7 @@ describe('POST /api/publish-jobs/enqueue - Commercial Content Disclosure gate', 
       socialAccountId: account.id,
       postGroupId,
       tiktokPrivacyLevel: 'PUBLIC_TO_EVERYONE',
+      tiktokConsentAt: new Date(),
     });
     await prisma.publishJob.update({
       where: { id: job.id },
@@ -219,6 +221,7 @@ describe('POST /api/publish-jobs/enqueue - Commercial Content Disclosure gate', 
       socialAccountId: account.id,
       postGroupId,
       tiktokPrivacyLevel: 'PUBLIC_TO_EVERYONE',
+      tiktokConsentAt: new Date(),
     });
 
     const response = await enqueue(

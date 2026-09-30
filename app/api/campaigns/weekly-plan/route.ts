@@ -159,7 +159,10 @@ export async function POST(request: NextRequest) {
         suggestions.map((item) =>
           prisma.publishJob.create({
             data: {
-              status: 'PENDING',
+              // TikTok stays a DRAFT (2026-09-30, TikTok audit guidelines 2b/5c): it can only be
+              // published after the user manually picks privacy and accepts the declaration in
+              // the composer - a PENDING job without either would be refused by the processor.
+              status: item.platform === 'TIKTOK' ? 'DRAFT' : 'PENDING',
               postGroupId: randomUUID(),
               scheduledFor: new Date(item.suggestedScheduledFor),
               video: { connect: { id: item.videoId } },

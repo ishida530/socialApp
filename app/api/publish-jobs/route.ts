@@ -15,6 +15,24 @@ type PublishJobStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'CANCELED
 export async function GET(request: NextRequest) {
   try {
     const user = getAuthUserFromRequest(request);
+
+    // ?postGroupId= - the composer's post-publish status screen polls just its own jobs (TikTok
+    // guideline 5e: users must be able to follow their post's status). Only public account fields,
+    // never the (encrypted) tokens.
+    const postGroupId = request.nextUrl.searchParams.get('postGroupId');
+    if (postGroupId) {
+      const groupJobs = await prisma.publishJob.findMany({
+        where: { postGroupId, status: { not: 'DRAFT' }, video: { userId: user.userId } },
+        include: {
+          video: true,
+          socialAccount: { select: { id: true, platform: true, handle: true } },
+        },
+        orderBy: { createdAt: 'asc' },
+      });
+
+      return NextResponse.json(groupJobs);
+    }
+
     const jobs = await prisma.publishJob.findMany({
       where: {
         video: { userId: user.userId },
@@ -83,6 +101,12 @@ export async function POST(request: NextRequest) {
       return badRequest(
         'videoId lub socialAccountId nie należy do zalogowanego użytkownika',
       );
+    }
+
+    // TikTok only through the composer (2026-09-30, TikTok audit guidelines 2b/5c): this raw
+    // endpoint takes no privacy level and no consent.
+    if (socialAccount.platform === 'TIKTOK') {
+      return badRequest('Posty na TikTok publikujesz z kreatora posta (wymagany wybór prywatności i zgoda).');
     }
 
     const job = await prisma.publishJob.create({

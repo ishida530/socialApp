@@ -10,7 +10,8 @@ import { NextRequest } from 'next/server';
 // This made it impossible to change TikTok privacy at all on such accounts.
 
 const mockCreatorInfo = vi.fn();
-vi.mock('@/lib/server/tiktok-creator-info', () => ({
+vi.mock('@/lib/server/tiktok-creator-info', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/server/tiktok-creator-info')>()),
   fetchTikTokCreatorInfo: (...args: unknown[]) => mockCreatorInfo(...args),
 }));
 

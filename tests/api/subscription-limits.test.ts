@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/lib/server/tiktok-creator-info', () => ({
+vi.mock('@/lib/server/tiktok-creator-info', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/server/tiktok-creator-info')>()),
   fetchTikTokCreatorInfo: vi.fn().mockResolvedValue(undefined),
 }));
 

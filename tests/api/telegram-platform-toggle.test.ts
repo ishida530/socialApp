@@ -141,21 +141,22 @@ describe('Telegram preview platform toggle', () => {
     expect(mockAnswerTelegramCallbackQuery).toHaveBeenLastCalledWith('cbq-toggle-2', expect.stringContaining('z powrotem'));
   });
 
-  it('publish excludes a toggled-off platform and deletes its draft, keeping the rest', async () => {
+  // 2026-09-30 (TikTok audit guideline 5c): TikTok never publishes from Telegram - its consent
+  // must be given next to the web composer's Publish button. "Publikuj" sends the other
+  // platforms and keeps the TikTok DRAFT for the web composer instead of failing the whole group.
+  it('publish sends the other platforms and keeps TikTok as a DRAFT for the web composer', async () => {
     const { user } = await createTestUser();
     cleanupUserId = user.id;
     const chatId = '5551003';
     await linkChat(user.id, chatId);
     const { postGroupId, igJob, tkJob } = await makeDraftGroup(user.id);
 
-    await prisma.publishJob.update({ where: { id: igJob.id }, data: { excludedFromPublish: true } });
-
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
         text: async () => '',
-        json: async () => ({ data: { publish_id: 'pub-1' } }),
+        json: async () => ({ id: 'container-1', status_code: 'FINISHED' }),
       }),
     );
 
@@ -170,11 +171,35 @@ describe('Telegram preview platform toggle', () => {
     );
     expect(response.status).toBe(200);
 
-    const remainingIg = await prisma.publishJob.findUnique({ where: { id: igJob.id } });
-    expect(remainingIg).toBeNull();
+    const igAfter = await prisma.publishJob.findUniqueOrThrow({ where: { id: igJob.id } });
+    expect(igAfter.status).not.toBe('DRAFT');
 
     const tkAfter = await prisma.publishJob.findUniqueOrThrow({ where: { id: tkJob.id } });
-    expect(tkAfter.status).not.toBe('DRAFT');
+    expect(tkAfter.status).toBe('DRAFT');
+  });
+
+  it('refuses to switch TikTok back on from Telegram', async () => {
+    const { user } = await createTestUser();
+    cleanupUserId = user.id;
+    const chatId = '5551006';
+    await linkChat(user.id, chatId);
+    const { postGroupId, tkJob } = await makeDraftGroup(user.id);
+    await prisma.publishJob.update({ where: { id: tkJob.id }, data: { excludedFromPublish: true } });
+
+    const response = await POST(
+      webhookRequest({
+        callback_query: {
+          id: 'cbq-toggle-tiktok',
+          data: `toggle:${postGroupId}:TIKTOK`,
+          message: { chat: { id: Number(chatId) }, message_id: 7 },
+        },
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(mockAnswerTelegramCallbackQuery).toHaveBeenCalledWith('cbq-toggle-tiktok', expect.stringContaining('panelu'));
+
+    const tkAfter = await prisma.publishJob.findUniqueOrThrow({ where: { id: tkJob.id } });
+    expect(tkAfter.excludedFromPublish).toBe(true);
   });
 
   it('refuses to publish when every platform is toggled off', async () => {

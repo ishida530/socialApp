@@ -12,6 +12,17 @@ type TokenResult = {
   expiresAt?: Date;
 };
 
+// Errors whose message is safe AND useful to show the user on the /callback page (2026-09-30).
+// Everything else collapses to a generic "try again" in the callback route, because raw provider
+// errors can carry token/crypto details - but a new user stuck on "no Instagram Business account
+// linked to your Page" must be told exactly that, or they have no way to fix it themselves.
+export class OAuthUserFacingError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'OAuthUserFacingError';
+  }
+}
+
 export type OAuthCallbackQuery = {
   code?: string;
   state?: string;
@@ -432,12 +443,49 @@ async function exchangeMetaCode(code: string, provider: 'facebook' | 'instagram'
     throw new Error('Meta token exchange failed: missing access_token');
   }
 
+  // The code exchange only yields a SHORT-lived user token (~1-2h), and a Page token read through
+  // /me/accounts with it is itself valid for just 1 hour (Meta docs, "token-switch"). Exchanging for
+  // a long-lived user token first is the documented way to get Page tokens that don't expire - so
+  // connected Facebook Pages / Instagram accounts stop silently breaking an hour after connecting.
+  return exchangeForLongLivedMetaUserToken(tokenJson.access_token, provider);
+}
+
+async function exchangeForLongLivedMetaUserToken(
+  userAccessToken: string,
+  provider: 'facebook' | 'instagram',
+): Promise<TokenResult> {
+  const version = resolveMetaApiVersion();
+  const params = new URLSearchParams({
+    grant_type: 'fb_exchange_token',
+    client_id: resolveMetaClientId(provider),
+    client_secret: resolveMetaClientSecret(provider),
+    fb_exchange_token: userAccessToken,
+  });
+
+  const response = await fetch(`https://graph.facebook.com/${version}/oauth/access_token?${params.toString()}`, {
+    method: 'GET',
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`Meta long-lived token exchange failed: ${errorBody || response.statusText}`);
+  }
+
+  const tokenJson = (await response.json()) as {
+    access_token?: string;
+    expires_in?: number;
+  };
+
+  if (!tokenJson.access_token) {
+    throw new Error('Meta long-lived token exchange failed: missing access_token');
+  }
+
   return {
     accessToken: tokenJson.access_token,
+    // The long-lived USER token is what later refreshes re-derive the Page token from (see
+    // refreshMetaToken) - the Page token itself is not a documented fb_exchange_token input.
     refreshToken: tokenJson.access_token,
-    expiresAt: tokenJson.expires_in
-      ? new Date(Date.now() + tokenJson.expires_in * 1000)
-      : undefined,
+    expiresAt: tokenJson.expires_in ? new Date(Date.now() + tokenJson.expires_in * 1000) : undefined,
   };
 }
 
@@ -559,42 +607,32 @@ async function refreshTikTokToken(refreshToken: string): Promise<TokenResult> {
   };
 }
 
-async function refreshMetaToken(accessToken: string, provider: 'facebook' | 'instagram'): Promise<TokenResult> {
-  const version = resolveMetaApiVersion();
-  const params = new URLSearchParams({
-    grant_type: 'fb_exchange_token',
-    client_id: resolveMetaClientId(provider),
-    client_secret: resolveMetaClientSecret(provider),
-    fb_exchange_token: accessToken,
-  });
+// Re-derives the Page token (Facebook) / Page token behind the Instagram Business account from the
+// stored long-lived USER token (kept in `refreshToken` since 2026-09-30). Page tokens obtained this
+// way don't expire, so this mostly matters for accounts connected before that change, whose stored
+// Page token came from a short-lived user token.
+async function refreshMetaToken(
+  userToken: string,
+  provider: 'facebook' | 'instagram',
+  externalId: string | null,
+): Promise<TokenResult> {
+  // The stored user token is already the long-lived one (~60 days) - /me/accounts works with it
+  // directly; re-running fb_exchange_token on an already long-lived token isn't a documented input.
+  const pages = await fetchMetaManagedPages(userToken);
 
-  const response = await fetch(
-    `https://graph.facebook.com/${version}/oauth/access_token?${params.toString()}`,
-    {
-      method: 'GET',
-    },
-  );
+  const page =
+    provider === 'facebook'
+      ? pages.find((item) => item.id === externalId && item.access_token)
+      : pages.find((item) => item.instagram_business_account?.id === externalId && item.access_token);
 
-  if (!response.ok) {
-    const errorBody = await response.text();
-    throw new Error(`Meta token refresh failed: ${errorBody || response.statusText}`);
-  }
-
-  const tokenJson = (await response.json()) as {
-    access_token?: string;
-    expires_in?: number;
-  };
-
-  if (!tokenJson.access_token) {
-    throw new Error('Meta token refresh failed: missing access_token');
+  if (!page?.access_token) {
+    throw new Error('Meta token refresh failed: connected Page no longer available for this user token');
   }
 
   return {
-    accessToken: tokenJson.access_token,
-    refreshToken: tokenJson.access_token,
-    expiresAt: tokenJson.expires_in
-      ? new Date(Date.now() + tokenJson.expires_in * 1000)
-      : undefined,
+    accessToken: page.access_token,
+    refreshToken: userToken,
+    expiresAt: undefined,
   };
 }
 
@@ -779,7 +817,7 @@ async function fetchLinkedInProfile(accessToken: string) {
 async function fetchMetaManagedPages(accessToken: string) {
   const version = resolveMetaApiVersion();
   const response = await fetch(
-    `https://graph.facebook.com/${version}/me/accounts?fields=id,name,access_token,instagram_business_account{id,username}&access_token=${encodeURIComponent(accessToken)}`,
+    `https://graph.facebook.com/${version}/me/accounts?fields=id,name,access_token,instagram_business_account{id,username}&limit=100&access_token=${encodeURIComponent(accessToken)}`,
     {
       method: 'GET',
     },
@@ -839,12 +877,14 @@ async function resolveMetaPublishingContext(
     const withToken = pages.filter((item) => !!item.id && !!item.access_token);
     const [page] = await rankMetaCandidates(ownerId, 'FACEBOOK', withToken, (item) => item.id!);
     if (withToken.length > 0 && !page) {
-      throw new Error(
+      throw new OAuthUserFacingError(
         'Wszystkie strony Facebook tego konta są już połączone z innymi kontami Postfly. W oknie Facebooka wybierz stronę, którą chcesz podłączyć (Edytuj ustawienia).',
       );
     }
     if (!page?.id || !page.access_token) {
-      throw new Error('Brak zarządzanej strony Facebook z aktywnym access tokenem');
+      throw new OAuthUserFacingError(
+        'Nie znaleziono strony Facebook, którą zarządzasz. Postfly publikuje na Stronach Facebook (nie na profilu prywatnym) - utwórz Stronę albo w oknie Facebooka zaznacz ją przy udzielaniu dostępu (Edytuj ustawienia).',
+      );
     }
 
     return {
@@ -864,13 +904,15 @@ async function resolveMetaPublishingContext(
     (item) => item.instagram_business_account!.id!,
   );
   if (withInstagram.length > 0 && !pageWithInstagram) {
-    throw new Error(
+    throw new OAuthUserFacingError(
       'Wszystkie konta Instagram Business tego konta Facebook są już połączone z innymi kontami Postfly. W oknie Facebooka wybierz właściwą stronę (Edytuj ustawienia).',
     );
   }
 
   if (!pageWithInstagram?.access_token || !pageWithInstagram.instagram_business_account?.id) {
-    throw new Error('Brak konta Instagram Business powiązanego z zarządzaną stroną Facebook');
+    throw new OAuthUserFacingError(
+      'Nie znaleziono konta Instagram firmowego lub twórcy połączonego ze Stroną Facebook. W aplikacji Instagram przełącz konto na profesjonalne i połącz je ze swoją Stroną Facebook, a potem spróbuj ponownie (w oknie Facebooka zaznacz tę Stronę i konto Instagram).',
+    );
   }
 
   return {
@@ -890,7 +932,14 @@ export async function handleOAuthCallback(
   options?: { tiktokCodeVerifier?: string; reconnectAccountId?: string },
 ) {
   if (query.error) {
-    throw new Error(query.error_description || `OAuth error: ${query.error}`);
+    // access_denied / user_cancelled etc. - the user closed or declined the provider's consent
+    // screen. Nothing broke; say so instead of a generic failure.
+    const cancelled = /denied|cancel/i.test(query.error);
+    throw new OAuthUserFacingError(
+      cancelled
+        ? 'Anulowano łączenie konta - nie udzielono dostępu. Możesz spróbować ponownie w każdej chwili.'
+        : 'Serwis odrzucił autoryzację. Spróbuj ponownie, a jeśli problem wraca, napisz do nas.',
+    );
   }
 
   if (!query.code || !query.state) {
@@ -942,7 +991,7 @@ export async function handleOAuthCallback(
     : null;
 
   if (reconnectAccountId && !reconnectTarget) {
-    throw new Error('Nie znaleziono konta do ponownej autoryzacji.');
+    throw new OAuthUserFacingError('Nie znaleziono konta do ponownej autoryzacji.');
   }
 
   const existingByExternalId = profile.externalId
@@ -955,7 +1004,9 @@ export async function handleOAuthCallback(
     : null;
 
   if (existingByExternalId && existingByExternalId.userId !== ownerId) {
-    throw new Error('To konto social jest już połączone z innym użytkownikiem.');
+    throw new OAuthUserFacingError(
+      'To konto jest już połączone z innym kontem Postfly. Najpierw odłącz je tam albo zaloguj się w oknie autoryzacji na inne konto.',
+    );
   }
 
   const existingOwnedByExternal =
@@ -972,7 +1023,9 @@ export async function handleOAuthCallback(
 
   const accessTokenToStore = metaContext?.accessToken ?? tokenResult.accessToken;
   const refreshTokenToStore = metaContext?.refreshToken ?? tokenResult.refreshToken;
-  const expiresAtToStore = metaContext?.expiresAt ?? tokenResult.expiresAt;
+  // Meta: the stored token is a Page token derived from a long-lived user token - it has no expiry
+  // (null), which also keeps refreshAllExpiringTokens from pointlessly "refreshing" it.
+  const expiresAtToStore = metaContext ? null : tokenResult.expiresAt;
 
   const encryptedAccessToken = encrypt(accessTokenToStore);
   const encryptedRefreshToken = refreshTokenToStore
@@ -993,7 +1046,16 @@ export async function handleOAuthCallback(
         },
       })
     : await (async () => {
-        await assertSocialAccountsLimit(ownerId);
+        try {
+          await assertSocialAccountsLimit(ownerId);
+        } catch (error) {
+          // Only the plan-limit message is meant for the user - anything else (DB errors...) stays
+          // internal and ends up as the generic callback message.
+          if (error instanceof Error && error.message.startsWith('Przekroczono limit planu')) {
+            throw new OAuthUserFacingError(`${error.message} Odłącz nieużywane konto albo zmień plan.`);
+          }
+          throw error;
+        }
         return prisma.socialAccount.create({
           data: {
             userId: ownerId,
@@ -1047,6 +1109,7 @@ export async function refreshSocialAccessToken(accountId: string) {
       platform: true,
       accessToken: true,
       refreshToken: true,
+      externalId: true,
     },
   });
 
@@ -1055,7 +1118,6 @@ export async function refreshSocialAccessToken(accountId: string) {
   }
 
   const decryptedRefreshToken = decryptToken(account.refreshToken);
-  const decryptedAccessToken = decryptToken(account.accessToken);
 
   const tokenResult = await (
     account.platform === 'YOUTUBE'
@@ -1076,19 +1138,19 @@ export async function refreshSocialAccessToken(accountId: string) {
           })()
         : account.platform === 'FACEBOOK'
           ? (() => {
-              if (!decryptedAccessToken) {
-                throw new Error('Brak access token dla konta social');
+              if (!decryptedRefreshToken) {
+                throw new Error('Brak refresh token dla konta social');
               }
 
-              return refreshMetaToken(decryptedAccessToken, 'facebook');
+              return refreshMetaToken(decryptedRefreshToken, 'facebook', account.externalId);
             })()
           : account.platform === 'INSTAGRAM'
             ? (() => {
-                if (!decryptedAccessToken) {
-                  throw new Error('Brak access token dla konta social');
+                if (!decryptedRefreshToken) {
+                  throw new Error('Brak refresh token dla konta social');
                 }
 
-                return refreshMetaToken(decryptedAccessToken, 'instagram');
+                return refreshMetaToken(decryptedRefreshToken, 'instagram', account.externalId);
               })()
             : account.platform === 'LINKEDIN'
               ? (() => {
@@ -1118,7 +1180,9 @@ export async function refreshSocialAccessToken(accountId: string) {
     data: {
       accessToken: encryptedAccessToken,
       refreshToken: encryptedRefreshToken,
-      expiresAt: tokenResult.expiresAt,
+      // null (not undefined, which Prisma would skip) for Meta's non-expiring Page tokens, so a
+      // stale past expiresAt doesn't keep re-triggering this refresh on every run.
+      expiresAt: tokenResult.expiresAt ?? null,
     },
   });
 

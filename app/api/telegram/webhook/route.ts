@@ -85,6 +85,21 @@ export const maxDuration = 60;
 const START_COMMAND_PATTERN = /^\/start(?:@\w+)?\s+(\S+)/i;
 const VALID_TOGGLE_PLATFORMS = ['YOUTUBE', 'TIKTOK', 'INSTAGRAM', 'FACEBOOK', 'LINKEDIN'];
 
+// TikTok never publishes from Telegram (2026-09-30, TikTok audit rejection ref 20260913074631):
+// its required flow (creator nickname, manual privacy pick, interaction opt-ins, commercial content
+// disclosure, the Music Usage declaration next to the Publish button) only exists in the web
+// composer, and enqueueDraftGroup refuses TikTok without that consent. Every Telegram publish /
+// schedule path drops TikTok from its targets and keeps its DRAFT for the web composer, so the
+// other platforms still go out instead of the whole group failing.
+const TIKTOK_WEB_ONLY_NOTE =
+  'ℹ️ TikTok nie jest publikowany z Telegrama - dokończ go w panelu Postfly (Nowy post → wznów szkic), gdzie wybierzesz prywatność i potwierdzisz zgodę TikToka.';
+
+function telegramTargetPlatforms(jobs: Array<{ excludedFromPublish: boolean; socialAccount: { platform: string } }>) {
+  return jobs
+    .filter((job) => !job.excludedFromPublish && job.socialAccount.platform !== 'TIKTOK')
+    .map((job) => job.socialAccount.platform);
+}
+
 type PreviewJob = {
   socialAccount: { platform: string };
   excludedFromPublish: boolean;
@@ -394,15 +409,16 @@ async function handleIncomingMedia(
         );
 
         if (optimalResult.skippedPlatforms.length > 0) {
+          // TikTok already got the web-only note above; only the rest needs Telegram buttons.
           const remainingJobs = await prisma.publishJob.findMany({
-            where: { postGroupId: draftResult.postGroupId, status: 'DRAFT' },
+            where: { postGroupId: draftResult.postGroupId, status: 'DRAFT', socialAccount: { platform: { not: 'TIKTOK' } } },
             include: { socialAccount: true, video: true },
           });
 
           if (remainingJobs.length > 0) {
             await sendTelegramMessageWithButtons(
               chatIdStr,
-              `⚠️ ${optimalResult.skippedPlatforms.join(', ')} wymaga ręcznej akceptacji (autopilot to pominął):\n\n${buildPreviewMessage(remainingJobs)}`,
+              `⚠️ ${optimalResult.skippedPlatforms.filter((platform) => platform !== 'TIKTOK').join(', ')} wymaga ręcznej akceptacji (autopilot to pominął):\n\n${buildPreviewMessage(remainingJobs)}`,
               buildPreviewButtons(draftResult.postGroupId, remainingJobs),
             ).catch((error) => logError('telegram', 'send-autopilot-remainder-failed', error, { chatId: chatIdStr }));
           }
@@ -548,7 +564,7 @@ async function handleScheduleReply(chatIdStr: string, userId: string, postGroupI
     return;
   }
 
-  const targetPlatforms = draftJobs.filter((job) => !job.excludedFromPublish).map((job) => job.socialAccount.platform);
+  const targetPlatforms = telegramTargetPlatforms(draftJobs);
 
   if (targetPlatforms.length === 0) {
     await sendTelegramMessage(chatIdStr, 'Wszystkie platformy odznaczone - nie ma czego zaplanować.').catch((error) =>
@@ -561,8 +577,8 @@ async function handleScheduleReply(chatIdStr: string, userId: string, postGroupI
     postGroupId,
     publishNow: false,
     scheduledDate: parsedDate.toISOString(),
-    tiktokPostingConsent: targetPlatforms.includes('TIKTOK'),
     targetPlatforms,
+    preserveAsDraftPlatforms: ['TIKTOK'],
   });
 
   if (!result.ok) {
@@ -1197,6 +1213,11 @@ async function handleCallbackQuery(update: NonNullable<TelegramUpdate['callback_
       return;
     }
 
+    if (toggleTarget === 'TIKTOK' && targetJob.excludedFromPublish) {
+      await answerTelegramCallbackQuery(update.id, 'TikTok dokończysz w panelu Postfly - tu go nie włączysz.').catch(() => {});
+      return;
+    }
+
     const toggled = await prisma.publishJob.update({
       where: { id: targetJob.id },
       data: { excludedFromPublish: !targetJob.excludedFromPublish },
@@ -1348,16 +1369,28 @@ async function handleCallbackQuery(update: NonNullable<TelegramUpdate['callback_
       logError('telegram', 'edit-message-scheduleoptimal-failed', error, { chatId: chatIdStr }),
     );
 
-    if (result.skippedPlatforms.length > 0) {
+    if (result.skippedPlatforms.includes('TIKTOK')) {
+      await sendTelegramMessage(chatIdStr, TIKTOK_WEB_ONLY_NOTE).catch((error) =>
+        logError('telegram', 'send-scheduleoptimal-tiktok-note-failed', error, { chatId: chatIdStr }),
+      );
+    }
+
+    const skippedNonTikTok = result.skippedPlatforms.filter((platform) => platform !== 'TIKTOK');
+    if (skippedNonTikTok.length > 0) {
       const remainingJobs = await prisma.publishJob.findMany({
-        where: { postGroupId, status: 'DRAFT', video: { userId: linkedUser.id } },
+        where: {
+          postGroupId,
+          status: 'DRAFT',
+          video: { userId: linkedUser.id },
+          socialAccount: { platform: { not: 'TIKTOK' } },
+        },
         include: { socialAccount: true, video: true },
       });
 
       if (remainingJobs.length > 0) {
         await sendTelegramMessageWithButtons(
           chatIdStr,
-          `⚠️ ${result.skippedPlatforms.join(', ')} wymaga ręcznej akceptacji:\n\n${buildPreviewMessage(remainingJobs)}`,
+          `⚠️ ${skippedNonTikTok.join(', ')} wymaga ręcznej akceptacji:\n\n${buildPreviewMessage(remainingJobs)}`,
           buildPreviewButtons(postGroupId, remainingJobs),
         ).catch((error) => logError('telegram', 'send-scheduleoptimal-remainder-failed', error, { chatId: chatIdStr }));
       }
@@ -1371,7 +1404,7 @@ async function handleCallbackQuery(update: NonNullable<TelegramUpdate['callback_
       where: { postGroupId, status: 'DRAFT', video: { userId: linkedUser.id } },
       include: { socialAccount: true },
     });
-    const targetPlatforms = draftJobs.filter((job) => !job.excludedFromPublish).map((job) => job.socialAccount.platform);
+    const targetPlatforms = telegramTargetPlatforms(draftJobs);
 
     if (targetPlatforms.length === 0) {
       await answerTelegramCallbackQuery(update.id, 'Wszystkie platformy odznaczone - nie ma czego opublikować.').catch(() => {});
@@ -1389,8 +1422,8 @@ async function handleCallbackQuery(update: NonNullable<TelegramUpdate['callback_
     const result = await enqueueDraftGroup(linkedUser.id, {
       postGroupId,
       publishNow: true,
-      tiktokPostingConsent: targetPlatforms.includes('TIKTOK'),
       targetPlatforms,
+      preserveAsDraftPlatforms: ['TIKTOK'],
     });
 
     if (!result.ok) {

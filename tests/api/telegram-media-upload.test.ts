@@ -521,8 +521,10 @@ describe('POST /api/telegram/webhook — 🎯 Zaplanuj optymalnie button', () =>
     expect(updatedIg.scheduledFor.toISOString()).toBe('2026-09-20T19:00:00.000Z');
 
     expect(mockEditTelegramMessage).toHaveBeenCalledWith(chatId, 61, expect.stringContaining('🤖 Autopilot'));
-    expect(mockSendTelegramMessageWithButtons).toHaveBeenCalledTimes(1);
-    expect(mockSendTelegramMessageWithButtons.mock.calls[0][1]).toContain('TIKTOK wymaga ręcznej akceptacji');
+    // 2026-09-30 (TikTok audit guideline 5c): TikTok is never published from Telegram, so it gets
+    // the "finish it in the web composer" note instead of Publish buttons that couldn't send it.
+    expect(mockSendTelegramMessageWithButtons).not.toHaveBeenCalled();
+    expect(mockSendTelegramMessage).toHaveBeenCalledWith(chatId, expect.stringContaining('TikTok nie jest publikowany z Telegrama'));
 
     const tkStillDraft = await prisma.publishJob.findFirstOrThrow({ where: { postGroupId, socialAccount: { platform: 'TIKTOK' } } });
     expect(tkStillDraft.status).toBe('DRAFT');

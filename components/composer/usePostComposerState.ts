@@ -176,6 +176,9 @@ const AUTOSAVE_DEBOUNCE_MS = 700;
 export function usePostComposerState() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const debounceTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  // Debounced edits not yet sent, per job - merged into an immediate save (saveJobFieldNow) instead
+  // of being dropped when that save cancels the debounce timer.
+  const pendingPatches = useRef<Map<string, Record<string, unknown>>>(new Map());
 
   const loadGateData = useCallback(async () => {
     try {
@@ -199,8 +202,16 @@ export function usePostComposerState() {
   }, [loadGateData]);
 
   const resumeGroup = useCallback(() => {
+    const tiktokJob = state.resumeCandidate?.jobs.find((job) => job.socialAccount.platform === 'TIKTOK');
     dispatch({ type: 'RESUME_GROUP' });
-  }, []);
+
+    // A declaration ticked in an earlier session isn't consent to publish now (TikTok guideline
+    // 5c) - the resumed draft starts with it unticked, locally and on the server.
+    if (tiktokJob?.tiktokConsentAt) {
+      dispatch({ type: 'UPDATE_JOB', jobId: tiktokJob.id, patch: { tiktokConsentAt: null } });
+      apiClient.patch(`/publish-jobs/drafts/${tiktokJob.id}`, { tiktokConsent: false }).catch(() => null);
+    }
+  }, [state.resumeCandidate]);
 
   const discardResume = useCallback(async () => {
     const candidate = state.resumeCandidate;
@@ -294,28 +305,72 @@ export function usePostComposerState() {
       clearTimeout(existingTimer);
     }
 
+    const pending = { ...(pendingPatches.current.get(jobId) ?? {}), ...patch };
+    pendingPatches.current.set(jobId, pending);
+
     const timer = setTimeout(() => {
-      apiClient.patch(`/publish-jobs/drafts/${jobId}`, patch).catch(() => {
-        toast.error('Nie udało się zapisać zmian. Spróbuj ponownie.');
-      });
+      pendingPatches.current.delete(jobId);
       debounceTimers.current.delete(jobId);
+      apiClient
+        .patch<DraftJob>(`/publish-jobs/drafts/${jobId}`, pending)
+        // The server may clear fields as a side effect (e.g. a TikTok edit voids the earlier
+        // consent tick) - reflect that without overwriting what the user typed meanwhile.
+        .then((response) => {
+          if (response.data && 'tiktokConsentAt' in response.data) {
+            dispatch({ type: 'UPDATE_JOB', jobId, patch: { tiktokConsentAt: response.data.tiktokConsentAt } });
+          }
+        })
+        .catch(() => {
+          toast.error('Nie udało się zapisać zmian. Spróbuj ponownie.');
+        });
     }, AUTOSAVE_DEBOUNCE_MS);
 
     debounceTimers.current.set(jobId, timer);
   }, []);
 
+  const jobsRef = useRef(state.jobs);
+  jobsRef.current = state.jobs;
+
   const saveJobFieldNow = useCallback(async (jobId: string, patch: Record<string, unknown>) => {
-    dispatch({ type: 'UPDATE_JOB', jobId, patch: patch as Partial<DraftJob> });
+    const previous = jobsRef.current.find((job) => job.id === jobId);
+    // `tiktokConsent` is a write-only flag - the job itself carries tiktokConsentAt.
+    const optimisticPatch: Record<string, unknown> =
+      'tiktokConsent' in patch
+        ? { ...patch, tiktokConsentAt: patch.tiktokConsent ? new Date().toISOString() : null }
+        : patch;
+    dispatch({ type: 'UPDATE_JOB', jobId, patch: optimisticPatch as Partial<DraftJob> });
 
     const existingTimer = debounceTimers.current.get(jobId);
     if (existingTimer) {
       clearTimeout(existingTimer);
       debounceTimers.current.delete(jobId);
     }
+    // Send any not-yet-saved debounced edit (e.g. a caption typed right before this click) along.
+    const pending = pendingPatches.current.get(jobId);
+    pendingPatches.current.delete(jobId);
 
-    const response = await apiClient.patch<DraftJob>(`/publish-jobs/drafts/${jobId}`, patch);
-    dispatch({ type: 'UPDATE_JOB', jobId, patch: response.data });
-    return response.data;
+    try {
+      const response = await apiClient.patch<DraftJob>(`/publish-jobs/drafts/${jobId}`, { ...(pending ?? {}), ...patch });
+      dispatch({ type: 'UPDATE_JOB', jobId, patch: response.data });
+      return response.data;
+    } catch (error) {
+      // Roll back only the keys this call changed - otherwise a rejected change (e.g. Branded
+      // Content with "Only me") would keep showing as selected, while a whole-job snapshot would
+      // also wipe unrelated edits made while the request was in flight.
+      if (previous) {
+        const rollback: Record<string, unknown> = {};
+        for (const key of Object.keys(optimisticPatch)) {
+          if (key in previous) {
+            rollback[key] = (previous as Record<string, unknown>)[key];
+          }
+        }
+        dispatch({ type: 'UPDATE_JOB', jobId, patch: rollback as Partial<DraftJob> });
+      }
+      if (pending) {
+        pendingPatches.current.set(jobId, { ...pending, ...(pendingPatches.current.get(jobId) ?? {}) });
+      }
+      throw error;
+    }
   }, []);
 
   const regenerateJob = useCallback(async (jobId: string) => {

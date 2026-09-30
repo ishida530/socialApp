@@ -6,7 +6,8 @@ import { NextRequest } from 'next/server';
 // the web composer or by the Telegram bot (which has no settings UI of its own) - inherits them
 // instead of a hardcoded default every time.
 
-vi.mock('@/lib/server/tiktok-creator-info', () => ({
+vi.mock('@/lib/server/tiktok-creator-info', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/server/tiktok-creator-info')>()),
   fetchTikTokCreatorInfo: vi.fn().mockResolvedValue({
     privacy_level_options: ['SELF_ONLY', 'PUBLIC_TO_EVERYONE'],
     duet_disabled: false,
