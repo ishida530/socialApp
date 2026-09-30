@@ -2,51 +2,49 @@
 
 Poprzedni wniosek (ref. `20260913074631`) został odrzucony z powodu niezgodności z
 [Content Sharing Guidelines](https://developers.tiktok.com/doc/content-sharing-guidelines).
-Kod jest już poprawiony: zobacz gałąź `fix/tiktok-audit-compliance-and-oauth` i tabelę
-„Gdzie to jest w kodzie” niżej. Ten dokument zbiera **wszystko, czego nie da się zrobić kodem**.
-Przejdź przez to w podanej kolejności, zanim wyślesz wniosek ponownie.
+Kod jest poprawiony i wdrożony na `postfly.pl` (PR #120). Scenariusz nagrania z gotowymi
+angielskimi napisami jest w [tiktok-demo-nagranie.md](tiktok-demo-nagranie.md).
+
+Stan na 2026-09-30: ✅ zrobione, ⏳ wymaga Twojej decyzji albo logowania na Twoje konto.
 
 ## 1. Konfiguracja produkcji (Vercel)
 
-- [ ] `APP_MODE=commercial` i `NEXT_PUBLIC_APP_MODE=commercial`. W trybie `personal` rejestracja
-      jest zamknięta po pierwszym koncie. Narusza to punkt „Intended Use” TikToka („must not be limited
-      to internal/private use”), a recenzent nie założy konta testowego.
-- [ ] Własna domena zamiast `*.vercel.app`, np. `postfly.pl`. `FRONTEND_URL`, wszystkie
-      `*_REDIRECT_URI` i domena, pod którą użytkownik się loguje, muszą być **identyczne**.
-      Inaczej ciasteczko PKCE TikToka i sesja giną po powrocie z logowania.
-- [ ] Na stronie głównej, bez otwierania menu, widoczne są linki do `/privacy` i `/terms`.
-      Strona musi wyglądać na gotowy produkt, a nie sam ekran logowania.
-- [ ] (Zalecane) QStash (`QSTASH_TOKEN` i klucze podpisu). Sprawdzanie statusu TikToka działa wtedy
-      co minutę także przy zamkniętym panelu. Bez QStash status odświeża się tylko, gdy ekran
-      statusu jest otwarty, a w pozostałych przypadkach dopiero przez dobowy cron.
-- [ ] Po wdrożeniu wykonaj pełną ścieżkę na produkcji: rejestracja nowego konta → podłączenie TikToka →
-      publikacja. Na nagraniu nie może być żadnego błędu.
+- ⏳ `APP_MODE=commercial` i `NEXT_PUBLIC_APP_MODE=commercial`. W trybie `personal` rejestracja jest
+  zamknięta po pierwszym koncie (`/api/auth/register-status` → `{"open":false}`), a recenzent nie
+  założy konta. **Najpierw** trzeba podnieść istniejące konta do planu BUSINESS, bo w trybie
+  `commercial` Twoje konto spadnie do FREE (1 kanał, 3 posty/mies.). Nowi użytkownicy dostają 7 dni
+  PRO. Automatyczny tryb uprawnień zablokował tę zmianę na produkcyjnej bazie, więc potrzebna jest
+  Twoja zgoda.
+- ✅ Domena `postfly.pl`: `FRONTEND_URL` i wszystkie `*_REDIRECT_URI` są spójne.
+- ✅ Linki `/terms` i `/privacy` są w stopce strony głównej.
+- ✅ QStash jest skonfigurowany. Status TikToka sprawdza się co minutę, a ekran statusu dodatkowo
+  odświeża go na żywo.
+- ✅ Zablokowana migracja produkcyjna (P3009) jest naprawiona, deploy działa.
 
-## 2. TikTok Developer Portal
+## 2. TikTok Developer Portal (wymaga logowania na Twoje konto deweloperskie)
 
-- [ ] **Manage URL properties**: zweryfikuj domenę z `FRONTEND_URL`. Stąd TikTok pobiera wideo
-      (`PULL_FROM_URL`, podpisane linki `/api/videos/.../source`). Bez weryfikacji publikacja się nie uda.
-- [ ] Redirect URI: `https://<domena>/api/auth/callback/tiktok` (HTTPS, bez localhost).
-- [ ] Nazwa i ikona aplikacji **nie mogą** nawiązywać do TikToka ani innych serwisów społecznościowych.
-- [ ] Zakresy (scopes): zostaw tylko te, których aplikacja używa, i pokaż każdy na nagraniu:
-  - `user.info.basic` / `user.info.profile`: nazwa i avatar konta po podłączeniu;
-  - `video.publish`: publikacja (Direct Post);
-  - `video.upload`: tylko jeśli jest używany. Postfly publikuje przez Direct Post z `PULL_FROM_URL`.
-    Jeśli nie korzystasz z „Upload to inbox”, **usuń go** z aplikacji i z `TIKTOK_OAUTH_SCOPES`;
-  - `user.info.stats` (ekran Wzrost, liczba obserwujących) i `video.list` (statystyki postów):
-    zostaw tylko, jeśli pokażesz te ekrany na nagraniu. W przeciwnym razie usuń.
+- ✅ Scope'y w aplikacji Postfly ograniczone do używanych: `user.info.basic`, `video.publish`,
+  `user.info.stats`, `video.list` (kod i `TIKTOK_OAUTH_SCOPES` w Vercelu). Usunięte:
+  `user.info.profile`, `video.upload`.
+- ⏳ W portalu (Products/Scopes) wyłącz `video.upload` i `user.info.profile`, jeśli są dodane, a we
+  wniosku zaznacz tylko 4 scope'y z punktu wyżej.
+- ⏳ **Manage URL properties**: zweryfikuj `https://postfly.pl/` (prefiks URL albo domena przez DNS
+  TXT). Stąd TikTok pobiera media (`PULL_FROM_URL`, `/api/videos/.../source`). Jeśli portal da plik
+  weryfikacyjny, wrzuć go do `public/` i zrób deploy, albo przekaż mi, a zrobię to ja.
+- ⏳ Sprawdź, czy Redirect URI to `https://postfly.pl/api/auth/callback/tiktok`, a „Website URL” to
+  `https://postfly.pl`.
+- ⏳ Nazwa i ikona aplikacji nie mogą nawiązywać do TikToka ani innych serwisów społecznościowych.
 
-## 3. Meta i Google (żeby nowi użytkownicy mogli się podłączyć bez błędów)
+## 3. Meta i Google (onboarding nowych użytkowników, niezależny od TikToka)
 
-- [ ] Meta for Developers: aplikacja w trybie **Live**, Advanced Access dla wszystkich uprawnień z
-      `FACEBOOK_OAUTH_SCOPES` / `INSTAGRAM_OAUTH_SCOPES`. Zwróć uwagę na
-      `pages_manage_engagement` i `instagram_manage_comments`, które doszły 14.09 i mogą nie być
-      jeszcze zatwierdzone. Bez zatwierdzenia nowy użytkownik dostanie błąd na ekranie zgody Facebooka.
-- [ ] Google Cloud Console (YouTube): ekran zgody OAuth w stanie **In production** i zweryfikowany
-      (`youtube.upload` to scope wrażliwy). W trybie „Testing” łączyć się mogą tylko dodani testerzy,
-      a tokeny wygasają po 7 dniach.
-- [ ] Konta Facebook/Instagram podłączone **przed** tą zmianą trzeba raz połączyć ponownie
-      („Połącz ponownie” w Konta social). Dopiero wtedy dostaną niewygasające tokeny stron.
+- ✅ Produkcyjne `FACEBOOK_OAUTH_SCOPES` / `INSTAGRAM_OAUTH_SCOPES` zawierają tylko uprawnienia
+  zatwierdzone w App Review (`docs/status-audytow-api.md`). Nowe (`pages_manage_engagement`,
+  `instagram_manage_comments`) nie są wymagane przy łączeniu. Dopóki nie przejdą App Review, bez nich
+  nie działają tylko odpowiedzi na komentarze.
+- ⏳ Meta for Developers: potwierdź, że aplikacja jest w trybie **Live**.
+- ⏳ Google Cloud Console (YouTube): ekran zgody OAuth w stanie **In production**.
+- ⏳ Konta Facebook/Instagram podłączone przed 30.09 połącz raz ponownie („Połącz ponownie” w Konta
+  social). Dopiero wtedy dostaną niewygasające tokeny stron.
 
 ## 4. Nagranie demo (najważniejsze)
 

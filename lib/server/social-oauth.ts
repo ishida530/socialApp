@@ -80,8 +80,17 @@ function requireAnyConfig(keys: string[]) {
   throw new Error(`Missing required config. Tried: ${keys.join(', ')}`);
 }
 
+// Only scopes the app actually uses (TikTok audit: "request only the scopes you use", 2026-09-30):
+//   user.info.basic - open_id + display_name on connect (fetchTikTokProfile)
+//   video.publish   - Direct Post (publish-processor)
+//   user.info.stats - follower_count (account-growth)
+//   video.list      - post metrics (post-metrics)
+// Not requested anymore: user.info.profile (no profile field is read) and video.upload (inbox
+// upload - Postfly only uses Direct Post).
+const DEFAULT_TIKTOK_SCOPES = 'user.info.basic,video.publish,user.info.stats,video.list';
+
 function resolveTikTokScope() {
-  const rawScope = process.env.TIKTOK_OAUTH_SCOPES || 'user.info.profile';
+  const rawScope = process.env.TIKTOK_OAUTH_SCOPES || DEFAULT_TIKTOK_SCOPES;
   const requiredScopeRaw = process.env.TIKTOK_OAUTH_REQUIRED_SCOPES || '';
 
   const scopes = rawScope
