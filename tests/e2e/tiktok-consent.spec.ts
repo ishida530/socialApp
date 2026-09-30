@@ -5,13 +5,12 @@ import { TOKEN_COOKIE_NAME } from '@/lib/server/auth';
 import { createTestUser, createSocialAccount, createVideo, createDraftJob, deleteTestUser } from '@/tests/helpers/fixtures';
 import { BASE_URL } from './helpers';
 
-// Regression test for UX_AUDIT.md finding #2 (sekcja 7, Krok 2): the required TikTok
-// posting-consent checkbox lived inside TikTokSettingsPanel, which renders inside the
-// composer's scrollable per-platform tab content — on a long form it could end up below
-// the fold, right where the sticky Wstecz/Dalej footer starts. Fixed by moving the
-// checkbox out of that scrollable area entirely, into the always-visible footer
-// (components/PostComposer.tsx), rendered only when the TikTok tab is active.
-test('TikTok consent checkbox is not inside the scrollable tab content', async ({ page, context }) => {
+// TikTok Content Sharing Guidelines ("before the publish button there should be a declaration ...
+// 'By posting, you agree to TikTok's Music Usage Confirmation'"). History: UX_AUDIT.md finding #2
+// moved the consent checkbox out of the scrollable tab content into the review-step footer; the
+// 2026-09-30 audit rework (rejection ref 20260913074631) moved it to where TikTok requires it -
+// the final publish step, in the same block as, and directly above, the Publish button.
+test('TikTok declaration sits directly above the publish button, and publishing needs it', async ({ page, context }) => {
   const { user, token } = await createTestUser();
   const account = await createSocialAccount(user.id, 'TIKTOK');
   const video = await createVideo(user.id);
@@ -28,19 +27,20 @@ test('TikTok consent checkbox is not inside the scrollable tab content', async (
 
     // A DRAFT job already exists for this user, so the composer offers to resume it.
     await page.getByRole('button', { name: 'Wróć do posta' }).click();
+    await page.getByRole('button', { name: 'Dalej' }).click();
 
-    const consentText = 'Potwierdzam, że publikacja na TikTok';
-    await expect(page.getByText(consentText)).toBeVisible();
+    const declaration = page.getByText("By posting, you agree to TikTok's");
+    await expect(declaration).toBeVisible();
 
-    // The regression itself: the consent checkbox must NOT be a descendant of the
-    // scrollable per-platform content area.
-    const scrollableArea = page.locator('.overflow-y-auto');
-    await expect(scrollableArea.getByText(consentText)).toHaveCount(0);
+    const publishButton = page.getByRole('button', { name: 'Opublikuj teraz' });
+    await expect(publishButton).toBeVisible();
+    // Nothing chosen/consented yet -> publishing is not possible.
+    await expect(publishButton).toBeDisabled();
 
-    // And it must be visible without scrolling that area — a manual scrollIntoView
-    // would defeat the point of the fix, so check its bounding box directly instead.
-    const checkboxLabel = page.getByText(consentText).locator('..');
-    await expect(checkboxLabel).toBeInViewport();
+    // The declaration comes right before the button in the same publish block.
+    const declarationBox = await declaration.boundingBox();
+    const buttonBox = await publishButton.boundingBox();
+    expect(declarationBox && buttonBox && declarationBox.y < buttonBox.y).toBe(true);
   } finally {
     await prisma.publishJob.deleteMany({ where: { postGroupId } });
     await prisma.video.delete({ where: { id: video.id } }).catch(() => {});
