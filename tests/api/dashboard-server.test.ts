@@ -92,8 +92,13 @@ describe('DashboardLayout (session gate before the loading boundary)', () => {
     cleanupUserId = user.id;
     cookieStore.set(TOKEN_COOKIE_NAME, token);
 
-    expect(await DashboardLayout({ children: 'content' })).toBe('content');
+    const element = (await DashboardLayout({ children: 'content' })) as {
+      props: { user: { userId: string }; children: unknown };
+    };
     expect(redirectMock).not.toHaveBeenCalled();
+    // Verified user handed to the client boundary, page content rendered inside it.
+    expect(element.props.user.userId).toBe(user.id);
+    expect(element.props.children).toBe('content');
   });
 });
 
@@ -114,8 +119,7 @@ describe('DashboardPage (Server Component)', () => {
     cookieStore.set(TOKEN_COOKIE_NAME, token);
 
     const element = await DashboardPage();
-    const children = (element as { props: { children: Array<{ props: Record<string, unknown> }> } }).props.children;
-    const dashboardProps = children[1].props;
+    const dashboardProps = (element as { props: Record<string, unknown> }).props;
 
     expect(redirectMock).not.toHaveBeenCalled();
     expect(dashboardProps.initialAnalytics).toMatchObject({ totals: { jobsCreated: 0 } });

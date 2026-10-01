@@ -8,6 +8,7 @@ import {
   useMemo,
   useState,
 } from 'react';
+import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
 
 type AuthUser = {
@@ -141,6 +142,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       logout,
     }),
     [isLoading, sessionError, retrySession, login, completeTwoFactorLogin, logout, register, user],
+  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+// Wraps pages whose session was already verified on the server (AuthenticatedLayout, 2026-10-01
+// performance phase 2). Inside it, useAuth() reports the user as authenticated right away instead
+// of isLoading=true until /api/auth/me answers - the existing pages' client-side session gates pass
+// immediately, so their data fetches start at hydration rather than one round trip later.
+// If the client-side check later says the session is gone (token expired, logout in another tab),
+// it redirects to /login, like the pages did on their own before.
+export function ServerSessionBoundary({ user, children }: { user: AuthUser; children: React.ReactNode }) {
+  const parent = useAuth();
+  const router = useRouter();
+  const sessionEnded = !parent.isLoading && !parent.user && !parent.sessionError;
+
+  useEffect(() => {
+    if (sessionEnded) {
+      router.replace('/login');
+    }
+  }, [sessionEnded, router]);
+
+  const value = useMemo<AuthContextValue>(
+    () => ({
+      ...parent,
+      user: parent.user ?? user,
+      isAuthenticated: !sessionEnded,
+      isLoading: false,
+      sessionError: false,
+    }),
+    [parent, user, sessionEnded],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
