@@ -82,21 +82,34 @@ function getNextPeriodStart(currentPeriodStart: Date) {
 // go through getSubscriptionSnapshot -> here) could both see "no existing subscription" and both
 // attempt to create one, tripping the unique constraint on userId. upsert closes the window: the
 // database itself resolves the race instead of two racing application-level reads.
+//
+// 2026-10-01: upsert alone did not close it - Prisma only runs a single native INSERT ... ON
+// CONFLICT for some upsert shapes; otherwise it is still read-then-create underneath, and CI caught
+// two concurrent calls failing with P2002 (Subscription_userId_key). Server-rendered pages now fire
+// several requests at once for a brand-new user, so the loser of that race re-reads the row the
+// winner just created instead of turning into a 500.
 export async function ensureUserSubscription(userId: string) {
   const periodStart = getCurrentPeriodStart();
 
-  return prisma.subscription.upsert({
-    where: { userId },
-    update: {},
-    create: {
-      userId,
-      provider: resolveBillingMode(),
-      plan: PlanTier.FREE,
-      status: SubscriptionStatus.ACTIVE,
-      currentPeriodStart: periodStart,
-      currentPeriodEnd: getNextPeriodStart(periodStart),
-    },
-  });
+  try {
+    return await prisma.subscription.upsert({
+      where: { userId },
+      update: {},
+      create: {
+        userId,
+        provider: resolveBillingMode(),
+        plan: PlanTier.FREE,
+        status: SubscriptionStatus.ACTIVE,
+        currentPeriodStart: periodStart,
+        currentPeriodEnd: getNextPeriodStart(periodStart),
+      },
+    });
+  } catch (error) {
+    if ((error as { code?: string })?.code === 'P2002') {
+      return prisma.subscription.findUniqueOrThrow({ where: { userId } });
+    }
+    throw error;
+  }
 }
 
 export async function getUserSubscription(userId: string) {

@@ -131,3 +131,19 @@ describe(`POST /api/publish-jobs/enqueue subscription limits (APP_MODE=${current
     }
   });
 });
+
+describe('ensureUserSubscription - concurrent first access', () => {
+  it('many concurrent calls for a brand-new user all resolve to the same single subscription', async () => {
+    const { ensureUserSubscription } = await import('@/lib/server/subscription');
+    const { prisma: db } = await import('@/lib/server/prisma');
+    const { createTestUser: makeUser, deleteTestUser: removeUser } = await import('../helpers/fixtures');
+    const { user } = await makeUser();
+    try {
+      const results = await Promise.all(Array.from({ length: 8 }, () => ensureUserSubscription(user.id)));
+      expect(new Set(results.map((row) => row.id)).size).toBe(1);
+      expect(await db.subscription.count({ where: { userId: user.id } })).toBe(1);
+    } finally {
+      await removeUser(user.id);
+    }
+  });
+});
