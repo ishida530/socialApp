@@ -485,6 +485,7 @@ type PublishInputJob = {
   title: string | null;
   tiktokSettings?: TikTokPublishSettings;
   metaPostFormat?: string | null;
+  youtubePrivacyStatus?: string | null;
 };
 
 async function publishToYouTube(job: PublishInputJob, accessToken: string): Promise<PublishTransportResult> {
@@ -498,7 +499,10 @@ async function publishToYouTube(job: PublishInputJob, accessToken: string): Prom
       categoryId: '22',
     },
     status: {
-      privacyStatus: 'public',
+      // The visibility the user picked in the composer (YouTube Developer Policies: identify and
+      // never silently change visibility). 'public' only for jobs approved outside the web
+      // composer (Telegram preview states it explicitly; autopilot is the user's own opt-in).
+      privacyStatus: job.youtubePrivacyStatus ?? 'public',
     },
   };
 
@@ -1479,6 +1483,7 @@ async function processClaimedJobCore(jobId: string) {
     title: job.title,
     tiktokSettings,
     metaPostFormat: job.metaPostFormat,
+    youtubePrivacyStatus: job.youtubePrivacyStatus,
   };
 
   try {

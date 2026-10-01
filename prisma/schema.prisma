@@ -335,6 +335,11 @@ model PublishJob {
   tiktokBrandOrganic      Boolean?
   tiktokBrandedContent    Boolean?
   metaPostFormat  String?
+  // YouTube API Services Developer Policies (2026-10-01): the user chooses the video's visibility
+  // ("public" | "unlisted" | "private") in the web composer - the client must clearly identify the
+  // visibility it sets. Null = not chosen in the web composer (Telegram/autopilot paths), where
+  // "public" is used and stated explicitly in the Telegram preview.
+  youtubePrivacyStatus String?
   // Telegram-only: per-platform toggle on the preview message's inline keyboard, before the
   // final Publikuj tap. Not exposed in the web composer (that has its own platform checkboxes
   // in ScheduleStep that act immediately, no separate "excluded" state to persist).

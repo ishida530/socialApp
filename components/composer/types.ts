@@ -25,6 +25,7 @@ export type DraftJob = {
   tiktokBrandOrganic: boolean | null;
   tiktokBrandedContent: boolean | null;
   metaPostFormat: string | null;
+  youtubePrivacyStatus: string | null;
   scheduledFor: string;
   publishedAt: string | null;
   remotePostId: string | null;
@@ -89,3 +90,11 @@ export const TIKTOK_PRIVACY_LABEL: Record<string, string> = {
 
 export const TIKTOK_MUSIC_USAGE_URL = 'https://www.tiktok.com/legal/page/global/music-usage-confirmation/en';
 export const TIKTOK_BRANDED_CONTENT_POLICY_URL = 'https://www.tiktok.com/legal/page/global/bc-policy/en';
+
+export const YOUTUBE_PRIVACY_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: 'public', label: 'Publiczny (Public)' },
+  { value: 'unlisted', label: 'Niepubliczny (Unlisted)' },
+  { value: 'private', label: 'Prywatny (Private)' },
+];
+
+export const YOUTUBE_TERMS_URL = 'https://www.youtube.com/t/terms';

@@ -23,7 +23,7 @@ export default function TermsPage() {
         <p className="mt-6 text-sm text-muted-foreground">
           Niniejszy Regulamin określa zasady korzystania z aplikacji Postfly.
         </p>
-        <p className="mt-2 text-sm text-muted-foreground">Data ostatniej aktualizacji: 15 września 2026 r.</p>
+        <p className="mt-2 text-sm text-muted-foreground">Data ostatniej aktualizacji: 1 października 2026 r.</p>
 
         <section className="mt-8 space-y-4 text-sm leading-6 text-muted-foreground">
           <h2 className="text-base font-semibold text-foreground">1. Postanowienia ogólne</h2>
@@ -58,6 +58,44 @@ export default function TermsPage() {
             Użytkownik może w każdej chwili cofnąć uprawnienia dla Postfly bezpośrednio w ustawieniach swojego
             konta danej platformy. Użytkownik może opcjonalnie połączyć konto z botem Postfly w serwisie
             Telegram, żeby zarządzać publikacjami i otrzymywać powiadomienia z poziomu czatu.
+          </p>
+          <p>
+            Postfly korzysta z usług YouTube API (YouTube API Services). Korzystając z funkcji YouTube w Postfly
+            (połączenie kanału, publikacja filmów), Użytkownik zgadza się na związanie{' '}
+            <a href="https://www.youtube.com/t/terms" target="_blank" rel="noopener noreferrer" className="text-primary underline">
+              Warunkami korzystania z YouTube (YouTube Terms of Service)
+            </a>
+            . Przetwarzanie danych z YouTube opisuje{' '}
+            <a href="/privacy" className="text-primary underline">
+              Polityka prywatności
+            </a>{' '}
+            (punkt 14), z odwołaniem do{' '}
+            <a href="http://www.google.com/policies/privacy" target="_blank" rel="noopener noreferrer" className="text-primary underline">
+              Polityki prywatności Google
+            </a>
+            . Publikując na TikToku, Użytkownik akceptuje{' '}
+            <a
+              href="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary underline"
+            >
+              TikTok Music Usage Confirmation
+            </a>{' '}
+            (a przy treściach sponsorowanych także{' '}
+            <a
+              href="https://www.tiktok.com/legal/page/global/bc-policy/en"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary underline"
+            >
+              TikTok Branded Content Policy
+            </a>
+            ). Postfly nie dodaje do publikowanych treści znaków wodnych ani własnego brandingu.
+          </p>
+          <p lang="en">
+            By using the YouTube features of Postfly, users agree to be bound by the YouTube Terms of Service
+            (https://www.youtube.com/t/terms).
           </p>
 
           <h2 className="text-base font-semibold text-foreground">5. Treści i odpowiedzialność</h2>

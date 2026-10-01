@@ -6,6 +6,8 @@ import {
   PLATFORM_LABEL,
   TIKTOK_BRANDED_CONTENT_POLICY_URL,
   TIKTOK_MUSIC_USAGE_URL,
+  YOUTUBE_PRIVACY_OPTIONS,
+  YOUTUBE_TERMS_URL,
 } from './types';
 import type { DraftJob, Platform } from './types';
 import { useTikTokCreatorInfo } from './useTikTokCreatorInfo';
@@ -108,13 +110,47 @@ export function ScheduleStep({
                     : null;
   const tiktokReady = tiktokBlockReason === null;
 
-  const canPublishNow = selectedPlatforms.size > 0 && tiktokReady;
+  // YouTube API Services Developer Policies (2026-10-01): the user has final control over what is
+  // published - an explicitly chosen visibility (no default) and the exact title/description that
+  // will be sent, shown here before Publish.
+  const youtubeJob = jobs.find((job) => job.socialAccount.platform === 'YOUTUBE');
+  const youtubeSelected = selectedPlatforms.has('YOUTUBE') && Boolean(youtubeJob);
+  const youtubeTitle = youtubeJob?.title?.trim() ?? '';
+  const youtubeDescription = youtubeJob
+    ? [youtubeJob.caption, youtubeJob.hashtags.map((tag) => `#${tag}`).join(' ')].filter(Boolean).join('\n\n')
+    : '';
+  const youtubeBlockReason: string | null = !youtubeSelected
+    ? null
+    : !youtubeTitle
+      ? 'Uzupełnij tytuł filmu YouTube w kroku przeglądu.'
+      : !youtubeJob?.youtubePrivacyStatus
+        ? 'Wybierz widoczność filmu na YouTube.'
+        : null;
+  const [isSavingYoutube, setIsSavingYoutube] = useState(false);
+
+  const handleYoutubePrivacyChange = async (value: string) => {
+    if (!youtubeJob) {
+      return;
+    }
+    setIsSavingYoutube(true);
+    try {
+      await onSaveJobField(youtubeJob.id, { youtubePrivacyStatus: value });
+    } catch {
+      toast.error('Nie udało się zapisać widoczności YouTube.');
+    } finally {
+      setIsSavingYoutube(false);
+    }
+  };
+
+  const canPublishNow = selectedPlatforms.size > 0 && tiktokReady && youtubeBlockReason === null;
   const canSchedule = canPublishNow && Boolean(scheduledAt);
   const canSubmit = mode === 'now' ? canPublishNow : canSchedule;
   const submitBlockReason =
     selectedPlatforms.size === 0
       ? 'Wybierz co najmniej jedną platformę.'
-      : tiktokBlockReason ?? (mode === 'schedule' && !scheduledAt ? 'Wybierz termin publikacji.' : null);
+      : tiktokBlockReason ??
+        youtubeBlockReason ??
+        (mode === 'schedule' && !scheduledAt ? 'Wybierz termin publikacji.' : null);
 
   const brandedContent = tiktokJob?.tiktokBrandedContent === true;
   const previewVideo = (tiktokJob ?? jobs[0])?.video ?? null;
@@ -238,6 +274,48 @@ export function ScheduleStep({
               creator={tiktokCreator}
               onSaveNow={(patch) => onSaveJobField(tiktokJob.id, patch)}
             />
+          </div>
+        )}
+
+        {youtubeSelected && youtubeJob && (
+          <div className="rounded-2xl border border-border bg-secondary/20 p-3 space-y-3">
+            <p className="text-sm font-medium text-foreground">Publikacja na YouTube (YouTube upload)</p>
+            <div className="rounded-lg border border-border bg-background/40 p-2 text-xs text-foreground space-y-1">
+              <p>
+                <span className="text-muted-foreground">Tytuł (Title): </span>
+                {youtubeTitle || <span className="text-destructive">brak - uzupełnij w kroku przeglądu</span>}
+              </p>
+              <p className="text-muted-foreground">Opis (Description):</p>
+              <p className="whitespace-pre-wrap break-words line-clamp-6">{youtubeDescription}</p>
+            </div>
+            <div>
+              <label htmlFor={`youtube-privacy-${youtubeJob.id}`} className="text-xs text-muted-foreground mb-2 block">
+                Widoczność filmu (Visibility)
+              </label>
+              <select
+                id={`youtube-privacy-${youtubeJob.id}`}
+                value={youtubeJob.youtubePrivacyStatus ?? ''}
+                onChange={(event) => handleYoutubePrivacyChange(event.target.value)}
+                disabled={isSavingYoutube}
+                className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+              >
+                <option value="" disabled>
+                  -- wybierz (select) --
+                </option>
+                {YOUTUBE_PRIVACY_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Publikując na YouTube, akceptujesz{' '}
+              <a href={YOUTUBE_TERMS_URL} target="_blank" rel="noopener noreferrer" className="text-primary underline">
+                Warunki korzystania z YouTube (YouTube Terms of Service)
+              </a>
+              .
+            </p>
           </div>
         )}
       </div>

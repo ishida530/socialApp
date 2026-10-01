@@ -57,7 +57,7 @@ Scenariusz:
 
 1. Strona główna z linkami Privacy/Terms → **rejestracja nowego konta** (pokazuje, że aplikacja
    jest dla wielu niezależnych twórców).
-2. Konta social → „Połącz” przy TikToku → logowanie w oknie TikToka, ekran zgody ze scope'ami →
+2. Połączone konta → „Połącz” przy TikToku → logowanie w oknie TikToka, ekran zgody ze scope'ami →
    powrót, konto widoczne jako połączone.
 3. Nowy post → wgranie **własnego** wideo z dysku (autentyczna, oryginalna treść).
 4. Krok przeglądu, zakładka TikTok: edytowalny **Tytuł (Title)** i hashtagi (2a, 5b). Zmień coś

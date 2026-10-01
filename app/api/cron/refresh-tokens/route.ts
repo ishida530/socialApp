@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { refreshAllExpiringTokens } from '@/lib/server/social-oauth';
+import { purgeStaleYouTubeApiData } from '@/lib/server/youtube-data-retention';
 import { serverError, unauthorized } from '@/lib/server/http';
 
 export const dynamic = 'force-dynamic';
@@ -36,11 +37,14 @@ export async function GET(request: NextRequest) {
 
     const hoursAhead = resolveHoursAhead(request);
     const summary = await refreshAllExpiringTokens(hoursAhead);
+    // Daily, same sweep: YouTube API data older than 30 days (YouTube Developer Policies).
+    const youtubeRetention = await purgeStaleYouTubeApiData();
 
     return NextResponse.json({
       ok: true,
       hoursAhead,
       summary,
+      youtubeRetention,
       processedAt: new Date().toISOString(),
     });
   } catch (error) {

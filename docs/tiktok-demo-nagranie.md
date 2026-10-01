@@ -15,7 +15,7 @@ aplikacji brzmienie z wytycznych, a napisy mówią recenzentowi, na co patrzy.
 |---|---|---|
 | 1 | Otwórz `https://postfly.pl`, przewiń do stopki z linkami Regulamin/Polityka Prywatności. | Postfly is a web app for independent creators and small businesses to publish their own content to their own social accounts. Terms and Privacy Policy are linked on every page. |
 | 2 | „Zarejestruj się” → wypełnij formularz → konto utworzone. | Any creator can sign up for their own account. |
-| 3 | Menu „Konta social” → karta TikTok → „Połącz”. | The creator connects their own TikTok account with TikTok Login Kit. |
+| 3 | Menu „Połączone konta” → karta TikTok → „Połącz”. | The creator connects their own TikTok account with TikTok Login Kit. |
 | 4 | Okno TikToka: zaloguj się, pokaż listę uprawnień, zaakceptuj. Powrót, konto widoczne jako połączone. | Requested scopes: user.info.basic (account name), video.publish (Direct Post), user.info.stats (follower growth screen), video.list (post statistics). |
 | 5 | „Nowy post” → wgraj swój film z dysku. | The creator uploads their own original video from their device. |
 | 6 | Krok przeglądu, zakładka TikTok: zmień ręcznie **Tytuł (Title)** i dodaj/usuń hashtag. | The title and hashtags are fully editable before posting. |
@@ -31,7 +31,7 @@ aplikacji brzmienie z wytycznych, a napisy mówią recenzentowi, na co patrzy.
 | 16 | Pokaż informację pod przyciskiem i kliknij „Opublikuj teraz”. | Content is sent to TikTok only after this explicit action. Processing on TikTok may take a few minutes. |
 | 17 | Ekran statusu: „TikTok przetwarza publikację…” → sam zmienia się na „Opublikowano”. | The post status is polled from TikTok (publish/status/fetch) and shown to the creator. |
 | 18 | Aplikacja TikTok / tiktok.com: otwórz profil i pokaż opublikowany film. | The video is on the creator's profile, unchanged, with no watermark or branding added by Postfly. |
-| 19 | W Postfly: ekran „Wzrost” (liczba obserwujących TikTok) i statystyki posta. | user.info.stats and video.list power the follower growth and post statistics screens. |
+| 19 | W Postfly: ekran „Rozwój” (liczba obserwujących TikTok) i „Analityka” (statystyki postów). | user.info.stats and video.list power the follower growth and post statistics screens. |
 
 Wskazówki:
 - Nie przyspieszaj nagrania. Recenzent musi zdążyć przeczytać każdy komunikat.

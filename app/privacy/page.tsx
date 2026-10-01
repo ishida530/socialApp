@@ -23,7 +23,7 @@ export default function PrivacyPage() {
         <p className="mt-6 text-sm text-muted-foreground">
           Niniejsza Polityka Prywatności opisuje zasady przetwarzania danych w ramach serwisu Postfly.
         </p>
-        <p className="mt-2 text-sm text-muted-foreground">Data ostatniej aktualizacji: 15 września 2026 r.</p>
+        <p className="mt-2 text-sm text-muted-foreground">Data ostatniej aktualizacji: 1 października 2026 r.</p>
 
         <section className="mt-8 space-y-4 text-sm leading-6 text-muted-foreground">
           <h2 className="text-base font-semibold text-foreground">1. Administrator danych</h2>
@@ -137,7 +137,7 @@ export default function PrivacyPage() {
           <p>
             Zgodnie z RODO przysługuje Ci prawo do: dostępu do swoich danych, ich sprostowania, usunięcia, ograniczenia przetwarzania,
             przenoszenia danych, wniesienia sprzeciwu oraz wniesienia skargi do organu nadzorczego (Prezesa UODO).
-            Prawo dostępu i przenoszenia danych realizujemy dziś na żądanie mailowe (adres w punkcie 14) — przygotowujemy
+            Prawo dostępu i przenoszenia danych realizujemy dziś na żądanie mailowe (adres w punkcie 15) — przygotowujemy
             i przekazujemy kopię danych konta w ustrukturyzowanym formacie w terminie do 30 dni.
           </p>
 
@@ -148,7 +148,7 @@ export default function PrivacyPage() {
             i trwale kasuje dane konta, połączone konta social media wraz z tokenami dostępowymi, przesłane
             media oraz historię zadań publikacji; aktywna płatna subskrypcja jest przy tym anulowana.
             Alternatywnie można zażądać usunięcia konta, kontaktując się z administratorem pod adresem
-            e-mail wskazanym w punkcie 14 — takie żądanie realizujemy niezwłocznie, nie później niż w ciągu 30 dni.
+            e-mail wskazanym w punkcie 15 — takie żądanie realizujemy niezwłocznie, nie później niż w ciągu 30 dni.
           </p>
 
           <h2 className="text-base font-semibold text-foreground">11. Bezpieczeństwo danych</h2>
@@ -180,13 +180,110 @@ export default function PrivacyPage() {
             konta (punkt 10).
           </p>
 
-          <h2 className="text-base font-semibold text-foreground">14. Kontakt</h2>
+          <h2 className="text-base font-semibold text-foreground">
+            14. Dane z platform społecznościowych: Google/YouTube, TikTok, Meta (Platform data)
+          </h2>
+          <p>
+            <strong className="text-foreground">YouTube.</strong> Postfly korzysta z usług YouTube API (YouTube
+            API Services). Łącząc kanał YouTube, akceptujesz{' '}
+            <a href="https://www.youtube.com/t/terms" target="_blank" rel="noopener noreferrer" className="text-primary underline">
+              Warunki korzystania z YouTube
+            </a>{' '}
+            oraz{' '}
+            <a href="http://www.google.com/policies/privacy" target="_blank" rel="noopener noreferrer" className="text-primary underline">
+              Politykę prywatności Google
+            </a>
+            . Po połączeniu kanału Postfly otrzymuje i przechowuje (zaszyfrowane) tokeny OAuth, identyfikator i
+            nazwę kanału, a także statystyki kanału (liczba subskrybentów) i opublikowanych przez Postfly
+            filmów (wyświetlenia, polubienia, komentarze). Dane te służą wyłącznie do publikowania filmów, które
+            sam przygotujesz i zatwierdzisz (z wybranym przez Ciebie tytułem, opisem i widocznością), oraz do
+            pokazania Ci wyników Twoich publikacji. Nie udostępniamy ich osobom trzecim ani nie wykorzystujemy
+            do reklam. Statystyki YouTube są odświeżane lub usuwane najpóźniej po 30 dniach. Dostęp możesz
+            cofnąć w każdej chwili: w Postfly (Połączone konta → Rozłącz; token jest wtedy natychmiast odwoływany,
+            a dane z YouTube usuwane) lub na stronie ustawień bezpieczeństwa Google:{' '}
+            <a
+              href="https://security.google.com/settings/security/permissions"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary underline"
+            >
+              https://security.google.com/settings/security/permissions
+            </a>{' '}
+            (dane usuwamy wtedy najpóźniej w ciągu 30 dni). Usunięcia danych możesz też zażądać mailowo (punkt
+            15); realizujemy je w ciągu 7 dni.
+          </p>
+          <p>
+            <strong className="text-foreground">Google.</strong> Wykorzystanie i przekazywanie przez Postfly
+            informacji otrzymanych z interfejsów API Google jest zgodne z{' '}
+            <a
+              href="https://developers.google.com/terms/api-services-user-data-policy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary underline"
+            >
+              Google API Services User Data Policy
+            </a>
+            , w tym z wymogami Limited Use. Logowanie przez Google wykorzystuje wyłącznie adres e-mail, imię i
+            nazwisko oraz identyfikator konta Google w celu utworzenia konta i zalogowania.
+          </p>
+          <p>
+            <strong className="text-foreground">TikTok i Meta (Facebook, Instagram).</strong> Po połączeniu konta
+            przechowujemy zaszyfrowane tokeny OAuth, identyfikator i nazwę konta/Strony, statystyki konta
+            (liczba obserwujących) oraz statystyki opublikowanych przez Postfly postów. Treści publikujemy
+            wyłącznie po Twoim zatwierdzeniu, z ustawieniami, które wybierzesz. Rozłączenie konta w Postfly
+            usuwa jego tokeny i powiązane dane; TikTok odwołuje też dostęp aplikacji. Instrukcja usunięcia
+            danych dla Meta:{' '}
+            <a href="/data-deletion" className="text-primary underline">
+              postfly.pl/data-deletion
+            </a>
+            .
+          </p>
+          <p lang="en">
+            <strong className="text-foreground">English summary.</strong> Postfly uses YouTube API Services. By
+            connecting a YouTube channel you agree to the{' '}
+            <a href="https://www.youtube.com/t/terms" target="_blank" rel="noopener noreferrer" className="text-primary underline">
+              YouTube Terms of Service
+            </a>{' '}
+            and the{' '}
+            <a href="http://www.google.com/policies/privacy" target="_blank" rel="noopener noreferrer" className="text-primary underline">
+              Google Privacy Policy
+            </a>
+            . We store encrypted OAuth tokens, your channel ID/name and statistics of your channel and of videos
+            published through Postfly, used only to publish the videos you prepare and approve (title,
+            description and visibility chosen by you) and to show you their results. We never sell or share this
+            data or use it for advertising. YouTube statistics are refreshed or deleted within 30 days. You can
+            revoke access in Postfly (Connected accounts → Disconnect: the token is revoked immediately and YouTube
+            data deleted) or at{' '}
+            <a
+              href="https://security.google.com/settings/security/permissions"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary underline"
+            >
+              https://security.google.com/settings/security/permissions
+            </a>{' '}
+            (data deleted within 30 days); deletion requests by email are completed within 7 days. Postfly&apos;s
+            use and transfer of information received from Google APIs adheres to the{' '}
+            <a
+              href="https://developers.google.com/terms/api-services-user-data-policy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary underline"
+            >
+              Google API Services User Data Policy
+            </a>
+            , including the Limited Use requirements. TikTok and Meta data (tokens, account name, follower and post
+            statistics) is used only to publish content you approve and show you its results, and is deleted when
+            you disconnect the account. Contact: pawel.sawczuk.email@gmail.com.
+          </p>
+
+          <h2 className="text-base font-semibold text-foreground">15. Kontakt</h2>
           <p>
             W sprawach dotyczących prywatności możesz skontaktować się bezpośrednio z Administratorem:
             <strong className="text-foreground"> Paweł Sawczuk</strong>, e-mail: <strong className="text-foreground">pawel.sawczuk.email@gmail.com</strong>.
           </p>
 
-          <h2 className="text-base font-semibold text-foreground">15. Zmiany polityki prywatności</h2>
+          <h2 className="text-base font-semibold text-foreground">16. Zmiany polityki prywatności</h2>
           <p>
             Niniejsza polityka może być aktualizowana. Aktualna wersja jest zawsze dostępna pod tym adresem,
             a data ostatniej modyfikacji widnieje na początku dokumentu.
