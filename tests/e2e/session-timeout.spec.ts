@@ -1,47 +1,27 @@
 import { test, expect } from '@playwright/test';
-import { BASE_URL } from './helpers';
+import { deleteTestUser } from '@/tests/helpers/fixtures';
+import { BASE_URL, createAuthenticatedUser } from './helpers';
 
-// Regression test for UX_AUDIT.md finding #1 (sekcja 0): apiClient had no request
-// timeout, so a hung /auth/me request left every authenticated page stuck forever on
-// "Ładowanie sesji..." with no error and no way out. Fixed by adding a timeout to the
-// axios instance (lib/api-client.ts) and a sessionError + retrySession escape hatch in
-// AuthProvider (contexts/auth-context.tsx), surfaced as a "Spróbuj ponownie" button.
+// History: UX_AUDIT.md finding #1 - a hung /auth/me request left every authenticated page stuck
+// forever on "Ładowanie sesji...". Fixed then with an axios timeout + a retry button.
 //
-// 2026-10-01: /dashboard became a Server Component that checks the session on the server, so it no
-// longer depends on /auth/me at all (covered by the second test below). The client-side gate this
-// test protects is still used by the pages not migrated yet - /analytics is one of them.
-test('a hung /auth/me request surfaces a retryable error instead of hanging forever', async ({ page }) => {
-  test.setTimeout(60_000);
+// 2026-10-01 (performance phase 2): every authenticated section now checks the session on the
+// server (AuthenticatedLayout) and hands the verified user to the client (ServerSessionBoundary),
+// so no page depends on /auth/me to render at all anymore. These tests pin the stronger guarantee.
 
-  // Never call route.fulfill/continue/abort — the request hangs exactly like the real
-  // dev-server stalls observed during the audit, forcing the client-side axios timeout
-  // (not a fast server-side error) to be what resolves this.
-  let hang = true;
-  await page.route('**/api/auth/me', async (route) => {
-    if (hang) {
-      return; // intentionally never resolves this request
-    }
-    await route.fulfill({ status: 401, body: JSON.stringify({ message: 'Unauthorized' }) });
+test('a logged-in page renders even when /auth/me never answers', async ({ page, context }) => {
+  const user = await createAuthenticatedUser(context);
+  await page.route('**/api/auth/me', async () => {
+    // intentionally never resolves
   });
 
-  await page.goto(`${BASE_URL}/analytics`);
-
-  await expect(page.getByText('Ładowanie sesji...')).toBeVisible();
-
-  // The axios timeout is 15s (DEFAULT_REQUEST_TIMEOUT_MS); the margin covers dev-server
-  // (Fast Refresh) jitter on a cold route, not slack in the behavior under test. Note:
-  // Playwright's `trace` recording measurably interferes with a route that never
-  // resolves (observed 60s+ with tracing on vs. a steady ~17s with it off) — keep
-  // tracing disabled in playwright.config.ts for this suite.
-  await expect(page.getByText('Nie udało się połączyć z serwerem.')).toBeVisible({ timeout: 30_000 });
-  const retryButton = page.getByRole('button', { name: 'Spróbuj ponownie' });
-  await expect(retryButton).toBeVisible();
-
-  // Let the retry succeed (as a real, fast /auth/me response would) and confirm the
-  // app recovers — no longer stuck on the error screen.
-  hang = false;
-  await retryButton.click();
-  await page.waitForURL('**/login', { timeout: 10_000 });
+  try {
+    await page.goto(`${BASE_URL}/growth`);
+    await expect(page.getByRole('heading', { name: 'Rozwój konta' })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText('Ładowanie sesji...')).toHaveCount(0);
+  } finally {
+    await deleteTestUser(user.id);
+  }
 });
 
 test('a logged-out visit to /dashboard is redirected to /login on the server, without waiting for /auth/me', async ({ page }) => {
