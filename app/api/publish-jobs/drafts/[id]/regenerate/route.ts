@@ -5,6 +5,7 @@ import { badRequest, notFound, serverError, tooManyRequests, unauthorized } from
 import { consumeRateLimit } from '@/lib/server/rate-limit';
 import { generatePlatformBundles } from '@/lib/server/composer-drafts';
 import { collectContentWarnings } from '@/lib/server/content-safety';
+import { PUBLIC_SOCIAL_ACCOUNT_SELECT } from '@/lib/server/public-fields';
 
 export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
@@ -28,7 +29,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
         status: 'DRAFT',
         video: { userId: user.userId },
       },
-      include: { video: true, socialAccount: true },
+      include: { video: true, socialAccount: { select: PUBLIC_SOCIAL_ACCOUNT_SELECT } },
     });
 
     if (!job) {
@@ -55,7 +56,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
         title: bundle.title ?? null,
         contentWarnings: collectContentWarnings(bundle.caption, job.socialAccount.platform),
       },
-      include: { video: true, socialAccount: true },
+      include: { video: true, socialAccount: { select: PUBLIC_SOCIAL_ACCOUNT_SELECT } },
     });
 
     return NextResponse.json(updated);

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUserFromRequest } from '@/lib/server/auth';
 import { prisma } from '@/lib/server/prisma';
 import { serverError, unauthorized } from '@/lib/server/http';
+import { PUBLIC_SOCIAL_ACCOUNT_SELECT } from '@/lib/server/public-fields';
 
 export async function GET(request: NextRequest) {
   try {
@@ -9,6 +10,7 @@ export async function GET(request: NextRequest) {
     const accounts = await prisma.socialAccount.findMany({
       where: { userId: user.userId },
       orderBy: { createdAt: 'desc' },
+      select: PUBLIC_SOCIAL_ACCOUNT_SELECT,
     });
 
     return NextResponse.json(accounts);
