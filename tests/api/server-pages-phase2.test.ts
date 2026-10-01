@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 const cookieStore = new Map<string, string>();
 vi.mock('next/headers', () => ({
   cookies: async () => ({
+    getAll: () => Array.from(cookieStore, ([name, value]) => ({ name, value })),
     get: (name: string) => (cookieStore.has(name) ? { name, value: cookieStore.get(name)! } : undefined),
   }),
 }));

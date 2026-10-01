@@ -144,4 +144,27 @@ apiClient.interceptors.response.use(
   },
 );
 
+// Seeds GET responses the server already fetched for this page (lib/server/api-prefetch.ts via
+// components/ApiCacheSeed) - the page's own apiClient.get(url) calls then resolve from this cache
+// instead of the network. Same key and TTL as a regular cached GET without config. Browser only.
+export function seedApiCache(entries: Array<{ url: string; data: unknown }>) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const expiresAt = Date.now() + DEFAULT_GET_TTL_MS;
+  for (const entry of entries) {
+    responseCache.set(buildCacheKey(entry.url), {
+      response: {
+        data: entry.data,
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: { url: entry.url, method: 'get', headers: {} } as AxiosResponse['config'],
+      },
+      expiresAt,
+    });
+  }
+}
+
 export { clearApiCache };

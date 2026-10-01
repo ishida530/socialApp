@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 const cookieStore = new Map<string, string>();
 vi.mock('next/headers', () => ({
   cookies: async () => ({
+    getAll: () => Array.from(cookieStore, ([name, value]) => ({ name, value })),
     get: (name: string) => (cookieStore.has(name) ? { name, value: cookieStore.get(name)! } : undefined),
   }),
 }));
@@ -20,6 +21,7 @@ vi.mock('next/navigation', async (importOriginal) => ({
 }));
 
 const { default: DashboardPage } = await import('@/app/dashboard/page');
+const { AuthenticatedLayout } = await import('@/components/server/AuthenticatedLayout');
 const { default: DashboardLayout } = await import('@/app/dashboard/layout');
 const { getOnboardingProgress, getAnalyticsSummary } = await import('@/lib/server/dashboard-data');
 const { TOKEN_COOKIE_NAME } = await import('@/lib/server/auth');
@@ -82,23 +84,30 @@ describe('dashboard data', () => {
   });
 });
 
-describe('DashboardLayout (session gate before the loading boundary)', () => {
+describe('AuthenticatedLayout (session gate before the loading boundary)', () => {
   it('redirects a logged-out visitor before anything streams', async () => {
-    await expect(DashboardLayout({ children: null })).rejects.toThrow('NEXT_REDIRECT:/login');
+    await expect(AuthenticatedLayout({ children: null })).rejects.toThrow('NEXT_REDIRECT:/login');
   });
 
-  it('renders children for a valid session', async () => {
+  it('hands the verified user to the client boundary and renders the page inside it', async () => {
     const { user, token } = await createTestUser();
     cleanupUserId = user.id;
     cookieStore.set(TOKEN_COOKIE_NAME, token);
 
-    const element = (await DashboardLayout({ children: 'content' })) as {
-      props: { user: { userId: string }; children: unknown };
+    const element = (await AuthenticatedLayout({ children: 'content' })) as {
+      props: { user: { userId: string }; children: Array<unknown> };
     };
     expect(redirectMock).not.toHaveBeenCalled();
-    // Verified user handed to the client boundary, page content rendered inside it.
     expect(element.props.user.userId).toBe(user.id);
-    expect(element.props.children).toBe('content');
+    // [ApiCacheSeed with the prefetched entries, page content]
+    expect(element.props.children[1]).toBe('content');
+  });
+
+  it('the dashboard section layout wires its mount-time API calls into the prefetch', () => {
+    const element = DashboardLayout({ children: 'content' }) as { props: { prefetch: string[] } };
+    expect(element.props.prefetch).toEqual(
+      expect.arrayContaining(['/social-accounts', '/activity?limit=8&offset=0', '/jobs?limit=50&offset=0']),
+    );
   });
 });
 

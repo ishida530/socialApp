@@ -1,6 +1,11 @@
 import { AuthenticatedLayout } from '@/components/server/AuthenticatedLayout';
 
-// Session checked on the server for this whole section - see AuthenticatedLayout.
+// Session checked on the server for this section, and its mount-time API calls prefetched -
+// see AuthenticatedLayout. The URLs must match the page's apiClient.get(...) calls exactly.
 export const dynamic = 'force-dynamic';
 
-export default AuthenticatedLayout;
+const PREFETCH: string[] = ['/jobs?limit=10&offset=0', '/videos'];
+
+export default function Layout({ children }: { children: React.ReactNode }) {
+  return <AuthenticatedLayout prefetch={PREFETCH}>{children}</AuthenticatedLayout>;
+}
