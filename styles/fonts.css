@@ -1,5 +1,5 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
+/* Inter is self-hosted via next/font (app/layout.tsx, 2026-10-01): no render-blocking @import of
+   fonts.googleapis.com, no extra third-party connection, and no layout shift while it loads. */
 body {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-inter), 'Inter', sans-serif;
 }
