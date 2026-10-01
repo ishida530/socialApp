@@ -18,6 +18,7 @@ import { buildAnnouncementSystemPrompt, getPlatformMechanics, type PlatformMecha
 import { readPlatformStyleGuides } from './platform-style-guides';
 import { sendTelegramMessageWithButtons } from './telegram';
 import { logError, logEvent } from './observability';
+import { PUBLIC_SOCIAL_ACCOUNT_SELECT } from './public-fields';
 
 export type ExternalContentKind = 'BLOG_POST' | 'LISTING';
 
@@ -406,7 +407,7 @@ export async function ingestExternalContent(userId: string, input: ExternalConte
           video: { connect: { id: video.id } },
           socialAccount: { connect: { id: account.id } },
         },
-        include: { socialAccount: true },
+        include: { socialAccount: { select: PUBLIC_SOCIAL_ACCOUNT_SELECT } },
       });
     }),
   );

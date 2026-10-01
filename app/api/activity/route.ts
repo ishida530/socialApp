@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUserFromRequest } from '@/lib/server/auth';
 import { prisma } from '@/lib/server/prisma';
 import { serverError, unauthorized } from '@/lib/server/http';
+import { PUBLIC_SOCIAL_ACCOUNT_SELECT } from '@/lib/server/public-fields';
 
 const DEFAULT_LIMIT = 8;
 const MAX_LIMIT = 50;
@@ -37,7 +38,7 @@ export async function GET(request: NextRequest) {
         where,
         include: {
           video: true,
-          socialAccount: true,
+          socialAccount: { select: PUBLIC_SOCIAL_ACCOUNT_SELECT },
         },
         orderBy: { createdAt: 'desc' },
         take: limit,
