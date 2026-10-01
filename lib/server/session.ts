@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
 import { TOKEN_COOKIE_NAME, verifyAccessToken, type AuthUser } from './auth';
 
 // Server-side session for Server Components (2026-10-01, performance phase 2): an authenticated
@@ -16,4 +17,13 @@ export async function getServerSession(): Promise<AuthUser | null> {
   } catch {
     return null;
   }
+}
+
+// For layouts/pages that require a logged-in user: redirects on the server (HTTP 307) otherwise.
+export async function requireServerSession(): Promise<AuthUser> {
+  const session = await getServerSession();
+  if (!session) {
+    redirect('/login');
+  }
+  return session;
 }

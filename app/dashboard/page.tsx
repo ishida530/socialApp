@@ -1,7 +1,5 @@
-import { redirect } from 'next/navigation';
 import { Dashboard } from '@/components/Dashboard';
-import { ClientSessionGuard } from '@/components/ClientSessionGuard';
-import { getServerSession } from '@/lib/server/session';
+import { requireServerSession } from '@/lib/server/session';
 import { getAnalyticsSummary, getOnboardingProgress } from '@/lib/server/dashboard-data';
 
 // Server Component (2026-10-01, performance phase 2). Before: a client page that rendered
@@ -13,11 +11,8 @@ import { getAnalyticsSummary, getOnboardingProgress } from '@/lib/server/dashboa
 export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
-  // The layout already redirected logged-out visitors; this is only a guard for direct renders.
-  const session = await getServerSession();
-  if (!session) {
-    redirect('/login');
-  }
+  // The layout already redirected logged-out visitors; this only reads the (verified) user.
+  const session = await requireServerSession();
 
   const [analytics, onboarding] = await Promise.all([
     // On a DB hiccup pass undefined, so the client falls back to fetching on its own.
@@ -25,10 +20,5 @@ export default async function DashboardPage() {
     getOnboardingProgress(session.userId).catch(() => undefined),
   ]);
 
-  return (
-    <>
-      <ClientSessionGuard />
-      <Dashboard initialAnalytics={analytics} initialOnboarding={onboarding} />
-    </>
-  );
+  return <Dashboard initialAnalytics={analytics} initialOnboarding={onboarding} />;
 }

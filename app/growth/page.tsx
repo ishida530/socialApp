@@ -1,47 +1,23 @@
-'use client';
+import { GrowthPanel, type FollowerGrowthEntry, type Goal } from '@/components/GrowthPanel';
+import { requireServerSession } from '@/lib/server/session';
+import { getActiveGoals } from '@/lib/server/coaching';
+import { getFollowerGrowth } from '@/lib/server/account-growth';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { GrowthPanel } from '@/components/GrowthPanel';
-import { useAuth } from '@/contexts/auth-context';
+// Server Component (2026-10-01, performance phase 2): goals and follower growth are read from the
+// database while rendering (same functions as GET /api/goals and /api/growth). Per-user: dynamic.
+export const dynamic = 'force-dynamic';
 
-export default function GrowthPage() {
-  const { isAuthenticated, isLoading, sessionError, retrySession } = useAuth();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated && !sessionError) {
-      router.replace('/login');
-    }
-  }, [isAuthenticated, isLoading, sessionError, router]);
-
-  if (sessionError) {
-    return (
-      <main className="min-h-screen bg-background flex flex-col items-center justify-center gap-3">
-        <p className="text-sm text-muted-foreground">Nie udało się połączyć z serwerem.</p>
-        <button
-          type="button"
-          onClick={retrySession}
-          className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium"
-        >
-          Spróbuj ponownie
-        </button>
-      </main>
-    );
-  }
-
-  if (isLoading || !isAuthenticated) {
-    return (
-      <main className="min-h-screen bg-background flex items-center justify-center">
-        <p className="text-sm text-muted-foreground">Ładowanie sesji...</p>
-      </main>
-    );
-  }
+export default async function GrowthPage() {
+  const session = await requireServerSession();
+  const initialData = await Promise.all([getActiveGoals(session.userId), getFollowerGrowth(session.userId)])
+    // JSON round trip: exactly the shape the API returns (dates as ISO strings).
+    .then(([goals, growth]) => JSON.parse(JSON.stringify({ goals, growth })) as { goals: Goal[]; growth: FollowerGrowthEntry[] })
+    .catch(() => undefined);
 
   return (
     <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 lg:pb-6">
       <h1 className="text-2xl font-semibold text-foreground mb-6">Rozwój konta</h1>
-      <GrowthPanel />
+      <GrowthPanel initialData={initialData} />
     </main>
   );
 }

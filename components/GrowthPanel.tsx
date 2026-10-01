@@ -4,13 +4,13 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
 
-type Goal = {
+export type Goal = {
   id: string;
   description: string;
   createdAt: string;
 };
 
-type FollowerGrowthEntry = {
+export type FollowerGrowthEntry = {
   platform: string;
   current: number;
   weekAgo: number | null;
@@ -31,10 +31,16 @@ function formatDelta(current: number, reference: number | null) {
 }
 
 // Web equivalent of the Telegram /goal, /goals, /goal-done, /followers commands.
-export function GrowthPanel() {
-  const [goals, setGoals] = useState<Goal[]>([]);
-  const [growth, setGrowth] = useState<FollowerGrowthEntry[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+// `initialData` comes from the growth Server Component (2026-10-01): the first render needs no
+// client fetch; after adding/completing a goal the panel reloads from the API as before.
+export function GrowthPanel({
+  initialData,
+}: {
+  initialData?: { goals: Goal[]; growth: FollowerGrowthEntry[] };
+} = {}) {
+  const [goals, setGoals] = useState<Goal[]>(initialData?.goals ?? []);
+  const [growth, setGrowth] = useState<FollowerGrowthEntry[]>(initialData?.growth ?? []);
+  const [isLoading, setIsLoading] = useState(!initialData);
   const [newGoal, setNewGoal] = useState('');
   const [isAddingGoal, setIsAddingGoal] = useState(false);
   const [completingGoalId, setCompletingGoalId] = useState<string | null>(null);
@@ -55,7 +61,11 @@ export function GrowthPanel() {
   };
 
   useEffect(() => {
+    if (initialData) {
+      return;
+    }
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const addGoal = async () => {
