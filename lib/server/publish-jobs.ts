@@ -12,6 +12,7 @@ import {
 } from './subscription';
 import { processPublishJobImmediately } from './publish-processor';
 import { cancelQStashMessage, scheduleQStashPublish } from './qstash';
+import { PUBLIC_SOCIAL_ACCOUNT_SELECT } from './public-fields';
 import { attachActiveCampaignToJobs } from './campaigns';
 
 // TASK-3.1.2: rdzeń logiki app/api/publish-jobs/drafts (POST) i
@@ -19,9 +20,11 @@ import { attachActiveCampaignToJobs } from './campaigns';
 // przycisk "Publikuj") mógł wołać dokładnie tę samą logikę biznesową co panel web - jedna
 // prawda, nie dwie kopie tego samego kodu.
 
+// Results of these helpers go straight into API responses (enqueue/trigger/retry/drafts) - only the
+// public SocialAccount fields, never the OAuth tokens.
 const PUBLISH_JOB_INCLUDE = {
   video: true,
-  socialAccount: true,
+  socialAccount: { select: PUBLIC_SOCIAL_ACCOUNT_SELECT },
 } as const;
 
 // Internal-only sentinel used to abort the enqueue transaction when a concurrent call already

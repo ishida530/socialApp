@@ -9,6 +9,7 @@ import {
   assertUsageAllowed,
   incrementUsage,
 } from '@/lib/server/subscription';
+import { PUBLIC_SOCIAL_ACCOUNT_SELECT } from '@/lib/server/public-fields';
 
 type PublishJobStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'CANCELED';
 
@@ -39,7 +40,7 @@ export async function GET(request: NextRequest) {
       },
       include: {
         video: true,
-        socialAccount: true,
+        socialAccount: { select: PUBLIC_SOCIAL_ACCOUNT_SELECT },
       },
       orderBy: { createdAt: 'desc' },
     });

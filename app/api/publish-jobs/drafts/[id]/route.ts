@@ -5,6 +5,7 @@ import { badRequest, notFound, tooManyRequests, unauthorized } from '@/lib/serve
 import { consumeRateLimit } from '@/lib/server/rate-limit';
 import { fetchTikTokCreatorInfo, TikTokCreatorCannotPostError } from '@/lib/server/tiktok-creator-info';
 import { collectContentWarnings } from '@/lib/server/content-safety';
+import { PUBLIC_SOCIAL_ACCOUNT_SELECT } from '@/lib/server/public-fields';
 
 type PatchBody = {
   caption?: string;
@@ -52,7 +53,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
         status: 'DRAFT',
         video: { userId: user.userId },
       },
-      include: { video: true, socialAccount: true },
+      include: { video: true, socialAccount: { select: PUBLIC_SOCIAL_ACCOUNT_SELECT } },
     });
 
     if (!job) {
@@ -275,7 +276,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     const updated = await prisma.publishJob.update({
       where: { id: job.id },
       data,
-      include: { video: true, socialAccount: true },
+      include: { video: true, socialAccount: { select: PUBLIC_SOCIAL_ACCOUNT_SELECT } },
     });
 
     // Remember this as the account's new "sticky" default - read back by createDraftGroupForVideo

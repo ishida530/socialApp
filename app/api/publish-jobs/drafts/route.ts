@@ -4,10 +4,11 @@ import { prisma } from '@/lib/server/prisma';
 import { badRequest, notFound, serverError, tooManyRequests, unauthorized } from '@/lib/server/http';
 import { consumeRateLimit } from '@/lib/server/rate-limit';
 import { createDraftGroupForVideo } from '@/lib/server/publish-jobs';
+import { PUBLIC_SOCIAL_ACCOUNT_SELECT } from '@/lib/server/public-fields';
 
 const PUBLISH_JOB_INCLUDE = {
   video: true,
-  socialAccount: true,
+  socialAccount: { select: PUBLIC_SOCIAL_ACCOUNT_SELECT },
 } as const;
 
 async function loadGroup(userId: string, postGroupId: string, draftOnly: boolean) {
