@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { AnimatePresence, motion, useAnimationControls, useInView, useMotionValue, useReducedMotion, useScroll, useSpring, useTransform } from 'framer-motion';
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { ArrowUpRight, CalendarClock, Layers, Sparkles, Youtube, Music2, Instagram, Facebook, CircleCheckBig, CircleHelp, Moon, Sun } from 'lucide-react';
+import { ArrowUpRight, CalendarClock, Layers, Sparkles, CircleCheckBig, CircleHelp, Moon, Sun } from 'lucide-react';
+import { PlatformBrandIcon } from '@/components/BrandIcons';
 import { useTheme } from 'next-themes';
 import { trackLandingEvent } from '@/lib/landing-events';
 import { BrandLogo } from '@/components/BrandLogo';
@@ -153,10 +154,12 @@ function extractFirstNumber(label: string, fallback: number) {
 function PlatformIcons() {
   return (
     <div className="flex items-center gap-2" aria-label="YouTube, TikTok, Instagram, Facebook">
-      <Youtube className="h-4 w-4 text-red-500" aria-hidden="true" />
-      <Music2 className="h-4 w-4 text-slate-400" aria-hidden="true" />
-      <Instagram className="h-4 w-4 text-pink-500" aria-hidden="true" />
-      <Facebook className="h-4 w-4 text-blue-500" aria-hidden="true" />
+      <a href="https://www.youtube.com" target="_blank" rel="noopener noreferrer" aria-label="YouTube">
+        <PlatformBrandIcon platform="YOUTUBE" className="h-4 w-4" />
+      </a>
+      <PlatformBrandIcon platform="TIKTOK" className="h-4 w-4" />
+      <PlatformBrandIcon platform="INSTAGRAM" className="h-4 w-4" />
+      <PlatformBrandIcon platform="FACEBOOK" className="h-4 w-4" />
     </div>
   );
 }

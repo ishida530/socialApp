@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/contexts/auth-context';
 import { trackLandingEvent } from '@/lib/landing-events';
 import { BrandLogo } from '@/components/BrandLogo';
+import { GoogleGLogo } from '@/components/BrandIcons';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -266,27 +267,11 @@ export default function LoginPage() {
           type="button"
           onClick={handleGoogleLogin}
           disabled={isSubmitting || isGoogleSubmitting}
-          className="w-full py-2.5 rounded-lg border border-primary/40 text-foreground hover:bg-primary/10 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+          // Google sign-in branding (light theme): white, #747775 border, #1F1F1F text, unmodified "G".
+          className="w-full py-2.5 rounded-lg border border-[#747775] bg-white text-[#1F1F1F] font-medium hover:bg-gray-50 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
         >
-          <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" role="img">
-            <path
-              fill="#EA4335"
-              d="M12 10.2v3.9h5.5c-.2 1.3-1.5 3.8-5.5 3.8-3.3 0-6-2.7-6-6s2.7-6 6-6c1.9 0 3.1.8 3.8 1.5l2.6-2.5C16.8 3.3 14.6 2.3 12 2.3 6.7 2.3 2.4 6.6 2.4 11.9S6.7 21.5 12 21.5c6.9 0 9.1-4.8 9.1-7.3 0-.5-.1-.9-.1-1.2z"
-            />
-            <path
-              fill="#34A853"
-              d="M2.4 7.6l3.2 2.3c.9-1.7 2.6-2.9 4.4-2.9 1.9 0 3.1.8 3.8 1.5l2.6-2.5C14.6 3.3 12.4 2.3 10 2.3c-3.8 0-7 2.1-8.6 5.3z"
-            />
-            <path
-              fill="#FBBC05"
-              d="M10 21.5c2.3 0 4.3-.8 5.8-2.3l-2.7-2.2c-.7.5-1.7.9-3.1.9-2.6 0-4.8-1.7-5.5-4.1l-3.3 2.5c1.6 3.2 4.9 5.2 8.8 5.2z"
-            />
-            <path
-              fill="#4285F4"
-              d="M21.1 14.2c0-.5-.1-.9-.1-1.2H10v3.9h6.3c-.3 1-1 1.9-2 2.6l2.7 2.2c2-1.8 3.1-4.5 3.1-7.5z"
-            />
-          </svg>
-          {isGoogleSubmitting ? 'Przekierowanie do Google...' : 'Zaloguj przez Google'}
+          <GoogleGLogo className="h-5 w-5" />
+          {isGoogleSubmitting ? 'Przekierowanie do Google...' : 'Zaloguj się przez Google'}
         </button>
 
         <p className="text-sm text-muted-foreground text-center">

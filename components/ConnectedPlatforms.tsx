@@ -1,23 +1,20 @@
 "use client";
 
+import { CheckCircle2, XCircle, RefreshCw } from 'lucide-react';
 import {
-  Youtube,
-  Music2,
-  Instagram,
-  Facebook,
-  Linkedin,
-  CheckCircle2,
-  XCircle,
-  RefreshCw,
-} from 'lucide-react';
+  FacebookLogoWhite,
+  GoogleGLogo,
+  PlatformBrandIcon,
+  TikTokLogo,
+  type BrandPlatform,
+} from '@/components/BrandIcons';
 import { useEffect, useMemo, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { toast } from 'sonner';
 
 type PlatformCard = {
   name: string;
-  icon: typeof Youtube;
-  color: string;
+  brand: BrandPlatform;
   apiPlatform: 'youtube' | 'tiktok' | 'instagram' | 'facebook' | 'linkedin';
   // Shown BEFORE connecting (2026-09-30): the platform-side prerequisites that otherwise surface
   // only as a failed connection - most new users hit the Instagram/Facebook ones.
@@ -27,42 +24,82 @@ type PlatformCard = {
 const platforms: PlatformCard[] = [
   {
     name: 'YouTube',
-    icon: Youtube,
-    color: 'text-red-500',
+    brand: 'YOUTUBE',
     apiPlatform: 'youtube',
     requirement: 'Zaloguj się kontem Google, które ma kanał YouTube, i zaznacz wszystkie uprawnienia na ekranie zgody.',
   },
   {
     name: 'TikTok',
-    icon: Music2,
-    color: 'text-slate-400',
+    brand: 'TIKTOK',
     apiPlatform: 'tiktok',
     requirement: 'Zaloguj się w oknie TikToka na konto, na którym chcesz publikować. Każdy post zatwierdzasz ręcznie w Postfly.',
   },
   {
     name: 'Instagram',
-    icon: Instagram,
-    color: 'text-pink-500',
+    brand: 'INSTAGRAM',
     apiPlatform: 'instagram',
     requirement:
       'Wymaga konta Instagram firmowego lub twórcy, połączonego ze Stroną Facebook. Logujesz się przez Facebooka — zaznacz tam tę Stronę i konto Instagram.',
   },
   {
     name: 'Facebook',
-    icon: Facebook,
-    color: 'text-blue-500',
+    brand: 'FACEBOOK',
     apiPlatform: 'facebook',
     requirement:
       'Publikujemy na Stronie Facebook (nie na profilu prywatnym). Musisz być jej administratorem — w oknie Facebooka wybierz Stronę do podłączenia.',
   },
   {
     name: 'LinkedIn',
-    icon: Linkedin,
-    color: 'text-sky-600',
+    brand: 'LINKEDIN',
     apiPlatform: 'linkedin',
     requirement: 'Publikujemy na Twoim profilu osobistym. LinkedIn wymaga ponownego połączenia co ok. 60 dni.',
   },
 ];
+
+// Connect buttons follow each provider's sign-in branding (2026-10-01, app review): Meta Platform
+// Policy 8.3 requires a clearly branded Facebook Login button (Facebook + Instagram both use
+// Facebook Login here), Google's sign-in guidelines the white button with the "G" (YouTube is a
+// Google OAuth flow), TikTok's Login Kit the "Continue with TikTok" call to action.
+function ConnectCta({ apiPlatform }: { apiPlatform: PlatformCard['apiPlatform'] }) {
+  if (apiPlatform === 'youtube') {
+    return (
+      <>
+        <GoogleGLogo className="h-4 w-4" />
+        <span>Kontynuuj z Google</span>
+      </>
+    );
+  }
+  if (apiPlatform === 'tiktok') {
+    return (
+      <>
+        <TikTokLogo className="h-4 w-4" />
+        <span>Kontynuuj z TikTok</span>
+      </>
+    );
+  }
+  if (apiPlatform === 'facebook' || apiPlatform === 'instagram') {
+    return (
+      <>
+        <FacebookLogoWhite className="h-4 w-4" />
+        <span>Kontynuuj z Facebookiem</span>
+      </>
+    );
+  }
+  return (
+    <>
+      <RefreshCw className="w-4 h-4" />
+      <span>Połącz</span>
+    </>
+  );
+}
+
+const CONNECT_BUTTON_STYLE: Record<PlatformCard['apiPlatform'], string> = {
+  youtube: 'bg-white text-[#1F1F1F] border border-[#747775] hover:bg-gray-50',
+  tiktok: 'bg-black text-white hover:bg-black/85 dark:border dark:border-white/30',
+  facebook: 'bg-[#1877F2] text-white hover:bg-[#166FE5]',
+  instagram: 'bg-[#1877F2] text-white hover:bg-[#166FE5]',
+  linkedin: 'bg-primary/10 text-primary hover:bg-primary/20',
+};
 
 type SocialAccountDto = {
   id: string;
@@ -215,9 +252,22 @@ export function ConnectedPlatforms() {
             className="bg-secondary/30 border border-border rounded-xl p-4 hover:border-primary/50 transition-all backdrop-blur-sm"
           >
             <div className="flex items-start justify-between mb-3">
-              <div className={`p-3 bg-background/50 rounded-lg ${platform.color}`}>
-                <platform.icon className="w-6 h-6" />
-              </div>
+              {platform.brand === 'YOUTUBE' ? (
+                // YouTube branding guidelines: the logo links to YouTube.
+                <a
+                  href="https://www.youtube.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-3 bg-background/50 rounded-lg"
+                  aria-label="YouTube"
+                >
+                  <PlatformBrandIcon platform={platform.brand} className="w-6 h-6" />
+                </a>
+              ) : (
+                <div className="p-3 bg-background/50 rounded-lg text-foreground">
+                  <PlatformBrandIcon platform={platform.brand} className="w-6 h-6" />
+                </div>
+              )}
               <div className="flex items-center gap-1.5">
                 {connected ? (
                   <>
@@ -249,21 +299,23 @@ export function ConnectedPlatforms() {
             <button
               onClick={() => connectAccount(platform.apiPlatform)}
               disabled={loadingPlatform === platform.apiPlatform}
-              className={`w-full mb-3 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm transition-all bg-primary/10 text-primary hover:bg-primary/20 ${
+              className={`w-full mb-3 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${CONNECT_BUTTON_STYLE[platform.apiPlatform]} ${
                 loadingPlatform === platform.apiPlatform
                   ? 'opacity-60 cursor-not-allowed'
                   : ''
               }`}
             >
-              <RefreshCw className="w-4 h-4" />
-              <span>
-                {loadingPlatform === platform.apiPlatform
-                  ? 'Przekierowanie...'
-                  : connected
-                    ? 'Połącz kolejne konto'
-                    : 'Połącz'}
-              </span>
+              {loadingPlatform === platform.apiPlatform ? (
+                <span>Przekierowanie...</span>
+              ) : (
+                <ConnectCta apiPlatform={platform.apiPlatform} />
+              )}
             </button>
+            {connected && (
+              <p className="-mt-2 mb-3 text-[11px] text-muted-foreground text-center">
+                Przycisk wyżej dodaje kolejne konto.
+              </p>
+            )}
 
             {connected && (
               <div className="space-y-2">

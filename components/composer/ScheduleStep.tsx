@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Calendar, Info, Send } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
+import { PlatformBrandIcon } from '@/components/BrandIcons';
 import {
   PLATFORM_LABEL,
   TIKTOK_BRANDED_CONTENT_POLICY_URL,
@@ -194,7 +195,16 @@ export function ScheduleStep({
                       : 'bg-secondary/40 border-border text-muted-foreground'
                   }`}
                 >
-                  {PLATFORM_LABEL[platform]}
+                  <span className="flex items-center gap-2 min-w-0">
+                    <PlatformBrandIcon platform={platform} className="h-4 w-4 shrink-0" />
+                    <span className="truncate">
+                      {PLATFORM_LABEL[platform]}
+                      {/* Which account/Page/channel the post goes to - visible before publishing. */}
+                      <span className="block text-[11px] font-normal text-muted-foreground truncate">
+                        {job.socialAccount.handle}
+                      </span>
+                    </span>
+                  </span>
                 </button>
               );
             })}
