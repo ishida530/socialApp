@@ -115,8 +115,11 @@ export function Sidebar() {
 
     void loadSubscriptionCard();
 
+    // Only for a visible tab - background tabs don't need a fresh usage counter every minute.
     const timer = window.setInterval(() => {
-      void loadSubscriptionCard();
+      if (document.visibilityState === 'visible') {
+        void loadSubscriptionCard();
+      }
     }, 60 * 1000);
 
     return () => {

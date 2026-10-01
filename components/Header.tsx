@@ -43,7 +43,9 @@ export function Header() {
 
     const checkHealth = async () => {
       try {
-        await apiClient.get('/health');
+        // Shallow check (no DB query) - this runs for every open tab; the DB check stays on
+        // /api/health for uptime monitoring.
+        await apiClient.get('/health', { params: { shallow: 1 } });
         if (isMounted) {
           setApiConnected(true);
         }
@@ -56,8 +58,10 @@ export function Header() {
 
     void checkHealth();
     const intervalId = window.setInterval(() => {
-      void checkHealth();
-    }, 30000);
+      if (document.visibilityState === 'visible') {
+        void checkHealth();
+      }
+    }, 120_000);
 
     return () => {
       isMounted = false;
