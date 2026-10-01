@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
+import type { OnboardingProgress } from '@/lib/server/dashboard-data';
 
 type JobsProbeResponse = {
   totalCount: number;
@@ -16,14 +17,20 @@ type Step = {
   cta: string;
 };
 
-export function OnboardingChecklist() {
-  const [isLoading, setIsLoading] = useState(true);
-  const [hasAccounts, setHasAccounts] = useState(false);
-  const [hasMedia, setHasMedia] = useState(false);
-  const [hasDrafts, setHasDrafts] = useState(false);
-  const [hasSchedule, setHasSchedule] = useState(false);
+// `initialProgress` is computed on the server by the dashboard page (one round of cheap existence
+// queries instead of four API calls after hydration); without it the component fetches as before.
+export function OnboardingChecklist({ initialProgress }: { initialProgress?: OnboardingProgress } = {}) {
+  const [isLoading, setIsLoading] = useState(!initialProgress);
+  const [hasAccounts, setHasAccounts] = useState(initialProgress?.hasAccounts ?? false);
+  const [hasMedia, setHasMedia] = useState(initialProgress?.hasMedia ?? false);
+  const [hasDrafts, setHasDrafts] = useState(initialProgress?.hasDrafts ?? false);
+  const [hasSchedule, setHasSchedule] = useState(initialProgress?.hasSchedule ?? false);
 
   useEffect(() => {
+    if (initialProgress) {
+      return;
+    }
+
     const loadProgress = async () => {
       try {
         setIsLoading(true);
@@ -50,7 +57,7 @@ export function OnboardingChecklist() {
     };
 
     void loadProgress();
-  }, []);
+  }, [initialProgress]);
 
   const steps = useMemo<Step[]>(
     () => [
