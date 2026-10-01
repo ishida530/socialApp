@@ -21,3 +21,12 @@ export async function createAuthenticatedUser(context: BrowserContext) {
   ]);
   return user;
 }
+
+// For tests that MOCK /api/auth/login or /api/auth/register: the real endpoints answer with a
+// session cookie, and since 2026-10-01 /dashboard is gated by the session on the edge (middleware)
+// and on the server - a mocked login without that cookie can no longer reach it. Call this inside
+// the mocked route handler, right before fulfilling, to set a real (test-user) session cookie the
+// same way the real endpoint would. Returns the user for cleanup.
+export async function grantRealSessionCookie(context: BrowserContext) {
+  return createAuthenticatedUser(context);
+}

@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { BASE_URL } from './helpers';
+import { deleteTestUser } from '@/tests/helpers/fixtures';
+import { BASE_URL, grantRealSessionCookie } from './helpers';
 
 // Full happy-path coverage for GO_LIVE_PLAN.md sekcja A: previously only the "registration
 // closed" reaction was covered (register-status.spec.ts) — the actual "fill form -> submit
@@ -22,12 +23,16 @@ test('successful registration with valid data redirects to the dashboard', async
     route.fulfill({ status: 200, body: JSON.stringify({ open: true }) }),
   );
 
-  await page.route('**/api/auth/register', (route) =>
-    route.fulfill({
+  let sessionUserId: string | null = null;
+  await page.route('**/api/auth/register', async (route) => {
+    // Like the real endpoint: registration logs the new user in with a session cookie (needed by
+    // the session-gated /dashboard, see grantRealSessionCookie).
+    sessionUserId = (await grantRealSessionCookie(page.context())).id;
+    return route.fulfill({
       status: 200,
       body: JSON.stringify({ user: { userId: 'test-user-id', email: 'nowy@postfly.app' } }),
-    }),
-  );
+    });
+  });
 
   await page.route('**/api/auth/me', (route) =>
     route.fulfill({
@@ -45,6 +50,9 @@ test('successful registration with valid data redirects to the dashboard', async
 
   await expect(page.getByText('Konto utworzone.')).toBeVisible();
   await expect(page).toHaveURL(`${BASE_URL}/dashboard`);
+  if (sessionUserId) {
+    await deleteTestUser(sessionUserId);
+  }
 });
 
 test('registration with an already-used email shows an error and stays on the page', async ({ page }) => {

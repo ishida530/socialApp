@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { BASE_URL } from './helpers';
+import { deleteTestUser } from '@/tests/helpers/fixtures';
+import { BASE_URL, grantRealSessionCookie } from './helpers';
 
 // Full happy-path coverage for GO_LIVE_PLAN.md sekcja A: login previously had zero E2E
 // coverage of the actual "fill form -> submit -> land on dashboard" wiring or its error
@@ -32,8 +33,12 @@ test('successful login with valid credentials redirects to the dashboard', async
   // is trying to fill in is never reached because the page already bounced away from it.
   let hasLoggedIn = false;
 
-  await page.route('**/api/auth/login', (route) => {
+  let sessionUserId: string | null = null;
+  await page.route('**/api/auth/login', async (route) => {
     hasLoggedIn = true;
+    // Like the real endpoint: a successful login sets the session cookie (needed by the
+    // session-gated /dashboard, see grantRealSessionCookie).
+    sessionUserId = (await grantRealSessionCookie(page.context())).id;
     return route.fulfill({
       status: 200,
       body: JSON.stringify({ user: { userId: 'test-user-id', email: 'user@postfly.app' } }),
@@ -59,6 +64,9 @@ test('successful login with valid credentials redirects to the dashboard', async
 
   await expect(page.getByText('Zalogowano pomyślnie.')).toBeVisible();
   await expect(page).toHaveURL(`${BASE_URL}/dashboard`);
+  if (sessionUserId) {
+    await deleteTestUser(sessionUserId);
+  }
 });
 
 test('invalid credentials show an error and keep the user on the login page', async ({ page }) => {

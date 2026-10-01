@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 type SessionPayload = {
+  sub?: string;
+  purpose?: string;
   email?: string;
   role?: string;
   roles?: string[];
@@ -98,6 +100,13 @@ async function verifyHs256Jwt(token: string, secret: string): Promise<SessionPay
     }
   }
 
+  // Same rules as verifyAccessToken (lib/server/auth.ts): a real session needs sub + email, and a
+  // token with a `purpose` (the 5-minute "2fa-pending" token issued between password and code) is
+  // never a session - otherwise it would get past this gate without the second factor.
+  if (!payload.sub || !payload.email || payload.purpose) {
+    return null;
+  }
+
   return payload;
 }
 
@@ -134,9 +143,48 @@ function unauthorizedResponse(request: NextRequest): NextResponse {
   return NextResponse.redirect(new URL('/', request.url));
 }
 
+// Authenticated app sections (2026-10-01, performance): a logged-out visitor is redirected to
+// /login right here at the edge (~tens of ms) instead of after a server render in the function
+// region. The section layouts (AuthenticatedLayout) still check the session on the server too.
+const AUTHENTICATED_SECTIONS = [
+  '/dashboard',
+  '/analytics',
+  '/growth',
+  '/billing',
+  '/campaigns',
+  '/community',
+  '/media-library',
+  '/schedule',
+  '/social-accounts',
+  '/account',
+];
+
+function isAuthenticatedSection(pathname: string) {
+  return AUTHENTICATED_SECTIONS.some((section) => pathname === section || pathname.startsWith(`${section}/`));
+}
+
+function isAdminPath(pathname: string) {
+  return pathname.startsWith('/admin') || pathname.startsWith('/api/admin');
+}
+
 export async function middleware(request: NextRequest) {
   const token = getTokenFromRequest(request);
   const secret = process.env.JWT_SECRET;
+
+  if (!isAdminPath(request.nextUrl.pathname)) {
+    if (!isAuthenticatedSection(request.nextUrl.pathname)) {
+      return NextResponse.next();
+    }
+
+    const session = token && secret ? await verifyHs256Jwt(token, secret) : null;
+    if (!session) {
+      const loginUrl = new URL('/login', request.url);
+      return NextResponse.redirect(loginUrl, 307);
+    }
+
+    return NextResponse.next();
+  }
+
   const adminEmails = parseAdminEmails(process.env.ADMIN_EMAILS);
 
   if (!token || !secret) {
@@ -159,5 +207,20 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/admin/:path*', '/api/admin/:path*'],
+  // '/social-accounts' without :path* on purpose: /social-accounts/callback/[platform] is the OAuth
+  // redirect route handler and must not be gated (it redirects on to /api/auth/callback itself).
+  matcher: [
+    '/admin/:path*',
+    '/api/admin/:path*',
+    '/dashboard/:path*',
+    '/analytics/:path*',
+    '/growth/:path*',
+    '/billing/:path*',
+    '/campaigns/:path*',
+    '/community/:path*',
+    '/media-library/:path*',
+    '/schedule/:path*',
+    '/social-accounts',
+    '/account/:path*',
+  ],
 };
