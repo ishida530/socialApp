@@ -23,13 +23,19 @@ function getPool() {
     process.env.PGSSL_REJECT_UNAUTHORIZED === '0' ||
     process.env.PGSSL_REJECT_UNAUTHORIZED?.toLowerCase() === 'false';
 
+  // Serverless (Vercel Fluid compute) behind Supabase's transaction pooler (2026-10-01): a few
+  // connections per function instance are plenty, idle ones are released quickly, and a slow or
+  // unreachable pooler fails fast (5 s) instead of hanging the request - pg's defaults are max=10
+  // and no connect timeout at all.
   const pool = new Pool({
     connectionString,
     ssl: disableTlsVerification ? { rejectUnauthorized: false } : undefined,
+    max: 5,
+    idleTimeoutMillis: 10_000,
+    connectionTimeoutMillis: 5_000,
   });
-  if (process.env.NODE_ENV !== 'production') {
-    globalForPrisma.prismaPool = pool;
-  }
+  // Cached in production too: one pool per warm instance, reused across invocations.
+  globalForPrisma.prismaPool = pool;
 
   return pool;
 }
