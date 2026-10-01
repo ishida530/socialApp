@@ -1,6 +1,7 @@
 "use client";
 
-import { Youtube, Instagram, Music2, Facebook, Linkedin, CheckCircle2, Clock, XCircle, Info } from 'lucide-react';
+import { CheckCircle2, Clock, XCircle, Info } from 'lucide-react';
+import { PlatformBrandIcon, type BrandPlatform } from '@/components/BrandIcons';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
@@ -36,12 +37,13 @@ type PaginatedActivityResponse = {
   hasMore: boolean;
 };
 
-const platformIcons = {
-  youtube: { icon: Youtube, color: 'text-red-500' },
-  instagram: { icon: Instagram, color: 'text-pink-500' },
-  tiktok: { icon: Music2, color: 'text-slate-400' },
-  facebook: { icon: Facebook, color: 'text-blue-500' },
-  linkedin: { icon: Linkedin, color: 'text-sky-600' },
+// Official brand marks only (see components/BrandIcons.tsx).
+const platformBrand: Record<string, BrandPlatform> = {
+  youtube: 'YOUTUBE',
+  instagram: 'INSTAGRAM',
+  tiktok: 'TIKTOK',
+  facebook: 'FACEBOOK',
+  linkedin: 'LINKEDIN',
 };
 
 export function RecentActivity() {
@@ -167,18 +169,15 @@ export function RecentActivity() {
                 </td>
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-2">
-                    {activity.platforms.map((platform) => {
-                      const platformData = platformIcons[platform];
-                      return (
-                        <div
-                          key={platform}
-                          className="p-2 bg-secondary/50 rounded-lg"
-                          title={platform}
-                        >
-                          <platformData.icon className={`w-4 h-4 ${platformData.color}`} />
-                        </div>
-                      );
-                    })}
+                    {activity.platforms.map((platform) => (
+                      <div
+                        key={platform}
+                        className="p-2 bg-secondary/50 rounded-lg text-foreground"
+                        title={platform}
+                      >
+                        <PlatformBrandIcon platform={platformBrand[platform]} className="w-4 h-4" />
+                      </div>
+                    ))}
                   </div>
                 </td>
                 <td className="px-6 py-4">
