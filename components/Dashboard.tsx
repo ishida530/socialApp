@@ -6,6 +6,7 @@ import { RecentActivity } from './RecentActivity';
 import { DashboardAIAdvisor } from './DashboardAIAdvisor';
 import { OnboardingChecklist } from './OnboardingChecklist';
 import { apiClient } from '@/lib/api-client';
+import type { OnboardingProgress } from '@/lib/server/dashboard-data';
 
 type DashboardAnalytics = {
   totals: {
@@ -18,11 +19,24 @@ type DashboardAnalytics = {
   };
 };
 
-export function Dashboard() {
-  const [analytics, setAnalytics] = useState<DashboardAnalytics | null>(null);
-  const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(true);
+// `initialAnalytics` / `initialOnboarding` come from the dashboard Server Component (rendered with
+// the page HTML, 2026-10-01 performance phase 2) - when present, the first client-side fetches are
+// skipped entirely. Without them (any other caller) the component fetches as before.
+export function Dashboard({
+  initialAnalytics,
+  initialOnboarding,
+}: {
+  initialAnalytics?: DashboardAnalytics | null;
+  initialOnboarding?: OnboardingProgress;
+} = {}) {
+  const [analytics, setAnalytics] = useState<DashboardAnalytics | null>(initialAnalytics ?? null);
+  const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(initialAnalytics === undefined);
 
   useEffect(() => {
+    if (initialAnalytics !== undefined) {
+      return;
+    }
+
     const loadAnalytics = async () => {
       try {
         setIsLoadingAnalytics(true);
@@ -36,7 +50,7 @@ export function Dashboard() {
     };
 
     void loadAnalytics();
-  }, []);
+  }, [initialAnalytics]);
 
   const metricCards = useMemo(() => {
     const totals = analytics?.totals;
@@ -80,7 +94,7 @@ export function Dashboard() {
   return (
     <main className="flex-1 overflow-hidden">
       <div className="h-full overflow-y-auto p-4 sm:p-6 pb-24 lg:pb-6 space-y-6">
-        <OnboardingChecklist />
+        <OnboardingChecklist initialProgress={initialOnboarding} />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           {metricCards.map((card) => (

@@ -1,42 +1,33 @@
-'use client';
-
+import { redirect } from 'next/navigation';
 import { Dashboard } from '@/components/Dashboard';
-import { useAuth } from '@/contexts/auth-context';
-import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { ClientSessionGuard } from '@/components/ClientSessionGuard';
+import { getServerSession } from '@/lib/server/session';
+import { getAnalyticsSummary, getOnboardingProgress } from '@/lib/server/dashboard-data';
 
-export default function DashboardPage() {
-  const { isAuthenticated, isLoading, sessionError, retrySession } = useAuth();
-  const router = useRouter();
+// Server Component (2026-10-01, performance phase 2). Before: a client page that rendered
+// "Ładowanie sesji...", waited for /api/auth/me, then fired ~9 API calls. Now the session is checked
+// and the analytics totals + onboarding progress are read from the database while the HTML is
+// rendered, next to the DB (cdg1); the interactive panels (AI advisor, accounts, activity) still
+// load on the client, but start immediately instead of after the session round trip.
+// Per-user data: always dynamic, never cached/ISR.
+export const dynamic = 'force-dynamic';
 
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated && !sessionError) {
-      router.replace('/login');
-    }
-  }, [isAuthenticated, isLoading, sessionError, router]);
-
-  if (sessionError) {
-    return (
-      <main className="min-h-screen bg-background flex flex-col items-center justify-center gap-3">
-        <p className="text-sm text-muted-foreground">Nie udało się połączyć z serwerem.</p>
-        <button
-          type="button"
-          onClick={retrySession}
-          className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium"
-        >
-          Spróbuj ponownie
-        </button>
-      </main>
-    );
+export default async function DashboardPage() {
+  const session = await getServerSession();
+  if (!session) {
+    redirect('/login');
   }
 
-  if (isLoading || !isAuthenticated) {
-    return (
-      <main className="min-h-screen bg-background flex items-center justify-center">
-        <p className="text-sm text-muted-foreground">Ładowanie sesji...</p>
-      </main>
-    );
-  }
+  const [analytics, onboarding] = await Promise.all([
+    // On a DB hiccup pass undefined, so the client falls back to fetching on its own.
+    getAnalyticsSummary(session.userId, '30d').catch(() => undefined),
+    getOnboardingProgress(session.userId).catch(() => undefined),
+  ]);
 
-  return <Dashboard />;
+  return (
+    <>
+      <ClientSessionGuard />
+      <Dashboard initialAnalytics={analytics} initialOnboarding={onboarding} />
+    </>
+  );
 }
