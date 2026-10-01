@@ -8,6 +8,7 @@ import { ThemeProvider } from '@/components/theme-provider';
 import { Toaster } from '@/components/ui/sonner';
 import { getSiteUrl } from '@/lib/site-url';
 import { WebVitalsReporter } from '@/components/WebVitalsReporter';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 
 const siteUrl = getSiteUrl();
 
@@ -51,6 +52,8 @@ export default function RootLayout({
             <AppShell>{children}</AppShell>
             <GlobalPostComposerSheet />
             <WebVitalsReporter />
+            {/* Real-user performance (Core Web Vitals) in Vercel -> Speed Insights (2026-10-01). */}
+            <SpeedInsights />
             <Toaster richColors position="top-right" />
           </AuthProvider>
         </ThemeProvider>

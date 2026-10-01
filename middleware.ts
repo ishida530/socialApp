@@ -1,3 +1,8 @@
+// Kept as middleware.ts on purpose, NOT renamed to proxy.ts (2026-10-01): Next 16 deprecates the
+// `middleware` name, but its replacement `proxy` always runs on the Node.js runtime ("the runtime
+// config option is not available in Proxy files") - on Vercel that moves this gate from the edge
+// into the cdg1 function and undoes the edge redirect for logged-out visitors. middleware.ts is
+// still supported in Next 16; revisit when proxy can run at the edge or middleware support ends.
 import { NextRequest, NextResponse } from 'next/server';
 
 type SessionPayload = {
