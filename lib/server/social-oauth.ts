@@ -1306,3 +1306,45 @@ export async function refreshAllExpiringTokens(hoursAhead = 24) {
     results,
   };
 }
+
+// Disconnect (2026-10-01): revoke the platform grant, not just forget the token locally.
+// YouTube API Services Developer Policies: "the API Client must programmatically revoke that token
+// right away" when a user revokes authorization in the client. TikTok offers the same endpoint.
+// Meta is deliberately excluded: DELETE /me/permissions would remove the app for the whole Facebook
+// user, including Pages connected to OTHER Postfly accounts (agency case). Best-effort - a failed
+// revoke never blocks the disconnect itself.
+export async function revokeSocialAccountGrant(account: {
+  platform: string;
+  accessToken: string | null;
+  refreshToken: string | null;
+}) {
+  try {
+    if (account.platform === 'YOUTUBE') {
+      // Revoking the refresh token revokes the whole grant (and its access tokens).
+      const token = decryptToken(account.refreshToken) ?? decryptToken(account.accessToken);
+      if (!token) return;
+      await fetch('https://oauth2.googleapis.com/revoke', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ token }).toString(),
+      });
+      return;
+    }
+
+    if (account.platform === 'TIKTOK') {
+      const token = decryptToken(account.accessToken);
+      if (!token) return;
+      await fetch('https://open.tiktokapis.com/v2/oauth/revoke/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_key: requireAnyConfig(['TIKTOK_KEY', 'TIKTOK_CLIENT_ID']),
+          client_secret: requireAnyConfig(['TIKTOK_SECRET', 'TIKTOK_CLIENT_SECRET']),
+          token,
+        }).toString(),
+      });
+    }
+  } catch (error) {
+    console.error('[social-oauth] revoke on disconnect failed', { platform: account.platform, error });
+  }
+}

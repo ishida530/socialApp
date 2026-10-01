@@ -21,9 +21,11 @@ type PatchBody = {
   tiktokBrandedContent?: boolean;
   isExplicit?: boolean;
   metaPostFormat?: string;
+  youtubePrivacyStatus?: string;
 };
 
 const META_POST_FORMATS = ['REELS', 'FEED', 'BOTH'];
+const YOUTUBE_PRIVACY_STATUSES = ['public', 'unlisted', 'private'];
 
 export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
@@ -228,6 +230,18 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
       }
 
       data.metaPostFormat = body.metaPostFormat;
+    }
+
+    if (body.youtubePrivacyStatus !== undefined) {
+      if (job.socialAccount.platform !== 'YOUTUBE') {
+        return badRequest('Widoczność YouTube dotyczy tylko zadania dla platformy YouTube.');
+      }
+
+      if (!YOUTUBE_PRIVACY_STATUSES.includes(body.youtubePrivacyStatus)) {
+        return badRequest(`Niepoprawna widoczność YouTube. Dozwolone: ${YOUTUBE_PRIVACY_STATUSES.join(', ')}`);
+      }
+
+      data.youtubePrivacyStatus = body.youtubePrivacyStatus;
     }
 
     if (body.tiktokConsent !== undefined) {

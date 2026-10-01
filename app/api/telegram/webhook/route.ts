@@ -104,7 +104,14 @@ type PreviewJob = {
   socialAccount: { platform: string };
   excludedFromPublish: boolean;
   metaPostFormat: string | null;
+  youtubePrivacyStatus?: string | null;
   video: { mediaType: string; durationSec: number | null };
+};
+
+const YOUTUBE_VISIBILITY_LABEL: Record<string, string> = {
+  public: 'publiczny',
+  unlisted: 'niepubliczny (z linkiem)',
+  private: 'prywatny',
 };
 
 // One row of Publikuj/Anuluj was the whole control surface Telegram had - no way to skip a
@@ -195,11 +202,14 @@ function describePlatformFormat(job: PreviewJob) {
   }
 
   if (platform === 'YOUTUBE') {
+    // YouTube Developer Policies: the visibility that will be set must be stated clearly before
+    // the user approves - Telegram publishes with the one chosen in the web composer, else public.
+    const visibility = `widoczność: ${YOUTUBE_VISIBILITY_LABEL[job.youtubePrivacyStatus ?? 'public'] ?? 'publiczny'}`;
     const duration = job.video.durationSec;
     if (typeof duration === 'number' && duration > 0) {
-      return duration <= YOUTUBE_SHORTS_MAX_SEC ? 'prawdopodobnie Shorts (≤3 min)' : 'zwykłe wideo (>3 min)';
+      return `${duration <= YOUTUBE_SHORTS_MAX_SEC ? 'prawdopodobnie Shorts (≤3 min)' : 'zwykłe wideo (>3 min)'}, ${visibility}`;
     }
-    return 'wideo (Shorts czy zwykłe - zależy od długości/proporcji)';
+    return `wideo (Shorts czy zwykłe - zależy od długości/proporcji), ${visibility}`;
   }
 
   return 'post';

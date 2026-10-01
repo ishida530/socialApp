@@ -22,6 +22,7 @@ function makeJob(platform: Platform, overrides: Partial<DraftJob> = {}): DraftJo
     tiktokBrandOrganic: null,
     tiktokBrandedContent: null,
     metaPostFormat: null,
+    youtubePrivacyStatus: null,
     scheduledFor: new Date().toISOString(),
     publishedAt: null,
     remotePostId: null,
