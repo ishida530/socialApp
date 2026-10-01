@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '@/contexts/auth-context';
 import { GlobalPostComposerSheet } from '@/components/GlobalPostComposerSheet';
@@ -9,6 +10,14 @@ import { getSiteUrl } from '@/lib/site-url';
 import { WebVitalsReporter } from '@/components/WebVitalsReporter';
 
 const siteUrl = getSiteUrl();
+
+// Self-hosted at build time (no request to Google at runtime); latin-ext for Polish characters.
+const inter = Inter({
+  subsets: ['latin', 'latin-ext'],
+  weight: ['400', '500', '600', '700'],
+  display: 'swap',
+  variable: '--font-inter',
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -35,7 +44,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pl" suppressHydrationWarning>
+    <html lang="pl" suppressHydrationWarning className={inter.variable}>
       <body className="flex min-h-dvh flex-col ">
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} disableTransitionOnChange>
           <AuthProvider>

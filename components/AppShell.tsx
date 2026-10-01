@@ -1,6 +1,5 @@
 'use client';
 
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Header } from '@/components/Header';
@@ -20,34 +19,18 @@ const NO_SHELL_PATHS = [
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const shouldReduceMotion = useReducedMotion();
   const withShell = !NO_SHELL_PATHS.some((route) => pathname === route || pathname.startsWith(`${route}/`));
 
-  const transition = shouldReduceMotion
-    ? { duration: 0 }
-    : { duration: 0.26, ease: [0.22, 1, 0.36, 1] as const };
-
-  const pageVariants = {
-    initial: shouldReduceMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 10 },
-    animate: { opacity: 1, y: 0 },
-    exit: shouldReduceMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: -8 },
-  };
-
+  // Page transition (2026-10-01): a CSS enter animation keyed by the path, instead of
+  // framer-motion's AnimatePresence mode="wait" - that one held every navigation back until the
+  // previous page's exit animation finished, and shipped framer-motion with every page.
+  // `animate-page-enter` respects prefers-reduced-motion (styles/theme.css).
   if (!withShell) {
     return (
-      <AnimatePresence mode="wait" initial={false}>
-        <motion.div
-          key={pathname}
-          variants={pageVariants}
-          initial="initial"
-          animate="animate"
-          exit="exit"
-          transition={transition}
-        >
-          {children}
-          <SiteFooter />
-        </motion.div>
-      </AnimatePresence>
+      <div key={pathname} className="animate-page-enter">
+        {children}
+        <SiteFooter />
+      </div>
     );
   }
 
@@ -58,19 +41,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="fixed left-0 right-0 top-0 z-30 lg:left-64">
           <Header />
         </div>
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.main
-            key={pathname}
-            variants={pageVariants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            transition={transition}
-            className="min-h-0 min-w-0 flex-1 pt-20"
-          >
-            {children}
-          </motion.main>
-        </AnimatePresence>
+        <main key={pathname} className="animate-page-enter min-h-0 min-w-0 flex-1 pt-20">
+          {children}
+        </main>
       </div>
 
       <nav

@@ -9,86 +9,15 @@ import { useTheme } from 'next-themes';
 import { trackLandingEvent } from '@/lib/landing-events';
 import { BrandLogo } from '@/components/BrandLogo';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import {
   type MarketingPlan,
 } from '@/lib/billing/capabilities';
 import { useBillingCapabilities } from '@/hooks/useBillingCapabilities';
 import { CONTACT_CATEGORIES, type ContactCategory } from '@/lib/contact';
-import { LANDING_FAQ_ITEMS } from '@/lib/landing-faq';
 import { useAuth } from '@/contexts/auth-context';
+import { LandingMotionContext, SectionReveal, type ScrollDirection } from '@/components/landing/LandingMotion';
+import { container, item, sectionFromLeft, sectionFromRight } from '@/components/landing/landing-motion';
 
-const container = {
-  hidden: { opacity: 0, y: 36 },
-  show: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      type: 'spring' as const,
-      stiffness: 100,
-      damping: 20,
-      staggerChildren: 0.08,
-    },
-  },
-};
-
-const item = {
-  hidden: { opacity: 0, y: 24 },
-  show: {
-    opacity: 1,
-    y: 0,
-    transition: { type: 'spring' as const, stiffness: 100, damping: 20 },
-  },
-};
-
-const sectionFromLeft = {
-  hidden: { opacity: 0, x: -72 },
-  show: {
-    opacity: 1,
-    x: 0,
-    transition: {
-      type: 'spring' as const,
-      stiffness: 100,
-      damping: 20,
-      staggerChildren: 0.08,
-    },
-  },
-};
-
-const sectionFromRight = {
-  hidden: { opacity: 0, x: 72 },
-  show: {
-    opacity: 1,
-    x: 0,
-    transition: {
-      type: 'spring' as const,
-      stiffness: 100,
-      damping: 20,
-      staggerChildren: 0.08,
-    },
-  },
-};
-
-const lanes = [
-  {
-    icon: CalendarClock,
-    title: 'Prosty harmonogram',
-    description:
-      'Planujesz tydzień publikacji w kilku kliknięciach.',
-  },
-  {
-    icon: Layers,
-    title: 'Pełna orkiestracja 4 kanałów',
-    description:
-      'YouTube, TikTok, Instagram, Facebook. Limity kont zależne od planu: 3, 10 lub 25 łącznie.',
-  },
-  {
-    icon: Sparkles,
-    title: 'Wnioski AI',
-    description:
-      'Szybkie podpowiedzi co publikować i kiedy.',
-  },
-];
 
 const heroHighlights = ['4 platformy', 'AI podpowiedzi', 'Start w 2 minuty'];
 
@@ -104,23 +33,6 @@ const heroFlowSteps = [
   'Publikujesz regularnie i monitorujesz wynik w jednym panelu.',
 ];
 
-const seoUseCases = [
-  {
-    title: 'Planowanie publikacji TikTok i Reels',
-    description:
-      'Ustal harmonogram publikacji TikTok, Instagram Reels i YouTube Shorts z jednego panelu, bez ręcznego przełączania narzędzi.',
-  },
-  {
-    title: 'Kalendarz publikacji social media dla zespołu',
-    description:
-      'Porządkuj kolejkę treści, monitoruj statusy zadań i trzymaj stały rytm publikacji nawet przy wielu kampaniach miesięcznie.',
-  },
-  {
-    title: 'Automatyzacja publikacji i analiza wyników',
-    description:
-      'Łącz automatyczne publikowanie z podpowiedziami AI, aby szybciej wyłapywać najlepsze okna czasowe i skalować działania.',
-  },
-];
 
 const floatingElements = [
   { id: 'orb-1', className: 'left-[6%] top-[14%] h-20 w-20 rounded-full bg-primary/20', x: [0, 64, 118, 82, 0], y: [0, 18, 56, 28, 0], rotate: [0, 10, 16, 8, 0], duration: 20 },
@@ -205,49 +117,7 @@ function getComparisonCellValue(row: ComparisonRow, slug: MarketingPlan['slug'])
   return row.business;
 }
 
-type ScrollDirection = 'up' | 'down';
 
-type SectionRevealProps = {
-  children: ReactNode;
-  className: string;
-  variants: typeof sectionFromLeft | typeof sectionFromRight;
-  scrollDirection: ScrollDirection;
-};
-
-function SectionReveal({ children, className, variants, scrollDirection }: SectionRevealProps) {
-  const sectionRef = useRef<HTMLDivElement | null>(null);
-  const controls = useAnimationControls();
-  const isInView = useInView(sectionRef, { amount: 0.15 });
-  const { scrollYProgress } = useScroll({ target: sectionRef, offset: ['start end', 'end start'] });
-
-  useEffect(() => {
-    if (isInView && scrollDirection === 'down') {
-      controls.start('show');
-    }
-  }, [controls, isInView, scrollDirection]);
-
-  useEffect(() => {
-    const unsubscribe = scrollYProgress.on('change', (latest) => {
-      if (scrollDirection === 'up' && latest < 0.20) {
-        controls.start('hidden');
-      }
-    });
-
-    return () => unsubscribe();
-  }, [controls, scrollDirection, scrollYProgress]);
-
-  return (
-    <motion.div
-      ref={sectionRef}
-      initial="hidden"
-      animate={controls}
-      variants={variants}
-      className={className}
-    >
-      {children}
-    </motion.div>
-  );
-}
 
 function FloatingBackground({ reduceMotion }: { reduceMotion: boolean }) {
   return (
@@ -485,7 +355,18 @@ function MobileStickyCTA({ visible }: { visible: boolean }) {
   );
 }
 
-export function LandingExperience() {
+// The static sections (features, use cases, FAQ) are Server Components passed in as slots
+// (app/page.tsx) - their content never ships as client JS (2026-10-01, landing split). They animate
+// through the small client islands in LandingMotion.tsx, fed by LandingMotionContext below.
+export function LandingExperience({
+  featuresSection,
+  seoSection,
+  faqSection,
+}: {
+  featuresSection?: ReactNode;
+  seoSection?: ReactNode;
+  faqSection?: ReactNode;
+} = {}) {
   const { scrollY } = useScroll();
   const { isAuthenticated, isLoading } = useAuth();
   const capabilities = useBillingCapabilities();
@@ -806,6 +687,7 @@ export function LandingExperience() {
   };
 
   return (
+    <LandingMotionContext.Provider value={{ scrollDirection, motionBudgetReduced }}>
       <main className="relative min-h-full bg-background text-foreground">
       <ScrollProgressWithLogo mounted={mounted} />
       <FloatingBackground reduceMotion={motionBudgetReduced} />
@@ -1022,76 +904,13 @@ export function LandingExperience() {
         </motion.div>
       </section>
 
-      <section data-section="features" className="relative mx-auto w-full max-w-6xl px-6 pb-24">
-        <SectionReveal
-          scrollDirection={scrollDirection}
-          variants={sectionFromLeft}
-          className="grid gap-4 md:grid-cols-3"
-        >
-          {lanes.map((lane, index) => {
-            const Icon = lane.icon;
-            return (
-              <motion.article
-                key={lane.title}
-                variants={item}
-                className="rounded-2xl border border-border bg-card/50 p-6"
-              >
-                <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Krok {index + 1}</p>
-                <div className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-primary/20 text-primary">
-                  <Icon className="h-5 w-5" />
-                </div>
-                <h3 className="mt-4 text-lg font-semibold">{lane.title}</h3>
-                <p className="mt-2 text-sm text-muted-foreground">{lane.description}</p>
-              </motion.article>
-            );
-          })}
-        </SectionReveal>
-      </section>
 
-      <section data-section="seo-content" className="relative mx-auto w-full max-w-6xl px-6 pb-24">
-        <SectionReveal
-          scrollDirection={scrollDirection}
-          variants={sectionFromRight}
-          className="rounded-3xl border border-border bg-card/50 p-6 sm:p-10"
-        >
-          <motion.p variants={item} className="text-xs uppercase tracking-[0.18em] text-accent">Zastosowania</motion.p>
-          <motion.h2 variants={item} className="mt-2 text-3xl font-semibold">
-            Narzędzie do planowania publikacji social media dla twórców i marek
-          </motion.h2>
-          <motion.p variants={item} className="mt-3 max-w-3xl text-sm text-muted-foreground">
-            Postfly pomaga planować publikacje w social media, utrzymywać regularność i skracać czas operacyjny.
-            Jeśli szukasz rozwiązania typu social media scheduler dla polskiego rynku, tutaj połączysz harmonogram,
-            limity planu i panel publikacji w jednym miejscu. Limity kont social: Starter do 3,
-            Pro do 10, Business do 25 łącznie.
-          </motion.p>
+      {featuresSection}
 
-          <motion.div variants={container} className="mt-7 grid gap-4 md:grid-cols-3">
-            {seoUseCases.map((useCase) => (
-              <motion.article
-                key={useCase.title}
-                variants={item}
-                className="rounded-2xl border border-border bg-card/40 p-5"
-              >
-                <h3 className="text-base font-semibold text-foreground">{useCase.title}</h3>
-                <p className="mt-2 text-sm text-muted-foreground">{useCase.description}</p>
-              </motion.article>
-            ))}
-          </motion.div>
-
-          <motion.p variants={item} className="mt-6 text-xs text-muted-foreground">
-            Zobacz szczegóły planów w sekcji cennika albo rozpocznij od
-            {' '}
-            <Link href="/register?source=landing&intent=trial" className="text-primary hover:underline">
-              bezpłatnego okresu próbnego
-            </Link>
-            .
-          </motion.p>
-        </SectionReveal>
-      </section>
+      {seoSection}
 
       <section id="pricing" data-section="pricing" className="relative mx-auto w-full max-w-6xl px-6 pb-24">
         <SectionReveal
-          scrollDirection={scrollDirection}
           variants={sectionFromLeft}
           className="relative rounded-3xl border border-white/10 bg-gradient-to-br from-card/80 via-card/55 to-accent/15 p-6 shadow-[0_20px_60px_rgba(2,6,23,0.35)] backdrop-blur-xl sm:p-10"
         >
@@ -1339,42 +1158,11 @@ export function LandingExperience() {
         </SectionReveal>
       </section>
 
-      <section id="faq" data-section="faq" className="relative mx-auto w-full max-w-6xl px-6 pb-24">
-        <SectionReveal
-          scrollDirection={scrollDirection}
-          variants={sectionFromRight}
-          className="rounded-3xl border border-border bg-card/65 p-6 sm:p-10"
-        >
-          <motion.p variants={item} className="text-xs uppercase tracking-[0.18em] text-accent">FAQ</motion.p>
-          <motion.h2 variants={item} className="mt-2 text-3xl font-semibold">Najczęstsze pytania o planowanie publikacji</motion.h2>
-          <motion.p variants={item} className="mt-2 max-w-3xl text-sm text-muted-foreground">
-            Poniżej znajdziesz odpowiedzi oparte na aktualnym działaniu produktu i limitach planów.
-          </motion.p>
 
-          <Accordion type="single" collapsible className="mt-6 space-y-2">
-            {LANDING_FAQ_ITEMS.map((faqItem) => (
-              <motion.div
-                key={faqItem.question}
-                variants={item}
-                whileHover={interactiveLift}
-                whileTap={interactiveTap}
-                className="rounded-xl border border-border/70 bg-card/35 px-3"
-              >
-                <AccordionItem value={faqItem.question}>
-                  <AccordionTrigger className="text-base">{faqItem.question}</AccordionTrigger>
-                  <AccordionContent className="text-sm text-muted-foreground">
-                    {faqItem.answer}
-                  </AccordionContent>
-                </AccordionItem>
-              </motion.div>
-            ))}
-          </Accordion>
-        </SectionReveal>
-      </section>
+      {faqSection}
 
       <section id="contact" data-section="contact" className="relative mx-auto w-full max-w-6xl px-6 pb-24">
         <SectionReveal
-          scrollDirection={scrollDirection}
           variants={sectionFromLeft}
           className="rounded-3xl border border-border bg-card/65 p-6 sm:p-10"
         >
@@ -1488,7 +1276,6 @@ export function LandingExperience() {
 
       <section data-section="final-cta" className="mx-auto w-full max-w-6xl px-6 pb-24">
         <SectionReveal
-          scrollDirection={scrollDirection}
           variants={sectionFromRight}
           className="relative overflow-hidden rounded-3xl border border-border bg-card/70 p-8 text-center sm:p-12"
         >
@@ -1555,5 +1342,6 @@ export function LandingExperience() {
       </section>
         <MobileStickyCTA visible={showMobileStickyCta} />
       </main>
+    </LandingMotionContext.Provider>
   );
 }

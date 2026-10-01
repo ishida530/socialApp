@@ -44,7 +44,7 @@ const nextConfig = {
           "img-src 'self' data: blob: https:",
           "media-src 'self' blob: https:",
           scriptSrc,
-          "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+          "style-src 'self' 'unsafe-inline'",
           "font-src 'self' data: https://fonts.gstatic.com",
           "connect-src 'self' https://api.stripe.com https://*.supabase.co https://*.supabase.com https://open.tiktokapis.com https://www.googleapis.com https://oauth2.googleapis.com https://accounts.google.com https://www.tiktok.com https://vercel.com https://*.vercel-storage.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://*.ingest.de.sentry.io",
           "frame-src https://js.stripe.com https://hooks.stripe.com",

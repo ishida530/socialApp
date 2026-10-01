@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { LandingExperience } from '@/components/landing/LandingExperience';
+import { LandingFaqSection, LandingFeaturesSection, LandingSeoSection } from '@/components/landing/LandingStaticSections';
 import { LANDING_FAQ_ITEMS } from '@/lib/landing-faq';
 import { getSiteUrl } from '@/lib/site-url';
 
@@ -139,7 +140,11 @@ export default function LandingPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
       />
-      <LandingExperience />
+      <LandingExperience
+        featuresSection={<LandingFeaturesSection />}
+        seoSection={<LandingSeoSection />}
+        faqSection={<LandingFaqSection />}
+      />
     </>
   );
 }
