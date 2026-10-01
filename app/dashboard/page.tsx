@@ -13,6 +13,7 @@ import { getAnalyticsSummary, getOnboardingProgress } from '@/lib/server/dashboa
 export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
+  // The layout already redirected logged-out visitors; this is only a guard for direct renders.
   const session = await getServerSession();
   if (!session) {
     redirect('/login');

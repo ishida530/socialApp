@@ -20,6 +20,7 @@ vi.mock('next/navigation', async (importOriginal) => ({
 }));
 
 const { default: DashboardPage } = await import('@/app/dashboard/page');
+const { default: DashboardLayout } = await import('@/app/dashboard/layout');
 const { getOnboardingProgress, getAnalyticsSummary } = await import('@/lib/server/dashboard-data');
 const { TOKEN_COOKIE_NAME } = await import('@/lib/server/auth');
 const { prisma } = await import('@/lib/server/prisma');
@@ -78,6 +79,21 @@ describe('dashboard data', () => {
 
     expect(summary.totals).toMatchObject({ videosUploaded: 1, jobsCreated: 2, jobsSucceeded: 1, jobsFailed: 1, successRate: 50 });
     expect(summary.trend).toHaveLength(30);
+  });
+});
+
+describe('DashboardLayout (session gate before the loading boundary)', () => {
+  it('redirects a logged-out visitor before anything streams', async () => {
+    await expect(DashboardLayout({ children: null })).rejects.toThrow('NEXT_REDIRECT:/login');
+  });
+
+  it('renders children for a valid session', async () => {
+    const { user, token } = await createTestUser();
+    cleanupUserId = user.id;
+    cookieStore.set(TOKEN_COOKIE_NAME, token);
+
+    expect(await DashboardLayout({ children: 'content' })).toBe('content');
+    expect(redirectMock).not.toHaveBeenCalled();
   });
 });
 

@@ -50,8 +50,12 @@ test('a logged-out visit to /dashboard is redirected to /login on the server, wi
     // never resolves
   });
 
-  const response = await page.goto(`${BASE_URL}/dashboard`);
+  // A real HTTP redirect from the layout's session gate - not a 200 skeleton + client redirect.
+  const redirectResponse = await page.request.get(`${BASE_URL}/dashboard`, { maxRedirects: 0 });
+  expect(redirectResponse.status()).toBe(307);
+  expect(redirectResponse.headers()['location']).toContain('/login');
+
+  await page.goto(`${BASE_URL}/dashboard`);
   await page.waitForURL('**/login', { timeout: 10_000 });
-  expect(response?.status()).toBeLessThan(400);
   await expect(page.getByText('Ładowanie sesji...')).toHaveCount(0);
 });
