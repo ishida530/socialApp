@@ -6,6 +6,10 @@ import { BASE_URL } from './helpers';
 // "Ładowanie sesji..." with no error and no way out. Fixed by adding a timeout to the
 // axios instance (lib/api-client.ts) and a sessionError + retrySession escape hatch in
 // AuthProvider (contexts/auth-context.tsx), surfaced as a "Spróbuj ponownie" button.
+//
+// 2026-10-01: /dashboard became a Server Component that checks the session on the server, so it no
+// longer depends on /auth/me at all (covered by the second test below). The client-side gate this
+// test protects is still used by the pages not migrated yet - /analytics is one of them.
 test('a hung /auth/me request surfaces a retryable error instead of hanging forever', async ({ page }) => {
   test.setTimeout(60_000);
 
@@ -20,7 +24,7 @@ test('a hung /auth/me request surfaces a retryable error instead of hanging fore
     await route.fulfill({ status: 401, body: JSON.stringify({ message: 'Unauthorized' }) });
   });
 
-  await page.goto(`${BASE_URL}/dashboard`);
+  await page.goto(`${BASE_URL}/analytics`);
 
   await expect(page.getByText('Ładowanie sesji...')).toBeVisible();
 
@@ -38,4 +42,16 @@ test('a hung /auth/me request surfaces a retryable error instead of hanging fore
   hang = false;
   await retryButton.click();
   await page.waitForURL('**/login', { timeout: 10_000 });
+});
+
+test('a logged-out visit to /dashboard is redirected to /login on the server, without waiting for /auth/me', async ({ page }) => {
+  // Even with /auth/me hanging, the server-side redirect lands on /login right away.
+  await page.route('**/api/auth/me', async () => {
+    // never resolves
+  });
+
+  const response = await page.goto(`${BASE_URL}/dashboard`);
+  await page.waitForURL('**/login', { timeout: 10_000 });
+  expect(response?.status()).toBeLessThan(400);
+  await expect(page.getByText('Ładowanie sesji...')).toHaveCount(0);
 });
