@@ -380,8 +380,9 @@ export function usePostComposerState() {
       });
       dispatch({ type: 'UPDATE_JOB', jobId, patch: response.data });
       toast.success('Wygenerowano nową treść.');
-    } catch {
-      toast.error('Nie udało się wygenerować treści ponownie.');
+    } catch (error: unknown) {
+      const message = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      toast.error(message || 'Nie udało się wygenerować treści ponownie.');
     }
   }, []);
 

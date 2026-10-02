@@ -98,6 +98,9 @@ export type OrchestrateContentOutput = {
   strategySummary?: string;
   warnings: string[];
   usedAI: boolean;
+  // true when Claude wrote the post copy, false when it fell back to the persona templates
+  // (no API key, API error such as an exhausted credit balance, timeout, malformed response).
+  aiCopy?: boolean;
   runId: string;
   status: WorkflowStatus;
 };

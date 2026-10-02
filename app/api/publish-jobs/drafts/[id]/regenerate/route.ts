@@ -36,7 +36,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       return notFound('Nie znaleziono niedokończonego posta dla tej platformy.');
     }
 
-    const { bundlesByPlatform, orchestrationWarning } = await generatePlatformBundles(user.userId, {
+    const { bundlesByPlatform, orchestrationWarning, aiGenerated } = await generatePlatformBundles(user.userId, {
       rawInput: body.rawInput?.trim() || job.caption,
       targetPlatforms: [job.socialAccount.platform],
       timezone: body.timezone || 'Europe/Warsaw',
@@ -46,6 +46,16 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     const bundle = bundlesByPlatform.get(job.socialAccount.platform);
     if (!bundle) {
       return badRequest(orchestrationWarning || 'Nie udało się wygenerować nowej treści.');
+    }
+
+    // 2026-10-02: "Generuj ponownie" asks for a NEW text from the AI. When Claude is unavailable
+    // the template fallback would just prefix the current caption again ("Krótka aktualizacja:
+    // Krótka aktualizacja: ..."), so keep the draft unchanged and say what happened instead.
+    if (!aiGenerated) {
+      return NextResponse.json(
+        { message: 'Generator AI jest chwilowo niedostępny. Opis nie został zmieniony - spróbuj ponownie później.' },
+        { status: 503 },
+      );
     }
 
     const updated = await prisma.publishJob.update({

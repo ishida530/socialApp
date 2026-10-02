@@ -31,6 +31,8 @@ export async function generatePlatformBundles(
     return {
       bundlesByPlatform: new Map(result.platformBundles.map((bundle) => [bundle.platform, bundle])),
       orchestrationWarning: null as string | null,
+      // false = Claude was unavailable and the copy came from the persona templates.
+      aiGenerated: result.aiCopy === true,
       // EPIC 4 (obserwuj->planuj->działaj->sprawdź->popraw): orchestrateContent already computes
       // a real, reasoned schedule suggestion here - previously silently discarded by every
       // caller of generatePlatformBundles, so the "popraw" step never had a way to reach the
@@ -47,6 +49,7 @@ export async function generatePlatformBundles(
       bundlesByPlatform: new Map<string, PlatformBundle>(),
       orchestrationWarning:
         error instanceof Error ? error.message : 'Nie udało się automatycznie wygenerować treści.',
+      aiGenerated: false,
       schedule: [] as ScheduleSlot[],
       hasCriticalSafety: false,
     };
