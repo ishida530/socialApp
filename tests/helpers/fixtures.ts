@@ -4,13 +4,16 @@ import { prisma } from '@/lib/server/prisma';
 import { issueAccessToken } from '@/lib/server/auth';
 import type { Platform, PlanTier } from '@prisma/client';
 
-export async function createTestUser(overrides: { email?: string; name?: string; createdAt?: Date } = {}) {
+export async function createTestUser(
+  overrides: { email?: string; name?: string; createdAt?: Date; emailVerifiedAt?: Date | null } = {},
+) {
   const email = overrides.email ?? `test+${randomUUID()}@example.com`;
   const user = await prisma.user.create({
     data: {
       email,
       name: overrides.name ?? 'Test User',
       passwordHash: null,
+      emailVerifiedAt: overrides.emailVerifiedAt === undefined ? new Date() : overrides.emailVerifiedAt,
       ...(overrides.createdAt ? { createdAt: overrides.createdAt } : {}),
     },
   });

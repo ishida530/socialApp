@@ -56,6 +56,7 @@ export async function POST(request: NextRequest) {
         userId: true,
         usedAt: true,
         expiresAt: true,
+        user: { select: { emailVerifiedAt: true } },
       },
     });
 
@@ -69,7 +70,8 @@ export async function POST(request: NextRequest) {
     await prisma.$transaction([
       prisma.user.update({
         where: { id: resetToken.userId },
-        data: { passwordHash: hashPassword(body.password) },
+        // A reset/invite link was opened from the mailbox - that proves ownership too.
+        data: { passwordHash: hashPassword(body.password), emailVerifiedAt: resetToken.user?.emailVerifiedAt ?? now },
       }),
       prisma.passwordResetToken.update({
         where: { id: resetToken.id },

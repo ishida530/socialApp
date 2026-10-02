@@ -1,24 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  issueAccessToken,
-  TOKEN_COOKIE_NAME,
-  TWO_FACTOR_REMEMBER_COOKIE_NAME,
-  TWO_FACTOR_REMEMBER_MAX_AGE_SEC,
-  verifyPendingTwoFactorToken,
-} from '@/lib/server/auth';
+import { issueAccessToken, TOKEN_COOKIE_NAME, TWO_FACTOR_REMEMBER_COOKIE_NAME, TWO_FACTOR_REMEMBER_MAX_AGE_SEC, verifyPendingTwoFactorToken, getSessionMaxAgeSec } from '@/lib/server/auth';
 import { badRequest, tooManyRequests, unauthorized, serverError } from '@/lib/server/http';
 import { createTrustedDeviceToken, verifyTwoFactorForLogin } from '@/lib/server/two-factor';
 import { recordAuditLog } from '@/lib/server/audit-log';
 import { consumeRateLimit, getRequestIp } from '@/lib/server/rate-limit';
 
-function resolveCookieMaxAge() {
-  const raw = Number(process.env.JWT_EXPIRES_IN ?? 3600);
-  if (!Number.isFinite(raw) || raw <= 0) {
-    return 3600;
-  }
-
-  return Math.floor(raw);
-}
 
 // Step 2 of login for an account with 2FA enabled - exchanges the short-lived pendingToken from
 // POST /api/auth/login (issued only after the password already checked out) plus a valid
@@ -63,7 +49,7 @@ export async function POST(request: NextRequest) {
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
-      maxAge: resolveCookieMaxAge(),
+      maxAge: getSessionMaxAgeSec(),
     });
 
     // "Remember this device" (2026-09-16) - opt-in, unchecked by default is NOT the case here on

@@ -24,13 +24,32 @@ function requireJwtSecret() {
   return secret;
 }
 
-export function issueAccessToken(userId: string, email: string) {
-  const expiresInRaw = process.env.JWT_EXPIRES_IN;
-  const expiresIn = expiresInRaw ? Number(expiresInRaw) : 3600;
+// Session length in seconds (2026-10-02): 30 days by default, renewed while the user is active
+// (see shouldRenewSession / GET /api/auth/me) - a SaaS session must not end after an hour of work.
+// JWT_EXPIRES_IN overrides it. The one definition for the token AND the cookie max-age.
+const DEFAULT_SESSION_SECONDS = 30 * 24 * 60 * 60;
 
+export function getSessionMaxAgeSec() {
+  const raw = Number(process.env.JWT_EXPIRES_IN);
+  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : DEFAULT_SESSION_SECONDS;
+}
+
+export function issueAccessToken(userId: string, email: string) {
   return jwt.sign({ sub: userId, email }, requireJwtSecret(), {
-    expiresIn: Number.isFinite(expiresIn) && expiresIn > 0 ? expiresIn : 3600,
+    expiresIn: getSessionMaxAgeSec(),
   });
+}
+
+// Renew at most once a day: a token issued more than 24 h ago is replaced on the next
+// /api/auth/me call (made on every app load), so an active user's session keeps sliding forward.
+const SESSION_RENEW_AFTER_SEC = 24 * 60 * 60;
+
+export function shouldRenewSession(token: string) {
+  const decoded = jwt.decode(token) as { iat?: number } | null;
+  if (!decoded?.iat) {
+    return false;
+  }
+  return Date.now() / 1000 - decoded.iat > SESSION_RENEW_AFTER_SEC;
 }
 
 export function verifyAccessToken(token: string): AuthUser {

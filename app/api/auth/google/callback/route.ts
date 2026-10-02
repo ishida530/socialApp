@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/server/prisma';
-import { issueAccessToken, TOKEN_COOKIE_NAME } from '@/lib/server/auth';
+import { issueAccessToken, TOKEN_COOKIE_NAME, getSessionMaxAgeSec } from '@/lib/server/auth';
 import {
   exchangeGoogleCodeForLogin,
   fetchGoogleUserInfo,
@@ -10,14 +10,6 @@ import {
 const GOOGLE_LOGIN_STATE_COOKIE = 'google_login_state';
 const GOOGLE_LOGIN_STATE_COOKIE_PATH = '/api/auth/google/callback';
 
-function resolveCookieMaxAge() {
-  const raw = Number(process.env.JWT_EXPIRES_IN ?? 3600);
-  if (!Number.isFinite(raw) || raw <= 0) {
-    return 3600;
-  }
-
-  return Math.floor(raw);
-}
 
 function resolveFrontendUrl() {
   return process.env.FRONTEND_URL ?? 'http://localhost:3000';
@@ -69,6 +61,7 @@ export async function GET(request: NextRequest) {
         id: true,
         email: true,
         name: true,
+        emailVerifiedAt: true,
       },
     });
 
@@ -77,6 +70,8 @@ export async function GET(request: NextRequest) {
           where: { id: existingUser.id },
           data: {
             name: existingUser.name?.trim() ? existingUser.name : displayName,
+            // Google only issues verified addresses for sign-in - proof of mailbox ownership.
+            emailVerifiedAt: existingUser.emailVerifiedAt ?? new Date(),
           },
           select: {
             id: true,
@@ -88,6 +83,7 @@ export async function GET(request: NextRequest) {
             email,
             name: displayName,
             passwordHash: null,
+            emailVerifiedAt: new Date(),
           },
           select: {
             id: true,
@@ -102,7 +98,7 @@ export async function GET(request: NextRequest) {
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
-      maxAge: resolveCookieMaxAge(),
+      maxAge: getSessionMaxAgeSec(),
     });
 
     response.cookies.set(GOOGLE_LOGIN_STATE_COOKIE, '', {

@@ -1,21 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { issueAccessToken, TOKEN_COOKIE_NAME } from '@/lib/server/auth';
+import { issueAccessToken, TOKEN_COOKIE_NAME, getSessionMaxAgeSec } from '@/lib/server/auth';
 import { badRequest, serverError, tooManyRequests } from '@/lib/server/http';
 import { hashPassword } from '@/lib/server/crypto';
 import { hasTrippedHoneypot } from '@/lib/server/honeypot';
 import { prisma } from '@/lib/server/prisma';
 import { consumeRateLimit, getRequestIp } from '@/lib/server/rate-limit';
-import { sendWelcomeEmail } from '@/lib/mail/service';
+import { sendEmailVerificationEmail } from '@/lib/mail/service';
+import { buildEmailVerificationLink } from '@/lib/server/email-verification';
 import { isRegistrationOpen } from '@/lib/server/app-mode';
 
-function resolveCookieMaxAge() {
-  const raw = Number(process.env.JWT_EXPIRES_IN ?? 3600);
-  if (!Number.isFinite(raw) || raw <= 0) {
-    return 3600;
-  }
-
-  return Math.floor(raw);
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -73,9 +66,9 @@ export async function POST(request: NextRequest) {
     });
 
     try {
-      await sendWelcomeEmail(user.email, user.name);
+      await sendEmailVerificationEmail(user.email, user.name, buildEmailVerificationLink(user.id, user.email));
     } catch (emailError) {
-      console.error('[mail] Welcome email sending failed.', emailError);
+      console.error('[mail] Verification email sending failed.', emailError);
     }
 
     const accessToken = issueAccessToken(user.id, user.email);
@@ -91,7 +84,7 @@ export async function POST(request: NextRequest) {
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
-      maxAge: resolveCookieMaxAge(),
+      maxAge: getSessionMaxAgeSec(),
     });
 
     return response;

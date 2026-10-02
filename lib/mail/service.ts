@@ -43,6 +43,33 @@ export async function sendWelcomeEmail(userEmail: string, userName: string) {
   }
 }
 
+// Sent right after registration (2026-10-02) - replaces the old welcome email: the PRO trial now
+// starts only once the address is confirmed.
+export async function sendEmailVerificationEmail(userEmail: string, userName: string, verifyLink: string) {
+  const from = process.env.EMAIL_FROM ?? 'PostFly <hello@postfly.pl>';
+  const safeName = escapeHtml(userName?.trim() || 'Twórco');
+  const safeLink = escapeHtml(verifyLink);
+
+  const result = await getResendClient().emails.send({
+    from,
+    to: userEmail,
+    subject: 'PostFly - potwierdź adres e-mail i odblokuj 7 dni PRO',
+    text:
+      `Cześć ${userName || 'Twórco'}!\n\nWitamy w PostFly. Potwierdź adres e-mail, aby odblokować 7 dni pełnego pakietu PRO:\n` +
+      `${verifyLink}\n\nLink jest ważny 3 dni. Jeśli to nie Ty zakładałeś konto, zignoruj tę wiadomość.\n\nPozdrawiamy,\nZespół PostFly`,
+    html:
+      '<div style="font-family:Inter,Arial,sans-serif;line-height:1.6;color:#111827">' +
+      `<p>Cześć ${safeName}!</p><p>Witamy w <strong>PostFly</strong>. Potwierdź adres e-mail, aby odblokować <strong>7 dni pełnego pakietu PRO</strong>.</p>` +
+      `<p><a href="${safeLink}" style="display:inline-block;padding:10px 18px;border-radius:8px;background:#f97316;color:#ffffff;text-decoration:none;font-weight:600">Potwierdź adres e-mail</a></p>` +
+      `<p style="font-size:13px;color:#6b7280">Link jest ważny 3 dni. Jeśli to nie Ty zakładałeś konto, zignoruj tę wiadomość.</p>` +
+      '<p>Pozdrawiamy,<br/>Zespół PostFly</p></div>',
+  });
+
+  if (result.error) {
+    throw new Error(`[mail] Resend error ${result.error.statusCode}: ${result.error.message}`);
+  }
+}
+
 export async function sendPasswordResetEmail(userEmail: string, resetLink: string) {
   const from = process.env.EMAIL_FROM ?? 'PostFly <hello@postfly.pl>';
   const safeResetLink = escapeHtml(resetLink);

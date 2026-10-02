@@ -1,10 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  issueAccessToken,
-  issuePendingTwoFactorToken,
-  TOKEN_COOKIE_NAME,
-  TWO_FACTOR_REMEMBER_COOKIE_NAME,
-} from '@/lib/server/auth';
+import { issueAccessToken, issuePendingTwoFactorToken, TOKEN_COOKIE_NAME, TWO_FACTOR_REMEMBER_COOKIE_NAME, getSessionMaxAgeSec } from '@/lib/server/auth';
 import {
   badRequest,
   serverError,
@@ -18,14 +13,6 @@ import { consumeRateLimit, getRequestIp } from '@/lib/server/rate-limit';
 import { recordAuditLog } from '@/lib/server/audit-log';
 import { verifyTrustedDeviceToken } from '@/lib/server/two-factor';
 
-function resolveCookieMaxAge() {
-  const raw = Number(process.env.JWT_EXPIRES_IN ?? 3600);
-  if (!Number.isFinite(raw) || raw <= 0) {
-    return 3600;
-  }
-
-  return Math.floor(raw);
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -121,7 +108,7 @@ export async function POST(request: NextRequest) {
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
-      maxAge: resolveCookieMaxAge(),
+      maxAge: getSessionMaxAgeSec(),
     });
 
     return response;
