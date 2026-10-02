@@ -46,6 +46,10 @@ type BillingSnapshot = {
       count: number;
       limit: number | null;
     };
+    ai_generations?: {
+      count: number;
+      limit: number | null;
+    };
   };
 };
 
@@ -277,7 +281,7 @@ function BillingPageContent() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div className="p-4 rounded-lg border border-border bg-secondary/20">
                 <p className="text-sm text-foreground">Uploady wideo</p>
                 <p className="text-xs text-muted-foreground mt-1">
@@ -292,6 +296,16 @@ function BillingPageContent() {
                 <p className="text-xs text-muted-foreground mt-1">
                   {snapshot
                     ? `${snapshot.usage.publish_jobs.count} / ${snapshot.usage.publish_jobs.limit ?? '∞'}`
+                    : '-'}
+                </p>
+              </div>
+
+              {/* 2026-10-02: monthly AI text quota (post copy, "Generuj ponownie", Telegram assistant). */}
+              <div className="p-4 rounded-lg border border-border bg-secondary/20">
+                <p className="text-sm text-foreground">Teksty AI</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {snapshot?.usage.ai_generations
+                    ? `${snapshot.usage.ai_generations.count} / ${snapshot.usage.ai_generations.limit ?? '∞'}`
                     : '-'}
                 </p>
               </div>
