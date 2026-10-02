@@ -72,6 +72,10 @@ function resolveLimitMessage(metric: UsageMetric, limit: number) {
     return `Przekroczono limit planu (${limit} uploadów wideo / miesiąc).`;
   }
 
+  if (metric === 'ai_generations') {
+    return `Wykorzystano miesięczny limit generowania tekstów AI w Twoim planie (${limit}).`;
+  }
+
   if (metric === 'ai_autopilot_runs') {
     return `Przekroczono limit planu (${limit} uruchomień Auto-Pilot AI / miesiąc).`;
   }
@@ -302,10 +306,11 @@ export async function getSubscriptionSnapshot(userId: string) {
       ? { effectivePlan: PlanTier.BUSINESS, trial: null }
       : resolveEffectivePlan(subscription.plan, user);
 
-  const [videoUsage, publishUsage, aiUsage] = await Promise.all([
+  const [videoUsage, publishUsage, aiUsage, aiGenerationsUsage] = await Promise.all([
     getCurrentUsage(userId, 'video_uploads'),
     getCurrentUsage(userId, 'publish_jobs'),
     getCurrentUsage(userId, 'ai_autopilot_runs'),
+    getCurrentUsage(userId, 'ai_generations'),
   ]);
 
   return {
@@ -340,6 +345,45 @@ export async function getSubscriptionSnapshot(userId: string) {
         count: aiUsage.count,
         limit: resolvePlanLimits(effective.effectivePlan).ai_autopilot_runs,
       },
+      ai_generations: {
+        count: aiGenerationsUsage.count,
+        limit: resolvePlanLimits(effective.effectivePlan).ai_generations,
+      },
     },
   };
 }
+
+// AI generation quota (2026-10-02, AI review): post-copy generation, "Generuj ponownie" and the
+// Telegram assistant used to have no cap at all, so one account could run up any Anthropic bill.
+// Checked before the call, counted only after the AI actually produced the text (a provider
+// outage doesn't eat the user's quota).
+export async function hasAiGenerationQuota(userId: string) {
+  if (resolveAppMode() === 'personal') {
+    return true;
+  }
+
+  try {
+    const effectivePlan = await getEffectivePlan(userId);
+    const limit = resolvePlanLimits(effectivePlan).ai_generations;
+    if (limit === null) {
+      return true;
+    }
+
+    const current = await getCurrentUsage(userId, 'ai_generations');
+    return current.count < limit;
+  } catch {
+    // A failed quota lookup must not take the AI feature down - the cap is a cost guard, not auth.
+    return true;
+  }
+}
+
+export async function recordAiGeneration(userId: string) {
+  if (resolveAppMode() === 'personal') {
+    return;
+  }
+
+  await incrementUsage(userId, 'ai_generations').catch(() => {});
+}
+
+export const AI_QUOTA_EXHAUSTED_MESSAGE =
+  'Wykorzystano miesięczny limit generowania tekstów AI w Twoim planie. Opis możesz edytować ręcznie albo zmienić plan.';

@@ -213,15 +213,21 @@ export async function orchestrateContent(userId: string, input: OrchestrateConte
     // Real, tailored copy from Claude when configured; the pre-existing persona templates
     // remain the fallback (no ANTHROPIC_API_KEY, timeout, or a malformed/incomplete response) -
     // same "AI enhances, heuristic is the safety net" pattern as the classification step above.
-    const aiBundles = await generateBundlesWithClaude(
-      analysis,
-      input,
-      [...requestedPlatforms],
-      user?.businessDescription,
-      user?.communicationStyle,
-      readPlatformStyleGuides(user?.platformStyleGuides),
-      user?.brandHashtag,
-    );
+    const aiBundles = input.skipAi
+      ? null
+      : await generateBundlesWithClaude(
+          analysis,
+          input,
+          [...requestedPlatforms],
+          user?.businessDescription,
+          user?.communicationStyle,
+          readPlatformStyleGuides(user?.platformStyleGuides),
+          user?.brandHashtag,
+        );
+    if (!aiBundles) {
+      // AI quality metric (2026-10-02): how often drafts fall back to the user's raw note.
+      logEvent('smart-autopilot', 'ai-copy-fallback', { runId, userId, reason: input.skipAi ? 'quota' : 'provider' });
+    }
     let bundles = aiBundles ?? transformByPersona(analysis, input);
 
     if (input.targetPlatforms && input.targetPlatforms.length > 0) {

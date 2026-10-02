@@ -4,15 +4,18 @@
 // unconfigured or failing -> null, so callers can fall back to a deterministic non-AI path
 // instead of hard-failing the request.
 import { recordClaudeUsage } from './claude-usage';
+import { reportAiProviderProblem } from './ai-alerts';
 
 const DEFAULT_TIMEOUT_MS = 20000;
 const DEFAULT_MAX_RETRIES = 2;
+const MAX_RETRY_AFTER_MS = 5000;
 const ANTHROPIC_VERSION = '2023-06-01';
 
 export const CLAUDE_MODELS = {
   // Small, fast, cheap - a strict single-label classification task doesn't need more.
   classification: process.env.ANTHROPIC_CLASSIFICATION_MODEL ?? 'claude-haiku-4-5-20251001',
-  // Creative writing quality matters here (actual post copy shown to real audiences).
+  // Creative writing quality matters here (actual post copy shown to real audiences). Compare
+  // candidates with `npm run eval:captions` before changing it (evals/README.md).
   contentGeneration: process.env.ANTHROPIC_CONTENT_MODEL ?? 'claude-sonnet-5',
 };
 
@@ -28,24 +31,64 @@ function getAnthropicConfig() {
   };
 }
 
+// 2026-10-02 (AI review): only transient failures are worth another attempt - rate limit (429),
+// overload (529), server errors (5xx), timeouts/conflicts (408/409) and network errors. A 400
+// (e.g. exhausted credit balance, invalid request), 401 or 403 fails the same way every time, so
+// retrying it only multiplied the latency of the template fallback.
+function isRetryableStatus(status: number) {
+  return status === 408 || status === 409 || status === 429 || status >= 500;
+}
+
+function retryDelayMs(response: Response | null, attempt: number) {
+  const retryAfter = Number(response?.headers?.get?.('retry-after'));
+  if (Number.isFinite(retryAfter) && retryAfter > 0) {
+    return Math.min(retryAfter * 1000, MAX_RETRY_AFTER_MS);
+  }
+  return 400 * attempt;
+}
+
 // 2026-10-02: API errors used to be swallowed silently, so an exhausted credit balance showed up
 // only as template captions ("Krótka aktualizacja: ..."). Logged as an error (Vercel logs, and
 // Sentry once configured) with Anthropic's own error type and message - never the request or key.
+// Account-level problems (credits, key) also email the admin - see lib/server/ai-alerts.ts.
 async function logAnthropicFailure(scope: string, model: string, response: Response) {
-  let detail = '';
+  let type = '';
+  let message = '';
   try {
     const body = (await response.json()) as { error?: { type?: string; message?: string } };
-    detail = [body.error?.type, body.error?.message].filter(Boolean).join(': ');
+    type = body.error?.type ?? '';
+    message = body.error?.message ?? '';
   } catch {
     // Non-JSON error body - the status code alone is still useful.
   }
-  console.error('[anthropic] request failed', { scope, model, status: response.status, detail: detail.slice(0, 300) });
+  const detail = [type, message].filter(Boolean).join(': ').slice(0, 300);
+  console.error('[anthropic] request failed', { scope, model, status: response.status, detail });
+  await reportAiProviderProblem({ status: response.status, type, message });
+}
+
+type AnthropicUsage = {
+  input_tokens?: number;
+  output_tokens?: number;
+  cache_creation_input_tokens?: number;
+  cache_read_input_tokens?: number;
+};
+
+// Cache writes and reads are billed as input tokens too (at different rates) - counted into the
+// input total so the FinOps estimate doesn't silently drop them.
+function totalInputTokens(usage?: AnthropicUsage) {
+  return (usage?.input_tokens ?? 0) + (usage?.cache_creation_input_tokens ?? 0) + (usage?.cache_read_input_tokens ?? 0);
 }
 
 type AnthropicToolResponse = {
   content?: Array<{ type: string; name?: string; input?: unknown }>;
-  usage?: { input_tokens?: number; output_tokens?: number };
+  usage?: AnthropicUsage;
 };
+
+// Image input (2026-10-02): the post's photo / video thumbnail is sent alongside the text so the
+// caption describes what's actually in the material. Public Blob URLs - Anthropic fetches them.
+export type AnthropicUserContentBlock =
+  | { type: 'text'; text: string }
+  | { type: 'image'; source: { type: 'url'; url: string } };
 
 // Agent-mentor (multi-tool, model-driven tool_choice) support - deliberately separate from
 // callClaudeTool above, which forces exactly one tool and returns only its parsed input. This one
@@ -71,6 +114,8 @@ export async function callClaudeAgentTurn(params: {
   tools: Array<{ name: string; description: string; input_schema: Record<string, unknown> }>;
   maxTokens?: number;
   timeoutMs?: number;
+  // 'none' = answer in text only (used for the final wrap-up when the tool-round budget is spent).
+  toolChoice?: 'auto' | 'none';
 }): Promise<{ content: AnthropicContentBlock[]; stopReason?: string } | null> {
   const config = getAnthropicConfig();
   if (!config) {
@@ -92,13 +137,18 @@ export async function callClaudeAgentTurn(params: {
       body: JSON.stringify({
         model: params.model,
         max_tokens: params.maxTokens ?? 1024,
-        system: params.system,
+        // Prompt caching (2026-10-02): the system prompt and the tool definitions are identical on
+        // every turn of the mentor agent - marking their end as a cache breakpoint lets Anthropic
+        // reuse that prefix instead of re-processing it on each message (cheaper and faster).
+        system: [{ type: 'text', text: params.system, cache_control: { type: 'ephemeral' } }],
         messages: params.messages,
-        tools: params.tools.map((tool) => ({
+        tools: params.tools.map((tool, index) => ({
           name: tool.name,
           description: tool.description,
           input_schema: tool.input_schema,
+          ...(index === params.tools.length - 1 ? { cache_control: { type: 'ephemeral' } } : {}),
         })),
+        ...(params.toolChoice === 'none' ? { tool_choice: { type: 'none' } } : {}),
       }),
       signal: controller.signal,
     });
@@ -111,7 +161,7 @@ export async function callClaudeAgentTurn(params: {
     const payload = (await response.json()) as {
       content?: AnthropicContentBlock[];
       stop_reason?: string;
-      usage?: { input_tokens?: number; output_tokens?: number };
+      usage?: AnthropicUsage;
     };
     if (!Array.isArray(payload.content)) {
       return null;
@@ -120,7 +170,7 @@ export async function callClaudeAgentTurn(params: {
     // recordClaudeUsage swallows its own errors internally (best-effort) - awaited here anyway
     // since the write itself is cheap next to the Claude call that already happened, and it keeps
     // "the call is recorded" a real guarantee by the time this function returns, not a race.
-    await recordClaudeUsage(params.scope, params.model, payload.usage?.input_tokens ?? 0, payload.usage?.output_tokens ?? 0);
+    await recordClaudeUsage(params.scope, params.model, totalInputTokens(payload.usage), payload.usage?.output_tokens ?? 0);
 
     return { content: payload.content, stopReason: payload.stop_reason };
   } catch {
@@ -136,7 +186,8 @@ export async function callClaudeTool<T>(params: {
   scope: string;
   model: string;
   system: string;
-  userContent: string;
+  // A plain string, or content blocks when the request carries images.
+  userContent: string | AnthropicUserContentBlock[];
   tool: { name: string; description: string; input_schema: Record<string, unknown> };
   maxTokens?: number;
   timeoutMs?: number;
@@ -180,8 +231,8 @@ export async function callClaudeTool<T>(params: {
       });
 
       if (!response.ok) {
-        if (attempt <= maxRetries) {
-          await new Promise((resolve) => setTimeout(resolve, 400 * attempt));
+        if (attempt <= maxRetries && isRetryableStatus(response.status)) {
+          await new Promise((resolve) => setTimeout(resolve, retryDelayMs(response, attempt)));
           continue;
         }
 
@@ -195,7 +246,7 @@ export async function callClaudeTool<T>(params: {
       // were still spent either way. Awaited (not fire-and-forget) so "the call is recorded" is a
       // real guarantee by the time this function returns - recordClaudeUsage swallows its own
       // errors internally, so this can never make an otherwise-successful call fail.
-      await recordClaudeUsage(params.scope, params.model, payload.usage?.input_tokens ?? 0, payload.usage?.output_tokens ?? 0);
+      await recordClaudeUsage(params.scope, params.model, totalInputTokens(payload.usage), payload.usage?.output_tokens ?? 0);
 
       const toolUseBlock = payload.content?.find(
         (block) => block.type === 'tool_use' && block.name === params.tool.name,
@@ -207,8 +258,9 @@ export async function callClaudeTool<T>(params: {
 
       return toolUseBlock.input as T;
     } catch {
+      // Network error or our own timeout - transient by nature.
       if (attempt <= maxRetries) {
-        await new Promise((resolve) => setTimeout(resolve, 400 * attempt));
+        await new Promise((resolve) => setTimeout(resolve, retryDelayMs(null, attempt)));
         continue;
       }
 

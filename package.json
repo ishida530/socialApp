@@ -21,6 +21,7 @@
     "test:commercial": "cross-env APP_MODE=commercial vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "eval:captions": "node --env-file-if-exists=.env node_modules/vitest/vitest.mjs run --config evals/vitest.config.mts",
     "backup:db": "node scripts/backup-database.mjs",
     "restore:db": "node scripts/restore-database.mjs"
   },

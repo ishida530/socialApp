@@ -17,6 +17,7 @@
 // irreversible effect - they're the user dictating their own bookkeeping (a contact, a sale that
 // already happened) into a private list only they see. The agent always echoes back exactly what
 // it recorded so a mistake is visible immediately, but that's transparency, not a gate.
+import { hasAiGenerationQuota, recordAiGeneration } from './subscription';
 import {
   callClaudeAgentTurn,
   CLAUDE_MODELS,
@@ -46,6 +47,18 @@ const DEFAULT_TIMEZONE = 'Europe/Warsaw';
 const MAX_TOOL_ROUNDS = 3;
 const HISTORY_TURNS = 20; // last 20 messages (~10 exchanges) - enough context, bounded cost
 const MAX_MESSAGE_CHARS = 2000;
+// Start the wrap-up call only before this point, so it ends within the webhook's 60s maxDuration.
+const WRAP_UP_DEADLINE_MS = 40000;
+
+const WRITE_TOOLS = new Set(['add_fan', 'record_sale', 'set_goal', 'complete_goal', 'start_campaign', 'end_campaign']);
+
+function describeWrite(name: string, input: unknown) {
+  const details = Object.values((input ?? {}) as Record<string, unknown>)
+    .filter((value) => typeof value === 'string' || typeof value === 'number')
+    .join(', ')
+    .slice(0, 120);
+  return details ? ` (${details})` : name;
+}
 
 const MENTOR_SYSTEM_PROMPT = [
   'Jestes mentorem/asystentem uzytkownika appki Postfly (planowanie i publikacja tresci social media), rozmawiasz z nim na Telegramie po polsku, krotko i konkretnie.',
@@ -336,6 +349,11 @@ export async function runMentorTurn(userId: string, userMessage: string): Promis
     return 'Nie zrozumiałem pustej wiadomości - napisz, w czym mogę pomóc.';
   }
 
+  // Monthly AI quota (2026-10-02) - same counter as post-copy generation.
+  if (!(await hasAiGenerationQuota(userId))) {
+    return `Wykorzystano miesięczny limit odpowiedzi AI w Twoim planie. Komendy (/status, /logs, /ideas) działają dalej.`;
+  }
+
   const history = await prisma.agentConversationTurn.findMany({
     where: { userId },
     orderBy: { seq: 'desc' },
@@ -350,8 +368,15 @@ export async function runMentorTurn(userId: string, userMessage: string): Promis
   messages.push({ role: 'user', content: safeMessage });
 
   let finalText: string | null = null;
+  const startedAt = Date.now();
+  // Write tools that already ran this turn (2026-10-02, AI review): if the agent runs out of rounds
+  // before answering, the user must still learn what WAS saved - otherwise they retry and the sale
+  // or fan gets recorded twice.
+  const writesDone: string[] = [];
+  let roundBudgetSpent = false;
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
+    roundBudgetSpent = false;
     const response = await callClaudeAgentTurn({
       scope: 'mentor-agent',
       model: CLAUDE_MODELS.contentGeneration,
@@ -382,9 +407,39 @@ export async function runMentorTurn(userId: string, userMessage: string): Promis
     const toolResults: AnthropicContentBlock[] = [];
     for (const toolUse of toolUseBlocks) {
       const result = await executeTool(userId, toolUse.name, toolUse.input);
+      if (WRITE_TOOLS.has(toolUse.name) && !result.includes('"error"')) {
+        writesDone.push(describeWrite(toolUse.name, toolUse.input));
+      }
       toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: result });
     }
     messages.push({ role: 'user', content: toolResults });
+    roundBudgetSpent = true;
+  }
+
+  // Tool-round budget spent without a text answer: one short wrap-up call with tools disabled, as
+  // long as it still fits in the webhook's 60s limit.
+  const elapsedMs = Date.now() - startedAt;
+  if (!finalText && roundBudgetSpent && elapsedMs < WRAP_UP_DEADLINE_MS) {
+    const wrapUp = await callClaudeAgentTurn({
+      scope: 'mentor-agent',
+      model: CLAUDE_MODELS.contentGeneration,
+      system: MENTOR_SYSTEM_PROMPT,
+      messages,
+      tools: TOOLS as unknown as Array<{ name: string; description: string; input_schema: Record<string, unknown> }>,
+      toolChoice: 'none',
+      maxTokens: 600,
+      timeoutMs: Math.min(10000, WRAP_UP_DEADLINE_MS + 10000 - elapsedMs),
+    });
+    const text = wrapUp?.content
+      .filter((block): block is TextBlock => block.type === 'text')
+      .map((block) => block.text)
+      .join('\n')
+      .trim();
+    finalText = text || null;
+  }
+
+  if (!finalText && writesDone.length > 0) {
+    finalText = `Zapisałem: ${writesDone.join('; ')}. Nie zdążyłem przygotować pełnej odpowiedzi - zapytaj ponownie, jeśli potrzebujesz podsumowania (nie powtarzaj zapisu).`;
   }
 
   if (!finalText) {
@@ -399,6 +454,7 @@ export async function runMentorTurn(userId: string, userMessage: string): Promis
   await prisma.agentConversationTurn.create({ data: { userId, role: 'user', content: safeMessage } });
   await prisma.agentConversationTurn.create({ data: { userId, role: 'assistant', content: finalText } });
 
+  await recordAiGeneration(userId);
   logEvent('telegram-mentor-agent', 'turn-completed', { userId });
 
   return finalText;

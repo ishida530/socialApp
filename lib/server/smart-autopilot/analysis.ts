@@ -116,15 +116,17 @@ function detectPersonaHeuristic(rawInput: string, hint?: Persona): Persona {
 
   const text = rawInput.toLowerCase();
 
-  if (/listing|property|sqm|rooms|viewing|real estate|nieruchomo/i.test(text)) {
+  // Polish keywords added 2026-10-02 (AI review) - the product is Polish-first, and English-only
+  // patterns classified nearly every Polish note as "neutral".
+  if (/listing|property|sqm|rooms|viewing|real estate|nieruchomo|mieszkani|działk|dzialk|m2|m²|pokoj|oglądani|ogladani|na sprzedaż|na wynajem/i.test(text)) {
     return 'real_estate_agent';
   }
 
-  if (/shop|sku|product|cart|sale|discount|e-?commerce|link in bio/i.test(text)) {
+  if (/shop|sku|product|cart|sale|discount|e-?commerce|link in bio|sklep|produkt|promocj|rabat|zamów|zamow|kup |dostaw|kolekcj/i.test(text)) {
     return 'ecommerce_owner';
   }
 
-  if (/creator|shorts|reel|tiktok|youtube|ugc|video/i.test(text)) {
+  if (/creator|shorts|reel|ugc|vlog|teledysk|utw[oó]r|freestyle|nagra[łl]em|kana[łl]/i.test(text)) {
     return 'video_creator';
   }
 
@@ -156,11 +158,11 @@ function detectContentTypeHeuristic(input: OrchestrateContentInput): ContentType
 function detectIntentHeuristic(rawInput: string): Intent {
   const text = rawInput.toLowerCase();
 
-  if (/price|discount|offer|buy|shop|promo|limited/i.test(text)) {
+  if (/price|discount|offer|buy|shop|promo|limited|cena|rabat|oferta|kup|zniżk|znizk|tylko do/i.test(text)) {
     return 'promotional';
   }
 
-  if (/guide|tips|how to|tutorial|learn/i.test(text)) {
+  if (/guide|tips|how to|tutorial|learn|poradnik|porad|jak |krok po kroku|wskazówk|wskazowk/i.test(text)) {
     return 'educational';
   }
 

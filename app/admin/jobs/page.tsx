@@ -26,7 +26,18 @@ type ClaudeCostSummary = {
   totalOutputTokens: number;
   estimatedCostUsd: number;
   byScope: Array<{ scope: string; calls: number; inputTokens: number; outputTokens: number; estimatedCostUsd: number }>;
+  quality?: {
+    drafts: number;
+    aiWrittenShare: number | null;
+    published: number;
+    publishedUnchangedShare: number | null;
+    averageSimilarity: number | null;
+  };
 };
+
+function formatShare(value: number | null | undefined) {
+  return value === null || value === undefined ? '-' : `${Math.round(value * 100)}%`;
+}
 
 type PublishOpsResponse = {
   overall: {
@@ -276,6 +287,29 @@ export default function AdminJobsPage() {
                       </div>
                     ))}
                     {!claudeCost?.byScope.length && <p className="text-sm text-muted-foreground">Brak wywołań Claude w tym okresie.</p>}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    Jakość opisów AI: jak często AI napisało opis i jak bardzo użytkownicy go zmieniają przed publikacją
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="rounded-lg border border-border p-3">
+                      <p className="text-xs text-muted-foreground">Opisy napisane przez AI</p>
+                      <p className="text-xl font-semibold text-foreground mt-1">{formatShare(claudeCost?.quality?.aiWrittenShare)}</p>
+                      <p className="text-xs text-muted-foreground">z {claudeCost?.quality?.drafts ?? 0} szkiców</p>
+                    </div>
+                    <div className="rounded-lg border border-border p-3">
+                      <p className="text-xs text-muted-foreground">Opublikowane bez zmian</p>
+                      <p className="text-xl font-semibold text-foreground mt-1">{formatShare(claudeCost?.quality?.publishedUnchangedShare)}</p>
+                      <p className="text-xs text-muted-foreground">z {claudeCost?.quality?.published ?? 0} publikacji z opisem AI</p>
+                    </div>
+                    <div className="rounded-lg border border-border p-3">
+                      <p className="text-xs text-muted-foreground">Podobieństwo do wersji AI</p>
+                      <p className="text-xl font-semibold text-foreground mt-1">{formatShare(claudeCost?.quality?.averageSimilarity)}</p>
+                      <p className="text-xs text-muted-foreground">100% = bez zmian, niżej = więcej poprawek</p>
+                    </div>
                   </div>
                 </div>
               </div>

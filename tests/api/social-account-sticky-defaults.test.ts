@@ -21,7 +21,8 @@ const mockBundles = new Map([
   ['INSTAGRAM', { platform: 'INSTAGRAM', title: 'IG Title', caption: 'IG caption', hashtags: [] }],
 ]);
 vi.mock('@/lib/server/composer-drafts', () => ({
-  generatePlatformBundles: vi.fn().mockResolvedValue({ bundlesByPlatform: mockBundles, orchestrationWarning: null, schedule: [] }),
+  previewImageUrls: () => [],
+  generatePlatformBundles: vi.fn().mockResolvedValue({ bundlesByPlatform: mockBundles, orchestrationWarning: null, aiGenerated: true, aiUnavailableReason: null, schedule: [] }),
 }));
 
 const { PATCH } = await import('@/app/api/publish-jobs/drafts/[id]/route');

@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { Platform, Prisma } from '@prisma/client';
 import { prisma } from './prisma';
-import { generatePlatformBundles } from './composer-drafts';
+import { generatePlatformBundles, previewImageUrls } from './composer-drafts';
 import type { ScheduleSlot } from './smart-autopilot/types';
 import { collectContentWarnings } from './content-safety';
 import {
@@ -48,6 +48,9 @@ export type CreateDraftGroupResult =
       // even eligible for zero-tap auto-scheduling - orchestrateContent already refuses to
       // auto-publish when this is true, so autopilot mode must respect the same rule.
       hasCriticalSafety: boolean;
+      // false = the AI was unavailable and the captions are the user's own note (2026-10-02) -
+      // Telegram autopilot then falls back to the manual preview instead of scheduling it unseen.
+      aiGenerated: boolean;
     }
   | { ok: false; error: string };
 
@@ -137,8 +140,9 @@ export async function createDraftGroupForVideo(
 
   const rawInputParts = [options.contentType?.trim(), options.songTitle?.trim()].filter(Boolean);
 
-  const { bundlesByPlatform, orchestrationWarning, schedule, hasCriticalSafety } = await generatePlatformBundles(userId, {
+  const { bundlesByPlatform, orchestrationWarning, schedule, hasCriticalSafety, aiGenerated } = await generatePlatformBundles(userId, {
     rawInput: rawInputParts.join(' — '),
+    imageUrls: previewImageUrls(video),
     targetPlatforms: connectedPlatforms,
     timezone: options.timezone || 'Europe/Warsaw',
     idempotencyKey: postGroupId,
@@ -158,6 +162,8 @@ export async function createDraftGroupForVideo(
           caption,
           hashtags,
           title: bundle?.title ?? null,
+          sourceNote: rawInputParts.join(' — ') || null,
+          aiCaption: aiGenerated ? caption : null,
           contentWarnings: collectContentWarnings(caption, job.socialAccount.platform),
           suggestedScheduledFor: suggestedTimeByPlatform.get(job.socialAccount.platform) ?? null,
         },
@@ -175,9 +181,12 @@ export async function createDraftGroupForVideo(
     postGroupId,
     jobs: updatedJobs,
     askDefaultExplicit: dbUser?.defaultExplicitContent === null,
-    orchestrationWarning: orchestrationWarning ?? null,
+    orchestrationWarning:
+      orchestrationWarning ??
+      (aiGenerated ? null : 'Generator AI jest chwilowo niedostępny - opis to Twoja notatka, możesz go dopracować.'),
     schedule,
     hasCriticalSafety,
+    aiGenerated,
   };
 }
 
