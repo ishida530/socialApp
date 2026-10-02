@@ -96,5 +96,21 @@ Nagraj **osobny film dla każdego z dwóch uprawnień** (Facebook i Instagram):
 - **business_management**: *Required to access the Page and the Instagram professional account the user manages through Meta Business, so they can connect them to Postfly.*
 - **instagram_basic**: *Reads the connected Instagram account's username, follower count and basic media statistics to identify the account and show the user their results.*
 - **instagram_content_publish**: *Publishes a photo or Reel to the user's own Instagram professional account only after the user writes the caption and clicks "Publish now" in Postfly.*
-- **pages_manage_engagement**: *Lets the user reply to comments under their own Page posts from Postfly's Community screen. A reply is sent only when the user clicks "Send".*
-- **instagram_manage_comments**: *Reads new comments under the user's own Instagram posts and lets the user reply from Postfly's Community screen. A reply is sent only when the user clicks "Send".*
+- **pages_manage_engagement**: *Lets the user reply to comments under their own Page posts from Postfly's Community screen. Postfly may suggest a reply with AI; the user edits it, and a reply is sent only when the user clicks "Send".*
+- **instagram_manage_comments**: *Reads new comments under the user's own Instagram posts and lets the user reply from Postfly's Community screen. Postfly may suggest a reply with AI; the user edits it, and a reply is sent only when the user clicks "Send".*
+
+Jeśli w opisie publikacji (`pages_manage_posts`, `instagram_content_publish`) pojawi się pytanie o treść: *The caption may be pre-filled with an AI suggestion based on the user's own note and photo; the user always reviews and edits it before clicking "Publish now".*
+
+## 7. Pytania o przetwarzanie danych (Data Handling Questions)
+
+Meta pyta o to przy App Review i przy corocznym Data Use Checkup. Odpowiedzi zgodne z polityką prywatności (punkt 5, 6 i 14):
+
+| Pytanie | Odpowiedź |
+|---|---|
+| Czy udostępniasz dane z platformy podmiotom przetwarzającym (data processors / service providers)? | **Tak.** Vercel (hosting), Supabase (baza danych), Anthropic (AI: propozycje opisów i odpowiedzi na komentarze, podsumowania wyników). |
+| W jakim celu? | *Only to provide Postfly's features to the same user: hosting and storage, and AI suggestions (captions, comment replies, performance tips) that the user reviews and approves. Platform data is never sold, used for advertising or used to train AI models.* |
+| Czy podmioty przetwarzające mają umowę ograniczającą użycie danych? | **Tak**: warunki przetwarzania danych (DPA) Vercela, Supabase i Anthropic. Anthropic nie trenuje modeli na danych przesyłanych przez API. |
+| Czy przekazujesz dane organom publicznym? | **Nie** (poza obowiązkiem prawnym; nie otrzymaliśmy takich żądań). |
+| Kto odpowiada za dane? | Administrator z polityki prywatności (punkt 1), kontakt z punktu 15. |
+
+Jeśli formularz pyta o kraj przetwarzania: aplikacja działa w UE (Vercel, region Paryż), region bazy sprawdzisz w Supabase → Project Settings → General → Region, a zapytania do Anthropic trafiają do USA (polityka prywatności, punkt o przekazywaniu danych poza EOG).

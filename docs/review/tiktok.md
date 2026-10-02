@@ -35,7 +35,7 @@ Interfejs jest już poprawiony. Ten plik opisuje, co nagrać i jak wysłać wnio
 | 3 | Menu **„Połączone konta”** → karta TikTok → **„Kontynuuj z TikTok”**. | The creator connects their own TikTok account with TikTok Login Kit. |
 | 4 | Okno TikToka: zaloguj się, pokaż listę uprawnień, zaakceptuj. Po powrocie konto jest widoczne jako połączone. | Requested scopes: user.info.basic (account name), video.publish (Direct Post), user.info.stats (follower growth screen), video.list (post statistics). |
 | 5 | Przycisk **„Nowy post”** → **„Wgraj materiał”** → wybierz swój film z dysku → **„Dalej”**. | The creator uploads their own original video from their device. |
-| 6 | Krok przeglądu, zakładka **TikTok**: ręcznie zmień pole **„Tytuł (Title)”**, dodaj albo usuń hashtag. | The title and hashtags are fully editable before posting. |
+| 6 | Krok przeglądu, zakładka **TikTok**: pokaż opis zaproponowany przez AI, potem ręcznie zmień pole **„Tytuł (Title)”**, dodaj albo usuń hashtag. | The caption is an AI suggestion based on the creator's own note and photo. The title and hashtags are fully editable before posting. |
 | 7 | **„Dalej”** → ekran publikacji. Pokaż podgląd filmu i treści (prawa kolumna). | Final "Post to TikTok" page: a preview of exactly what will be posted. |
 | 8 | Najedź na **„Publikujesz na koncie TikTok (posting to): …”**. Pokaż też nazwę konta na przycisku TikTok. | The creator's TikTok nickname is shown, fetched live from creator_info. |
 | 9 | Rozwiń listę **„Kto może zobaczyć ten post (Who can view this post)”**. Nic nie jest wybrane. | Privacy options come from creator_info. There is no default value, and the user must choose manually. |
@@ -81,14 +81,15 @@ Limity: maksymalnie 5 plików po 50 MB. Jeśli film wyjdzie większy, wyeksportu
 > - manually selects the privacy level, with options from creator_info and no default;
 > - manually opts in to comments, duet and stitch (all off by default, greyed out when disabled by the creator);
 > - can disclose commercial content (Your brand / Branded content), with TikTok's labels and rules;
-> - reviews a preview and can edit the title and hashtags;
+> - reviews a preview and can edit the title and hashtags (the caption may be pre-filled with an AI suggestion based on the creator's own note and photo; it is only a draft the creator edits and approves);
 > - explicitly agrees to TikTok's Music Usage Confirmation (and Branded Content Policy when applicable),
 >   right before the Publish button.
 >
 > Content is sent with Direct Post using PULL_FROM_URL from our verified domain. We poll publish/status/fetch
 > and show the post status to the creator. Postfly never adds watermarks or branding to creators' content and
 > never republishes content from other platforms. Every TikTok post is initiated and confirmed by the creator
-> in the web app.
+> in the web app; TikTok posts are never published automatically. TikTok user data (account name, follower and
+> post statistics) is used only to show the creator their own results and is never used to train AI models.
 
 ## 5. Gdzie to jest w kodzie (na wypadek pytań TikToka)
 
