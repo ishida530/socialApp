@@ -6,7 +6,11 @@ import {
 } from '@/lib/server/social-oauth';
 import { badRequest, serverError, tooManyRequests, unauthorized } from '@/lib/server/http';
 import { consumeRateLimit } from '@/lib/server/rate-limit';
-import { canConnectPlatform, PLATFORM_IN_REVIEW_MESSAGE } from '@/lib/server/platform-availability';
+import {
+  canConnectPlatform,
+  commentsFeatureEnabledFor,
+  PLATFORM_IN_REVIEW_MESSAGE,
+} from '@/lib/server/platform-availability';
 
 const TIKTOK_PKCE_COOKIE = 'tiktok_pkce';
 const TIKTOK_PKCE_COOKIE_PATH = '/api/auth/callback/tiktok';
@@ -35,7 +39,9 @@ export async function GET(
       return NextResponse.json({ message: PLATFORM_IN_REVIEW_MESSAGE }, { status: 403 });
     }
 
-    const result = buildAuthUrl(params.platform, user.userId);
+    const result = buildAuthUrl(params.platform, user.userId, {
+      includeCommentScopes: commentsFeatureEnabledFor(user.email),
+    });
     const debugEnabled = request.nextUrl.searchParams.get('debug') === '1';
     const authUrl = new URL(result.url);
     const scopeRaw = authUrl.searchParams.get('scope') ?? '';

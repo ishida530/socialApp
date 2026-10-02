@@ -122,6 +122,100 @@ export function LandingSeoSection() {
   );
 }
 
+// What each integration does and which data it uses (2026-10-02). Platform reviewers check the
+// homepage: Google's OAuth verification requires it to describe the app's functionality behind
+// every requested scope, and TikTok verifies the site of the app it audits - so TikTok and
+// YouTube are described here in full even while they wait for approval.
+const integrations = [
+  {
+    name: 'Facebook',
+    status: 'Dostępne',
+    description:
+      'Publikujesz posty, zdjęcia i filmy na wybranej przez siebie Stronie na Facebooku. Widzisz liczbę obserwujących Strony i statystyki postów opublikowanych przez Postfly.',
+  },
+  {
+    name: 'Instagram',
+    status: 'Dostępne',
+    description:
+      'Publikujesz zdjęcia i Reels na swoim koncie profesjonalnym Instagram połączonym ze Stroną. Widzisz liczbę obserwujących i statystyki swoich publikacji.',
+  },
+  {
+    name: 'LinkedIn',
+    status: 'Dostępne',
+    description: 'Publikujesz posty na swoim profilu LinkedIn. Postfly używa nazwy profilu, żeby pokazać, gdzie trafi post.',
+  },
+  {
+    name: 'TikTok',
+    status: 'W trakcie zatwierdzania przez TikTok',
+    description:
+      'Publikujesz własne filmy i zdjęcia na swoim koncie TikTok (Direct Post). Przed publikacją sam wybierasz widoczność, zgody na komentarze, duety i stitch oraz oznaczenie treści komercyjnych. Postfly nie dodaje znaków wodnych. Widzisz liczbę obserwujących i statystyki filmów opublikowanych przez Postfly.',
+  },
+  {
+    name: 'YouTube',
+    status: 'W trakcie zatwierdzania przez Google',
+    description:
+      'Wgrywasz własne filmy na swój kanał YouTube: sam wpisujesz tytuł i opis, wybierasz widoczność i klikasz „Opublikuj”. Postfly odczytuje liczbę subskrybentów kanału i statystyki filmów opublikowanych przez Postfly, żeby pokazać je tylko Tobie.',
+  },
+];
+
+export function LandingIntegrationsSection() {
+  return (
+      <section id="integracje" data-section="integrations" className="relative mx-auto w-full max-w-6xl px-6 pb-24">
+        <SectionReveal
+          variants={sectionFromLeft}
+          className="rounded-3xl border border-border bg-card/50 p-6 sm:p-10"
+        >
+          <m.p variants={item} className="text-xs uppercase tracking-[0.18em] text-accent">Integracje</m.p>
+          <m.h2 variants={item} className="mt-2 text-3xl font-semibold">Co Postfly robi z Twoimi kontami</m.h2>
+          <m.p variants={item} className="mt-3 max-w-3xl text-sm text-muted-foreground">
+            Łączysz konta przez oficjalne logowanie platform (OAuth). Postfly publikuje wyłącznie treści, które sam
+            przygotujesz i zatwierdzisz przyciskiem, i pokazuje statystyki tylko Tobie. Nie udostępniamy tych danych osobom
+            trzecim i nie wykorzystujemy ich do reklam. Połączenie odłączysz w każdej chwili w ustawieniach,
+            a dane z platformy zostaną usunięte. Szczegóły w{' '}
+            <Link href="/privacy" className="text-primary hover:underline">
+              polityce prywatności
+            </Link>
+            .
+          </m.p>
+
+          <m.div variants={container} className="mt-7 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {integrations.map((integration) => (
+              <m.article
+                key={integration.name}
+                variants={item}
+                className="rounded-2xl border border-border bg-card/40 p-5"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-base font-semibold text-foreground">{integration.name}</h3>
+                  <span className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
+                    {integration.status}
+                  </span>
+                </div>
+                <p className="mt-2 text-sm text-muted-foreground">{integration.description}</p>
+              </m.article>
+            ))}
+          </m.div>
+
+          <m.p variants={item} lang="en" className="mt-6 text-xs text-muted-foreground">
+            In English: Postfly is a social media scheduler. Users connect their own Facebook Page, Instagram
+            professional account, LinkedIn profile, TikTok account and YouTube channel via official OAuth, then
+            publish their own content only after reviewing it and clicking Publish. TikTok: Direct Post of the
+            creator&apos;s own videos and photos with the privacy level and interaction settings chosen by the
+            creator, plus follower and post statistics (user.info.basic, video.publish, user.info.stats,
+            video.list). YouTube: uploading the user&apos;s own videos with the title, description and visibility they
+            set (youtube.upload), and showing them the subscriber count and statistics of their own videos
+            (youtube.readonly). Platform data is not shared with third parties or used for advertising, and is
+            deleted when the account is disconnected. See the{' '}
+            <Link href="/privacy" className="text-primary hover:underline">
+              Privacy Policy
+            </Link>
+            .
+          </m.p>
+        </SectionReveal>
+      </section>
+  );
+}
+
 export function LandingFaqSection() {
   return (
       <section id="faq" data-section="faq" className="relative mx-auto w-full max-w-6xl px-6 pb-24">

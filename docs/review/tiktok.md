@@ -30,8 +30,8 @@ Interfejs jest już poprawiony. Ten plik opisuje, co nagrać i jak wysłać wnio
 
 | # | Co robisz na ekranie | Napis (EN) |
 |---|---|---|
-| 1 | Otwórz `https://postfly.pl`, przewiń do stopki z linkami „Regulamin” i „Polityka Prywatności”. | Postfly is a web app for independent creators and small businesses to publish their own content to their own social accounts. Terms and Privacy Policy are linked on every page. |
-| 2 | Wejdź na `/register`, wypełnij Imię i nazwisko, Email, Hasło → **„Utwórz konto”**. | Any creator can sign up for their own account. |
+| 1 | Otwórz `https://postfly.pl`, przewiń do sekcji **„Integracje”** (karta TikTok), potem do stopki z linkami „Regulamin” i „Polityka Prywatności”. | Postfly is a web app for independent creators and small businesses to publish their own content to their own social accounts. The TikTok integration is described on the home page. Terms and Privacy Policy are linked on every page. |
+| 2 | Pokaż stronę `/register` (bez wysyłania formularza), potem **„Zaloguj się”** na konto testowe z [README](README.md) (adres z `REVIEWER_EMAILS`, potwierdzony e-mail). Nie zakładaj nowego konta na nagraniu: zobaczyłoby TikToka jako „Wkrótce”. | Any creator can sign up for their own account. For this demo we log in to a prepared account. |
 | 3 | Menu **„Połączone konta”** → karta TikTok → **„Kontynuuj z TikTok”**. | The creator connects their own TikTok account with TikTok Login Kit. |
 | 4 | Okno TikToka: zaloguj się, pokaż listę uprawnień, zaakceptuj. Po powrocie konto jest widoczne jako połączone. | Requested scopes: user.info.basic (account name), video.publish (Direct Post), user.info.stats (follower growth screen), video.list (post statistics). |
 | 5 | Przycisk **„Nowy post”** → **„Wgraj materiał”** → wybierz swój film z dysku → **„Dalej”**. | The creator uploads their own original video from their device. |

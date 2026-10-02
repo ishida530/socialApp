@@ -23,7 +23,12 @@ Wymagania sprawdzone w oficjalnej dokumentacji **1.10.2026**. Interfejs Postfly 
 
 ## Przygotuj raz, przed wszystkimi nagraniami
 
-- **Testowe konto Postfly** (e-mail i hasło) dla recenzentów, którzy chcą sami przetestować aplikację. Załóż je na `https://postfly.pl/register` i zapisz dane logowania.
+- **Testowe konto Postfly dla recenzentów** (e-mail i hasło). Recenzenci logują się nim, żeby sami przetestować aplikację, a na nim nagrywasz też filmy:
+  1. Wybierz osobny adres, np. alias `twojemail+review@gmail.com`.
+  2. W Vercelu dodaj zmienną `REVIEWER_EMAILS` z tym adresem (Production) i zrób Redeploy. To konto widzi TikToka, YouTube i odpowiedzi na komentarze mimo trwającego review i ma pełny plan na cały czas review, ale **nie** ma dostępu do panelu administratora. Zwykłe nowe konto zobaczyłoby TikToka i YouTube jako „Wkrótce”, a recenzent odrzuciłby wniosek.
+  3. Załóż konto na `https://postfly.pl/register` tym adresem i **kliknij link w e-mailu potwierdzającym**, żeby na nagraniu nie było baneru „Potwierdź adres e-mail”.
+  4. Zapisz dane logowania. Podajesz je we wnioskach.
+- Przed nagraniem zaloguj się na konto testowe i sprawdź, że w **„Połączonych kontach”** TikTok i YouTube nie mają plakietki „Wkrótce”.
 - Krótki, **pionowy film** (5–20 s) i jedno **zdjęcie**, oba własne.
 - Konta testowe na platformach:
   - prywatne konto TikTok;
