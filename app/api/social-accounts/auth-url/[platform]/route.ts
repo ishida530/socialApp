@@ -6,6 +6,7 @@ import {
 } from '@/lib/server/social-oauth';
 import { badRequest, serverError, tooManyRequests, unauthorized } from '@/lib/server/http';
 import { consumeRateLimit } from '@/lib/server/rate-limit';
+import { canConnectPlatform, PLATFORM_IN_REVIEW_MESSAGE } from '@/lib/server/platform-availability';
 
 const TIKTOK_PKCE_COOKIE = 'tiktok_pkce';
 const TIKTOK_PKCE_COOKIE_PATH = '/api/auth/callback/tiktok';
@@ -27,6 +28,11 @@ export async function GET(
     });
     if (!rateLimit.allowed) {
       return tooManyRequests('Too many requests. Try again later.', rateLimit.retryAfterSec);
+    }
+
+    // TikTok / YouTube wait for their platform review - see lib/server/platform-availability.ts.
+    if (!canConnectPlatform(params.platform, user.email)) {
+      return NextResponse.json({ message: PLATFORM_IN_REVIEW_MESSAGE }, { status: 403 });
     }
 
     const result = buildAuthUrl(params.platform, user.userId);

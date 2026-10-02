@@ -19,7 +19,7 @@ import { LandingMotionContext, SectionReveal, type ScrollDirection } from '@/com
 import { container, item, sectionFromLeft, sectionFromRight } from '@/components/landing/landing-motion';
 
 
-const heroHighlights = ['4 platformy', 'AI podpowiedzi', 'Start w 2 minuty'];
+const heroHighlights = ['Facebook · Instagram · LinkedIn', 'AI podpowiedzi', 'Start w 2 minuty'];
 
 const heroProofStrip = [
   { value: '3 • 10 • 25', label: 'Konta social: Starter / Pro / Business' },
@@ -63,15 +63,18 @@ function extractFirstNumber(label: string, fallback: number) {
   return match ? Number(match[0]) : fallback;
 }
 
+// Available today: Facebook, Instagram, LinkedIn. TikTok and YouTube are shown as "wkrótce" until
+// their platform reviews pass (lib/server/platform-availability.ts) - update here when they do.
 function PlatformIcons() {
   return (
-    <div className="flex items-center gap-2" aria-label="YouTube, TikTok, Instagram, Facebook">
-      <a href="https://www.youtube.com" target="_blank" rel="noopener noreferrer" aria-label="YouTube">
-        <PlatformBrandIcon platform="YOUTUBE" className="h-4 w-4" />
-      </a>
-      <PlatformBrandIcon platform="TIKTOK" className="h-4 w-4" />
-      <PlatformBrandIcon platform="INSTAGRAM" className="h-4 w-4" />
+    <div
+      className="flex flex-wrap items-center gap-2"
+      aria-label="Facebook, Instagram, LinkedIn; TikTok i YouTube wkrótce"
+    >
       <PlatformBrandIcon platform="FACEBOOK" className="h-4 w-4" />
+      <PlatformBrandIcon platform="INSTAGRAM" className="h-4 w-4" />
+      <PlatformBrandIcon platform="LINKEDIN" className="h-4 w-4" />
+      <span className="text-[11px] text-muted-foreground">+ TikTok, YouTube wkrótce</span>
     </div>
   );
 }
@@ -732,7 +735,7 @@ export function LandingExperience({
           </motion.h1>
 
           <motion.p variants={heroItemVariants} className="max-w-2xl text-base text-muted-foreground sm:text-lg">
-            Planuj i publikuj treści na YouTube, TikTok, Instagram i Facebook z jednego panelu.
+            Planuj i publikuj treści na Facebooku, Instagramie i LinkedIn z jednego panelu. TikTok i YouTube wkrótce.
             <span className="block text-foreground/85">Mniej chaosu, wiecej regularnych publikacji.</span>
           </motion.p>
 

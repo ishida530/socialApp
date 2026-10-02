@@ -30,7 +30,7 @@ const softwareJsonLd = {
   applicationCategory: 'BusinessApplication',
   operatingSystem: 'Web',
   description:
-    'Planowanie i publikacja treści na YouTube, TikTok, Instagram i Facebook z jednego panelu.',
+    'Planowanie i publikacja treści na Facebooku, Instagramie i LinkedIn z jednego panelu.',
   offers: [
     {
       '@type': 'Offer',
@@ -70,9 +70,9 @@ const faqJsonLd = {
 };
 
 export const metadata: Metadata = {
-  title: 'Postfly | Planowanie publikacji: YouTube, TikTok, Instagram, Facebook',
+  title: 'Postfly | Planowanie publikacji: Facebook, Instagram, LinkedIn',
   description:
-    'Planuj i publikuj treści na YouTube, TikTok, Instagram i Facebook z jednego panelu. Starter: do 3 kont i 15 wideo/mies., Pro: do 10 kont i limit miękki 100 wideo/mies. + AI Autopilot Lite, Business: do 25 kont i AI Autopilot bez limitu. Okres próbny 7 dni dla nowych kont i pierwszej subskrypcji.',
+    'Planuj i publikuj treści na Facebooku, Instagramie i LinkedIn z jednego panelu. Starter: do 3 kont i 15 wideo/mies., Pro: do 10 kont i limit miękki 100 wideo/mies. + AI Autopilot Lite, Business: do 25 kont i AI Autopilot bez limitu. Okres próbny 7 dni dla nowych kont i pierwszej subskrypcji.',
   keywords: [
     'planowanie publikacji social media',
     'harmonogram publikacji tiktok',
@@ -98,7 +98,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Postfly | Planowanie publikacji social media',
     description:
-      'Planuj i publikuj treści na YouTube, TikTok, Instagram i Facebook z jednego panelu.',
+      'Planuj i publikuj treści na Facebooku, Instagramie i LinkedIn z jednego panelu.',
     url: '/',
     siteName: 'Postfly',
     images: [
@@ -116,7 +116,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Postfly | Planowanie publikacji social media',
     description:
-      'Jeden panel do planowania i publikacji treści na YouTube, TikTok, Instagram i Facebook.',
+      'Jeden panel do planowania i publikacji treści na Facebooku, Instagramie i LinkedIn.',
     images: ['/twitter-image'],
   },
 };

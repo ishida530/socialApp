@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
+import { useFeatures } from '@/hooks/useFeatures';
 
 type Fan = { id: string; email: string; name: string | null; createdAt: string };
 type Sale = { id: string; product: string; amountCents: number; createdAt: string };
@@ -35,6 +36,7 @@ export function CommunityPanel() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [summary, setSummary] = useState<RevenueSummary | null>(null);
   const [comments, setComments] = useState<SocialComment[]>([]);
+  const features = useFeatures();
   const [isLoading, setIsLoading] = useState(true);
 
   const [fanEmail, setFanEmail] = useState('');
@@ -157,6 +159,17 @@ export function CommunityPanel() {
 
   return (
     <div className="space-y-6">
+      {features && !features.commentsEnabled ? (
+        // Comment replies need Meta permissions that are still in review - see
+        // lib/server/platform-availability.ts (admins keep the full section to record the demo).
+        <section className="bg-card border border-border rounded-xl p-6 space-y-2 max-w-2xl">
+          <h2 className="text-lg font-semibold text-foreground">💬 Komentarze pod Twoimi postami</h2>
+          <p className="text-sm text-muted-foreground">
+            Odpowiadanie na komentarze z Facebooka i Instagramu będzie dostępne wkrótce - czekamy na zatwierdzenie
+            uprawnień przez Meta.
+          </p>
+        </section>
+      ) : (
       <section className="bg-card border border-primary/30 rounded-xl p-6 space-y-4 max-w-2xl">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -237,6 +250,7 @@ export function CommunityPanel() {
             ))}
           </ul>
         </section>
+      )}
 
       {summary && (
         <section className="bg-card border border-border rounded-xl p-6 max-w-2xl">

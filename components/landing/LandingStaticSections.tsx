@@ -19,9 +19,9 @@ const lanes = [
   },
   {
     icon: Layers,
-    title: 'Pełna orkiestracja 4 kanałów',
+    title: 'Wszystkie kanały w jednym panelu',
     description:
-      'YouTube, TikTok, Instagram, Facebook. Limity kont zależne od planu: 3, 10 lub 25 łącznie.',
+      'Facebook, Instagram i LinkedIn już teraz, TikTok i YouTube wkrótce. Limity kont zależne od planu: 3, 10 lub 25 łącznie.',
   },
   {
     icon: Sparkles,
@@ -33,9 +33,9 @@ const lanes = [
 
 const seoUseCases = [
   {
-    title: 'Planowanie publikacji TikTok i Reels',
+    title: 'Planowanie publikacji Reels i postów',
     description:
-      'Ustal harmonogram publikacji TikTok, Instagram Reels i YouTube Shorts z jednego panelu, bez ręcznego przełączania narzędzi.',
+      'Ustal harmonogram publikacji na Facebooku, w Instagram Reels i na LinkedIn z jednego panelu, bez ręcznego przełączania narzędzi. TikTok i YouTube Shorts dołączą po zatwierdzeniu przez platformy.',
   },
   {
     title: 'Kalendarz publikacji social media dla zespołu',

@@ -6,15 +6,21 @@ import { getAuthUserFromRequest } from '@/lib/server/auth';
 import { serverError, tooManyRequests, unauthorized } from '@/lib/server/http';
 import { consumeRateLimit } from '@/lib/server/rate-limit';
 import { detectAndNotifyNewComments } from '@/lib/server/social-comments';
+import { COMMENTS_IN_REVIEW_MESSAGE, commentsFeatureEnabledFor } from '@/lib/server/platform-availability';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   let userId: string;
+  let email: string;
   try {
-    userId = getAuthUserFromRequest(request).userId;
+    ({ userId, email } = getAuthUserFromRequest(request));
   } catch {
     return unauthorized();
+  }
+
+  if (!commentsFeatureEnabledFor(email)) {
+    return NextResponse.json({ message: COMMENTS_IN_REVIEW_MESSAGE }, { status: 403 });
   }
 
   try {
