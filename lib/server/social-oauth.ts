@@ -254,9 +254,38 @@ function toPrismaPlatform(provider: OAuthProvider): PrismaPlatform {
   return 'INSTAGRAM';
 }
 
+// Comment-reply permissions (2026-10-02) wait for Meta App Review: requesting a permission
+// without Advanced access breaks the consent screen for regular users, while the admin who
+// records the review demo and the reviewers' test accounts need it (Meta also requires a
+// successful test API call with it before "Request advanced access" unlocks). The caller passes
+// commentsFeatureEnabledFor(email), so the scope list follows the same switch as the UI.
+const META_COMMENT_SCOPES = ['pages_manage_engagement', 'instagram_manage_comments'];
+const META_COMMENT_SCOPE_BY_PROVIDER = {
+  facebook: 'pages_manage_engagement',
+  instagram: 'instagram_manage_comments',
+} as const;
+
+export function applyCommentScopes(
+  scope: string,
+  provider: 'facebook' | 'instagram',
+  includeCommentScopes: boolean,
+) {
+  const scopes = scope
+    .split(/[\s,]+/)
+    .map((entry) => entry.trim())
+    .filter((entry) => entry && !META_COMMENT_SCOPES.includes(entry));
+
+  if (includeCommentScopes) {
+    scopes.push(META_COMMENT_SCOPE_BY_PROVIDER[provider]);
+  }
+
+  return scopes.join(',');
+}
+
 export function buildAuthUrl(
   platformInput: string,
   userId: string,
+  options: { includeCommentScopes?: boolean } = {},
 ) {
   const provider = getProvider(platformInput);
   const state = signOAuthState(userId);
@@ -285,7 +314,11 @@ export function buildAuthUrl(
       redirect_uri: resolveMetaRedirectUri(provider),
       response_type: 'code',
       state,
-      scope: provider === 'facebook' ? resolveFacebookScope() : resolveInstagramScope(),
+      scope: applyCommentScopes(
+        provider === 'facebook' ? resolveFacebookScope() : resolveInstagramScope(),
+        provider,
+        options.includeCommentScopes ?? false,
+      ),
     });
 
     return {

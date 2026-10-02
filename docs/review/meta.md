@@ -51,7 +51,7 @@ Jedno nagranie możesz wgrać przy kilku uprawnieniach, które pokazuje.
 
 ## 3. Nagranie B: odpowiedzi na komentarze (`pages_manage_engagement`, `instagram_manage_comments`)
 
-**Zanim nagrasz, daj mi znać.** Produkcja dziś o te uprawnienia nie prosi, bo nie są zatwierdzone. Na czas nagrania i testowych wywołań API włączę je tylko dla Twojego konta administratora, tak żeby nowi użytkownicy nie zobaczyli błędu na ekranie zgody Facebooka.
+**Nagrywaj na koncie testowym z [README](README.md)** (adres z `REVIEWER_EMAILS`) albo na koncie administratora. Zwykli użytkownicy nie są o te uprawnienia proszeni, dopóki nie zostaną zatwierdzone. Konto recenzenta i konto administratora dostają je automatycznie przy łączeniu Facebooka i Instagrama. Jeśli łączyłeś Stronę wcześniej, rozłącz ją i połącz ponownie, żeby token miał nowe uprawnienia.
 
 Nagraj **osobny film dla każdego z dwóch uprawnień** (Facebook i Instagram):
 
@@ -75,11 +75,11 @@ Nagraj **osobny film dla każdego z dwóch uprawnień** (Facebook i Instagram):
 5. **Complete App Verification**: wklej instrukcję dla recenzenta (punkt 5).
 6. **Requested Permissions and Features**: przy każdym uprawnieniu wklej opis (punkt 6), wgraj nagranie i zaznacz zgodę na zasady użycia.
 7. **Submit for Review** → zaakceptuj Platform Onboarding Terms. Decyzja przychodzi zwykle w ciągu tygodnia (do 2–4 tygodni).
-8. Po zatwierdzeniu daj mi znać: dodam uprawnienia dla wszystkich użytkowników. Konta trzeba będzie wtedy połączyć ponownie.
+8. Po zatwierdzeniu ustaw w Vercelu `COMMENTS_FEATURE_ENABLED` = `1` i zrób Redeploy. Uprawnienia do komentarzy będą wtedy wymagane od wszystkich łączących konta. Użytkownicy, którzy połączyli konta wcześniej, muszą je połączyć ponownie.
 
 ## 5. Instrukcja dla recenzenta (pole „App Verification”)
 
-> 1. Go to https://postfly.pl and click "Zaloguj się" (Log in). Email: <TESTOWY E-MAIL>, password: <HASŁO>.
+> 1. Go to https://postfly.pl and click "Zaloguj się" (Log in). Email: <E-MAIL KONTA TESTOWEGO Z REVIEWER_EMAILS>, password: <HASŁO>.
 > 2. Open "Połączone konta" (Connected accounts) in the left menu and click "Kontynuuj z Facebookiem" (Continue with
 >    Facebook) on the Facebook or Instagram card. Select the Page (and the Instagram account) and grant the permissions.
 > 3. Publishing: click "Nowy post" (New post) → "Wgraj materiał" (Upload) → "Dalej" (Next) → edit the caption →

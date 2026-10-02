@@ -7,6 +7,11 @@ import {
 } from '@/lib/server/social-oauth';
 import { badRequest, serverError, tooManyRequests, unauthorized } from '@/lib/server/http';
 import { consumeRateLimit } from '@/lib/server/rate-limit';
+import {
+  canConnectPlatform,
+  commentsFeatureEnabledFor,
+  PLATFORM_IN_REVIEW_MESSAGE,
+} from '@/lib/server/platform-availability';
 
 const TIKTOK_PKCE_COOKIE = 'tiktok_pkce';
 const TIKTOK_PKCE_COOKIE_PATH = '/api/auth/callback/tiktok';
@@ -47,7 +52,14 @@ export async function POST(
     }
 
     const platform = account.platform.toLowerCase();
-    const result = buildAuthUrl(platform, user.userId);
+    // Same review gates as a fresh connection (see auth-url/[platform]/route.ts).
+    if (!canConnectPlatform(platform, user.email)) {
+      return NextResponse.json({ message: PLATFORM_IN_REVIEW_MESSAGE }, { status: 403 });
+    }
+
+    const result = buildAuthUrl(platform, user.userId, {
+      includeCommentScopes: commentsFeatureEnabledFor(user.email),
+    });
     const response = NextResponse.json({
       success: true,
       accountId: account.id,

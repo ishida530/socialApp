@@ -1,6 +1,11 @@
 import type { Metadata } from 'next';
 import { LandingExperience } from '@/components/landing/LandingExperience';
-import { LandingFaqSection, LandingFeaturesSection, LandingSeoSection } from '@/components/landing/LandingStaticSections';
+import {
+  LandingFaqSection,
+  LandingFeaturesSection,
+  LandingIntegrationsSection,
+  LandingSeoSection,
+} from '@/components/landing/LandingStaticSections';
 import { LANDING_FAQ_ITEMS } from '@/lib/landing-faq';
 import { getSiteUrl } from '@/lib/site-url';
 
@@ -142,7 +147,12 @@ export default function LandingPage() {
       />
       <LandingExperience
         featuresSection={<LandingFeaturesSection />}
-        seoSection={<LandingSeoSection />}
+        seoSection={
+          <>
+            <LandingSeoSection />
+            <LandingIntegrationsSection />
+          </>
+        }
         faqSection={<LandingFaqSection />}
       />
     </>

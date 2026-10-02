@@ -48,8 +48,8 @@ Wymagania Google:
 
 | # | Co robisz na ekranie | Napis (EN) |
 |---|---|---|
-| 1 | Otwórz `https://postfly.pl`, przewiń do stopki, otwórz **Politykę Prywatności** i przewiń do sekcji **14** (YouTube/Google, z angielskim podsumowaniem). | Postfly home page and privacy policy, including the section on YouTube API Services and Google user data (Limited Use). |
-| 2 | **„Zaloguj się”** do Postfly → menu **„Połączone konta”** → karta YouTube → **„Kontynuuj z Google”**. | The user connects their YouTube channel with Google OAuth. |
+| 1 | Otwórz `https://postfly.pl`, przewiń do sekcji **„Integracje”** (karta YouTube z opisem, co aplikacja robi z kanałem), potem do stopki, otwórz **Politykę Prywatności** i przewiń do sekcji **14** (YouTube/Google, z angielskim podsumowaniem). | Postfly home page and privacy policy, including the section on YouTube API Services and Google user data (Limited Use). |
+| 2 | **„Zaloguj się”** do Postfly na konto testowe z [README](README.md) (adres z `REVIEWER_EMAILS`) → menu **„Połączone konta”** → karta YouTube → **„Kontynuuj z Google”**. | The user connects their YouTube channel with Google OAuth. |
 | 3 | **Ekran zgody Google: zatrzymaj się.** Kliknij w pasek adresu, żeby był widoczny cały URL z **`client_id=…`**. Pokaż nazwę **„Postfly”** i listę uprawnień. Zaakceptuj. | Google consent screen: app name "Postfly" and the OAuth client ID in the address bar. The user grants youtube.upload and youtube.readonly. |
 | 4 | Powrót do Postfly: kanał widoczny jako połączony. | The YouTube channel is connected. |
 | 5 | **„Nowy post”** → **„Wgraj materiał”** (własny film) → **„Dalej”** → zakładka **YouTube**: wpisz **„Tytuł”**, popraw opis i hashtagi. | youtube.upload: the user writes the video title and description. |
