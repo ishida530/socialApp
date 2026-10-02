@@ -14,7 +14,8 @@ import { ApiCacheSeed } from '@/components/ApiCacheSeed';
 // Per-user, so every segment using it is dynamic and never cached.
 
 // The sidebar's plan/usage card - on every authenticated page.
-const ALWAYS_PREFETCH = ['/billing/subscription'];
+// + what this user can use right now (platform reviews, comments) - read by several panels.
+const ALWAYS_PREFETCH = ['/billing/subscription', '/features'];
 
 export async function AuthenticatedLayout({
   children,

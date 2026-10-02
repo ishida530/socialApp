@@ -10,6 +10,7 @@ import {
 } from '@/components/BrandIcons';
 import { useEffect, useMemo, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
+import { useFeatures } from '@/hooks/useFeatures';
 import { toast } from 'sonner';
 
 type PlatformCard = {
@@ -112,6 +113,7 @@ export function ConnectedPlatforms() {
   const [accounts, setAccounts] = useState<SocialAccountDto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadingPlatform, setLoadingPlatform] = useState<string | null>(null);
+  const features = useFeatures();
 
   useEffect(() => {
     const loadAccounts = async () => {
@@ -245,6 +247,9 @@ export function ConnectedPlatforms() {
         {platforms.map((platform) => {
           const platformAccounts = accountsByPlatform.get(platform.apiPlatform) ?? [];
           const connected = platformAccounts.length > 0;
+          // Waiting for the platform's own review (TikTok audit / Google verification) - see
+          // lib/server/platform-availability.ts. Admins never get this (they record the demos).
+          const inReview = features?.platformsInReview.includes(platform.brand) ?? false;
 
           return (
           <div
@@ -274,6 +279,10 @@ export function ConnectedPlatforms() {
                     <CheckCircle2 className="w-4 h-4 text-green-500" />
                     <span className="text-xs font-medium text-green-500">Aktywny</span>
                   </>
+                ) : inReview ? (
+                  <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400">
+                    Wkrótce
+                  </span>
                 ) : (
                   <>
                     <XCircle className="w-4 h-4 text-muted-foreground" />
@@ -296,9 +305,14 @@ export function ConnectedPlatforms() {
               </p>
             )}
 
+            {inReview ? (
+              <p className="mb-3 rounded-lg border border-dashed border-border px-3 py-2 text-center text-xs text-muted-foreground">
+                {platform.name} czeka na zatwierdzenie integracji przez platformę. Połączenie będzie dostępne wkrótce.
+              </p>
+            ) : (
             <button
               onClick={() => connectAccount(platform.apiPlatform)}
-              disabled={loadingPlatform === platform.apiPlatform}
+              disabled={loadingPlatform === platform.apiPlatform || features === null}
               className={`w-full mb-3 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${CONNECT_BUTTON_STYLE[platform.apiPlatform]} ${
                 loadingPlatform === platform.apiPlatform
                   ? 'opacity-60 cursor-not-allowed'
@@ -311,6 +325,7 @@ export function ConnectedPlatforms() {
                 <ConnectCta apiPlatform={platform.apiPlatform} />
               )}
             </button>
+            )}
             {connected && (
               <p className="-mt-2 mb-3 text-[11px] text-muted-foreground text-center">
                 Przycisk wyżej dodaje kolejne konto.

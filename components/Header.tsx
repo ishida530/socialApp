@@ -32,7 +32,11 @@ export function Header() {
                   ? 'Panel administracyjny'
                   : pathname.startsWith('/account')
                     ? 'Ustawienia konta'
-                    : 'Pulpit';
+                    : pathname.startsWith('/community')
+                      ? 'Społeczność'
+                      : pathname.startsWith('/growth')
+                        ? 'Rozwój'
+                        : 'Pulpit';
 
   useEffect(() => {
     setMounted(true);

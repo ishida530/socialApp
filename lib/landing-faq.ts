@@ -12,12 +12,12 @@ export const LANDING_FAQ_ITEMS: LandingFaqItem[] = [
   {
     question: 'Na jakich platformach mogę planować publikacje?',
     answer:
-      'W jednym panelu zaplanujesz i opublikujesz treści na YouTube, TikTok, Instagram i Facebook.',
+      'W jednym panelu zaplanujesz i opublikujesz treści na Facebooku, Instagramie i LinkedIn. TikTok i YouTube udostępnimy, gdy platformy zatwierdzą integrację.',
   },
   {
     question: 'Ile kont social mogę podłączyć?',
     answer:
-      'Limity kont zależą od planu: Starter do 3, Pro do 10, Business do 25 kont social łącznie. W ramach limitu planu możesz podłączać wiele kont na jednej platformie (YouTube, TikTok, Instagram, Facebook).',
+      'Limity kont zależą od planu: Starter do 3, Pro do 10, Business do 25 kont social łącznie. W ramach limitu planu możesz podłączać wiele kont na jednej platformie (np. kilka Stron na Facebooku albo kont na Instagramie).',
   },
   {
     question: 'Czy plan Pro ma twardy limit publikacji?',

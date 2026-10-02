@@ -21,6 +21,7 @@ const HANDLERS: Record<string, () => Promise<{ GET: GetHandler }>> = {
   '/sales': () => import('@/app/api/sales/route'),
   '/comments': () => import('@/app/api/comments/route'),
   '/account-campaigns': () => import('@/app/api/account-campaigns/route'),
+  '/features': () => import('@/app/api/features/route'),
 };
 
 export type PrefetchedApiEntry = { url: string; data: unknown };

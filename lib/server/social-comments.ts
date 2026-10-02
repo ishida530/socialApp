@@ -15,6 +15,7 @@
 // or to Claude (system prompt below states this explicitly, matching the same pattern already
 // used in telegram-mentor-agent.ts for tool results).
 import { prisma } from './prisma';
+import { COMMENTS_IN_REVIEW_MESSAGE, commentsFeatureEnabledFor } from './platform-availability';
 import { decryptToken, refreshSocialAccessToken } from './social-oauth';
 import { callClaudeTool, CLAUDE_MODELS } from './anthropic-client';
 import { PLATFORM_ALGORITHM_KNOWLEDGE } from './platform-knowledge';
@@ -176,6 +177,12 @@ export async function detectAndNotifyNewComments(
   let commentsDetected = 0;
 
   for (const job of jobs) {
+    // Skip owners for whom the comments feature isn't available yet (no Telegram buttons that
+    // could only fail) - see platform-availability.ts.
+    if (!commentsFeatureEnabledFor(job.video.user.email)) {
+      continue;
+    }
+
     try {
       const platform = job.socialAccount.platform as 'INSTAGRAM' | 'FACEBOOK';
       const chatId = job.video.user.telegramChatId;
@@ -264,6 +271,13 @@ export async function detectAndNotifyNewComments(
 export type ReplyToCommentResult = { ok: true } | { ok: false; error: string };
 
 async function sendReplyAndMarkStatus(commentId: string, userId: string, replyText: string): Promise<ReplyToCommentResult> {
+  // Replies need Meta permissions production doesn't request yet (see platform-availability.ts) -
+  // one gate here covers the web panel and the Telegram buttons.
+  const owner = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+  if (!commentsFeatureEnabledFor(owner?.email)) {
+    return { ok: false, error: COMMENTS_IN_REVIEW_MESSAGE };
+  }
+
   const comment = await prisma.socialComment.findFirst({
     where: { id: commentId, userId },
     include: { publishJob: { include: { socialAccount: true } } },
