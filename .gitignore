@@ -29,3 +29,6 @@ pnpm-debug.log*
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# AI eval reports (npm run eval:captions)
+evals/results/

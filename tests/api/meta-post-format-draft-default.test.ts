@@ -8,7 +8,8 @@ const mockBundles = new Map([
 ]);
 
 vi.mock('@/lib/server/composer-drafts', () => ({
-  generatePlatformBundles: vi.fn().mockResolvedValue({ bundlesByPlatform: mockBundles, orchestrationWarning: null, schedule: [] }),
+  previewImageUrls: () => [],
+  generatePlatformBundles: vi.fn().mockResolvedValue({ bundlesByPlatform: mockBundles, orchestrationWarning: null, aiGenerated: true, aiUnavailableReason: null, schedule: [] }),
 }));
 
 const { POST } = await import('@/app/api/publish-jobs/drafts/route');

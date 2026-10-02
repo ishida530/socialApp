@@ -81,6 +81,18 @@ Opcjonalnie (czytelniejsze ślady błędów): `SENTRY_ORG`, `SENTRY_PROJECT` i `
 - [ ] **Test:** zarejestruj nowe konto na `https://postfly.pl/register` adresem Gmail i adresem Outlook/Onet/WP. E-mail powinien przyjść do **Odebranych** (nie do spamu) w ciągu minuty. Kliknij link → wraca na pulpit z komunikatem „Adres e-mail potwierdzony”, a baner znika.
 - [ ] Usuń testowe konta w aplikacji (**Ustawienia** → usuń konto), żeby nie zaśmiecały statystyk.
 
+### A5. Konto Anthropic (AI) — 10 minut
+
+**Dlaczego:** 2.10.2026 skończyły się środki na koncie Anthropic. Bez nich opisy postów, „Generuj ponownie” i asystent Telegram nie działają (aplikacja wstawia wtedy samą notatkę użytkownika i pokazuje komunikat o niedostępnym AI).
+
+- [ ] https://console.anthropic.com → **Plans & Billing** → **Buy credits** (np. 20–50 USD na start).
+- [ ] Tamże włącz **Auto-reload** (np. doładowanie 20 USD, gdy saldo spadnie poniżej 5 USD).
+- [ ] **Limits** → ustaw miesięczny limit wydatków (np. 100 USD), żeby błąd albo nadużycie nie wygenerowały dowolnego rachunku.
+- [ ] Sprawdź w aplikacji: nowy post ze zdjęciem → opis powinien dotyczyć tego, co jest na zdjęciu.
+- [ ] Alerty: gdy AI przestanie działać z powodu środków albo klucza, aplikacja wyśle e-mail (najwyżej raz na godzinę) na adresy z `ADMIN_EMAILS`. Inny adres ustawisz zmienną `AI_ALERT_EMAILS` w Vercelu. Alert działa po skonfigurowaniu Resend (A4).
+- [ ] Miesięczne limity AI na plan (FREE 20, STARTER 200, PRO 600, BUSINESS 1500 tekstów) są w `lib/billing/plans.ts` → `ai_generations`. Zmień je, jeśli chcesz, a ja zaktualizuję też opis planów w cenniku.
+- [ ] Przed zmianą modelu albo promptu uruchom ewaluację: `npm run eval:captions` (opis w `evals/README.md`, ok. 1 USD za przebieg).
+
 ---
 
 ## B. W pierwszym tygodniu
@@ -202,6 +214,7 @@ Szczegóły: [review/meta.md](review/meta.md).
 | A2 | Sentry | 10 min | **Tak** |
 | A3 | Stripe live + płatność testowa | 15 min | **Tak** |
 | A4 | Domena w Resend | 5–15 min | **Tak** |
+| A5 | Środki i limity w Anthropic | 10 min | **Tak** (bez tego nie działa AI) |
 | B1 | Upstash Redis | 10 min | Nie |
 | B2 | Konto recenzenta + `REVIEWER_EMAILS` | 10 min | Przed wnioskami TikTok/Google/Meta |
 | B3 | TikTok: portal + nagranie + wniosek | 2–3 h | Nie |

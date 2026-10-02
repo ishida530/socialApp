@@ -214,8 +214,11 @@ function validateBundles(platformBundles: PlatformBundle[], errors: string[]) {
   }
 
   platformBundles.forEach((bundle, index) => {
-    if (!bundle.caption?.trim()) {
-      errors.push(`platformBundles[${index}].caption jest wymagane`);
+    // An empty caption is valid since 2026-10-02: when the AI is unavailable and the user gave no
+    // note, the draft starts empty (and the composer says so) instead of with filler text that
+    // could end up published.
+    if (typeof bundle.caption !== 'string') {
+      errors.push(`platformBundles[${index}].caption musi być tekstem`);
     }
     if (!Array.isArray(bundle.hashtags)) {
       errors.push(`platformBundles[${index}].hashtags musi być tablicą`);

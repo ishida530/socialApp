@@ -29,7 +29,8 @@ const mockBundles = new Map([
 ]);
 
 vi.mock('@/lib/server/composer-drafts', () => ({
-  generatePlatformBundles: vi.fn().mockResolvedValue({ bundlesByPlatform: mockBundles, orchestrationWarning: null, aiGenerated: true, schedule: [] }),
+  previewImageUrls: () => [],
+  generatePlatformBundles: vi.fn().mockResolvedValue({ bundlesByPlatform: mockBundles, orchestrationWarning: null, aiGenerated: true, aiUnavailableReason: null, schedule: [] }),
 }));
 
 const { POST } = await import('@/app/api/telegram/webhook/route');
@@ -185,7 +186,7 @@ describe('POST /api/telegram/webhook — media upload (TASK-3.1.2)', () => {
     const { generatePlatformBundles } = await import('@/lib/server/composer-drafts');
     vi.mocked(generatePlatformBundles).mockResolvedValueOnce({
       bundlesByPlatform: mockBundles as never,
-      orchestrationWarning: null, aiGenerated: true,
+      orchestrationWarning: null, aiGenerated: true, aiUnavailableReason: null,
       schedule: [
         { platform: 'TIKTOK', scheduledFor: new Date('2026-09-20T18:00:00.000Z').toISOString(), timezone: 'UTC', score: 0.7, reason: 'Baseline persona slot (brak danych historycznych).' },
         {
@@ -220,7 +221,7 @@ describe('POST /api/telegram/webhook — media upload (TASK-3.1.2)', () => {
     const { generatePlatformBundles } = await import('@/lib/server/composer-drafts');
     vi.mocked(generatePlatformBundles).mockResolvedValueOnce({
       bundlesByPlatform: mockBundles as never,
-      orchestrationWarning: null, aiGenerated: true,
+      orchestrationWarning: null, aiGenerated: true, aiUnavailableReason: null,
       schedule: [
         { platform: 'INSTAGRAM', scheduledFor: new Date('2026-09-20T17:00:00.000Z').toISOString(), timezone: 'UTC', score: 0.7, reason: 'Baseline persona slot (brak danych historycznych).' },
       ],
@@ -395,7 +396,7 @@ describe('POST /api/telegram/webhook — autopilot (opt-in zero-tap scheduling)'
     const { generatePlatformBundles } = await import('@/lib/server/composer-drafts');
     vi.mocked(generatePlatformBundles).mockResolvedValueOnce({
       bundlesByPlatform: mockBundles as never,
-      orchestrationWarning: null, aiGenerated: true,
+      orchestrationWarning: null, aiGenerated: true, aiUnavailableReason: null,
       schedule: [
         { platform: 'INSTAGRAM', scheduledFor: new Date('2026-09-20T19:00:00.000Z').toISOString(), timezone: 'UTC', score: 0.9, reason: 'x' },
       ],
@@ -429,7 +430,7 @@ describe('POST /api/telegram/webhook — autopilot (opt-in zero-tap scheduling)'
     const { generatePlatformBundles } = await import('@/lib/server/composer-drafts');
     vi.mocked(generatePlatformBundles).mockResolvedValueOnce({
       bundlesByPlatform: mockBundles as never,
-      orchestrationWarning: null, aiGenerated: true,
+      orchestrationWarning: null, aiGenerated: true, aiUnavailableReason: null,
       schedule: [],
       hasCriticalSafety: true,
     });

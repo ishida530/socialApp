@@ -30,7 +30,7 @@ import { completeGoal, getActiveGoals, setGoal } from '@/lib/server/coaching';
 import { endActiveCampaign, getActiveCampaign, getCampaignReport, listRecentCampaigns, startCampaign, type CampaignReport } from '@/lib/server/campaigns';
 import { getFollowerGrowth, type FollowerGrowthEntry } from '@/lib/server/account-growth';
 import { acceptSuggestedReply, ignoreComment, sendCustomReply } from '@/lib/server/social-comments';
-import { getClaudeCostSummary } from '@/lib/server/claude-usage';
+import { getAiQualitySummary, getClaudeCostSummary } from '@/lib/server/claude-usage';
 import { isAdminEmail } from '@/lib/server/admin';
 import { prisma } from '@/lib/server/prisma';
 import { unauthorized } from '@/lib/server/http';
@@ -410,7 +410,9 @@ async function handleIncomingMedia(
     // optymalnie" below. Still respects the orchestrator's own critical-safety-flag rule (falls
     // through to the normal manual preview in that case, same as a non-autopilot account would
     // see) - autopilot never bypasses that gate, it only removes the routine tap.
-    if (autopilotEnabled && !draftResult.hasCriticalSafety) {
+    // 2026-10-02: nor does it schedule a post whose copy the AI couldn't write (provider down) -
+    // the user sees the manual preview with their own note instead.
+    if (autopilotEnabled && !draftResult.hasCriticalSafety && draftResult.aiGenerated) {
       const optimalResult = await enqueueDraftGroupOptimally(userId, draftResult.postGroupId);
 
       if (optimalResult.ok && optimalResult.scheduled.length > 0) {
@@ -927,6 +929,14 @@ async function handleTextCommand(chatIdStr: string, userId: string, text: string
       `Wywołania: ${cost.totalCalls}`,
       `Tokeny (wejście/wyjście): ${cost.totalInputTokens} / ${cost.totalOutputTokens}`,
     ];
+
+    const quality = await getAiQualitySummary(30);
+    const pct = (value: number | null) => (value === null ? '-' : `${Math.round(value * 100)}%`);
+    lines.push(
+      '',
+      `Jakość AI: opisy napisane przez AI ${pct(quality.aiWrittenShare)} z ${quality.drafts} szkiców; ` +
+        `opublikowane bez zmian ${pct(quality.publishedUnchangedShare)}, podobieństwo do wersji AI ${pct(quality.averageSimilarity)}.`,
+    );
 
     if (cost.byScope.length > 0) {
       lines.push('', 'Per funkcja:');

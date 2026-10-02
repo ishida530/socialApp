@@ -9,9 +9,24 @@ const EXECUTION_DENY_PATTERNS = [
   /bypass\s+safety/i,
 ];
 
-const EMAIL_REGEX = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
-const PHONE_REGEX = /\+?[0-9][0-9\-\s()]{6,}[0-9]/;
-const ID_REGEX = /\b\d{6,}\b/;
+// 2026-10-02 (AI review): the patterns used to have no `g` flag, so only the FIRST email/phone was
+// redacted and the rest went to the AI as-is. The phone pattern also matched dates ("2026-09-28")
+// and prices, and the 6+ digit "ID" pattern ate prices ("450000 zł").
+const EMAIL_REGEX = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
+// Phone numbers: optional +country code, then 9 digits grouped 3-3-3 / 3-2-2-2 or written solid
+// (Polish mobile and landline formats). Not preceded/followed by another digit, so dates
+// ("2026-09-28"), prices ("1 299 000") and postal codes ("00-950") don't match.
+const PHONE_REGEX = /(?<![\d+])(?:\+\d{2}[\s-]?)?(?:\d{3}[\s-]?\d{3}[\s-]?\d{3}|\d{2}[\s-]?\d{3}[\s-]?\d{2}[\s-]?\d{2})(?!\d)/g;
+// Long digit runs that look like document/account numbers (PESEL 11, bank account 26) - prices
+// and amounts are far shorter, so they're no longer touched.
+const ID_REGEX = /\b\d{11,}\b/g;
+
+function matches(regex: RegExp, value: string) {
+  regex.lastIndex = 0;
+  const found = regex.test(value);
+  regex.lastIndex = 0;
+  return found;
+}
 
 export function sanitizeUserInput(rawInput?: string) {
   if (!rawInput) {
@@ -37,7 +52,7 @@ export function collectSafetyFlags(input: { rawInput?: string; publishMode: 'dra
     });
   }
 
-  if (EMAIL_REGEX.test(raw)) {
+  if (matches(EMAIL_REGEX, raw)) {
     flags.push({
       code: 'PII_EMAIL',
       severity: 'medium',
@@ -45,7 +60,7 @@ export function collectSafetyFlags(input: { rawInput?: string; publishMode: 'dra
     });
   }
 
-  if (PHONE_REGEX.test(raw)) {
+  if (matches(PHONE_REGEX, raw)) {
     flags.push({
       code: 'PII_PHONE',
       severity: 'medium',
@@ -53,7 +68,7 @@ export function collectSafetyFlags(input: { rawInput?: string; publishMode: 'dra
     });
   }
 
-  if (ID_REGEX.test(raw)) {
+  if (matches(ID_REGEX, raw)) {
     flags.push({
       code: 'PII_ID_NUMBER',
       severity: 'low',
@@ -70,6 +85,37 @@ export function collectSafetyFlags(input: { rawInput?: string; publishMode: 'dra
   }
 
   return flags;
+}
+
+// Post copy (2026-10-02): the owner often WANTS their own phone/email in the post ("zadzwoń:
+// 600 100 200"), but it still shouldn't reach the AI provider. Contact details are swapped for
+// numbered tokens the model is told to keep verbatim, then put back into the generated text - so
+// the AI never sees them and the post never ends up with "[redacted-phone]" in it.
+// One masker per AI request, shared by every field sent in it, so token numbers never collide.
+export function createContactMasker() {
+  const originals: string[] = [];
+  const token = (kind: 'EMAIL' | 'TEL' | 'NR') => (match: string) => {
+    originals.push(match);
+    return `[[${kind}_${originals.length}]]`;
+  };
+
+  return {
+    mask(value: string) {
+      return value
+        .replace(EMAIL_REGEX, token('EMAIL'))
+        .replace(PHONE_REGEX, token('TEL'))
+        .replace(ID_REGEX, token('NR'));
+    },
+    get hasTokens() {
+      return originals.length > 0;
+    },
+    // Tokens the model invented or mangled are dropped rather than left in the post.
+    restore(text: string) {
+      return text
+        .replace(/\[\[(?:EMAIL|TEL|NR)_(\d+)\]\]/g, (_, index: string) => originals[Number(index) - 1] ?? '')
+        .trim();
+    },
+  };
 }
 
 export function redactPotentialPii(value: string) {

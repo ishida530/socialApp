@@ -23,7 +23,7 @@ export default function PrivacyPage() {
         <p className="mt-6 text-sm text-muted-foreground">
           Niniejsza Polityka Prywatności opisuje zasady przetwarzania danych w ramach serwisu Postfly.
         </p>
-        <p className="mt-2 text-sm text-muted-foreground">Data ostatniej aktualizacji: 1 października 2026 r.</p>
+        <p className="mt-2 text-sm text-muted-foreground">Data ostatniej aktualizacji: 2 października 2026 r.</p>
 
         <section className="mt-8 space-y-4 text-sm leading-6 text-muted-foreground">
           <h2 className="text-base font-semibold text-foreground">1. Administrator danych</h2>
@@ -111,9 +111,15 @@ export default function PrivacyPage() {
             m.in. generowania i sugerowania opisów/hashtagów pod publikacje, cotygodniowych podsumowań
             wyników, pomysłów na kolejne materiały oraz sugerowanych odpowiedzi na komentarze pod postami
             Użytkownika. W tym celu do Anthropic mogą być przekazywane: treść wprowadzona przez Użytkownika
-            (np. krótki opis jego działalności), zagregowane dane o wynikach publikacji, oraz - wyłącznie w
-            module moderacji komentarzy - treść komentarza osoby trzeciej widoczna publicznie pod postem
-            Użytkownika. Treści te są przetwarzane przez AI jako dane wejściowe do wygenerowania sugestii,
+            (np. notatka do posta, krótki opis jego działalności), zdjęcie dodane do publikacji albo miniatura
+            filmu (żeby opis dotyczył tego, co faktycznie widać na materiale), zagregowane dane o wynikach
+            publikacji, oraz - wyłącznie w module moderacji komentarzy - treść komentarza osoby trzeciej
+            widoczna publicznie pod postem Użytkownika. Numery telefonów i adresy e-mail z notatek do postów są przed
+            wysłaniem zastępowane znacznikami i uzupełniane z powrotem dopiero w gotowym tekście, więc nie trafiają
+            do Anthropic. Anthropic przetwarza te dane jako podmiot przetwarzający, wyłącznie w celu wygenerowania
+            odpowiedzi, i zgodnie ze swoimi warunkami komercyjnymi nie wykorzystuje ich do trenowania modeli. Dane
+            otrzymane z platform (YouTube, TikTok, Meta) nigdy nie są wykorzystywane do trenowania modeli AI.
+            Treści te są przetwarzane przez AI jako dane wejściowe do wygenerowania sugestii,
             nigdy jako polecenia wykonywane automatycznie - żadna sugestia AI nie jest publikowana ani
             wysyłana bez wyraźnego zatwierdzenia przez Użytkownika. Korzystanie z funkcji AI jest opcjonalne
             i można je wyłączyć (np. tryb &quot;Autopilot&quot; jest domyślnie wyłączony i wymaga świadomego
@@ -274,7 +280,10 @@ export default function PrivacyPage() {
             </a>
             , including the Limited Use requirements. TikTok and Meta data (tokens, account name, follower and post
             statistics) is used only to publish content you approve and show you its results, and is deleted when
-            you disconnect the account. Contact: pawel.sawczuk.email@gmail.com.
+            you disconnect the account. AI features (Anthropic Claude) receive the user's own notes, the photo or video
+            thumbnail of the post being prepared and aggregated post statistics, only to generate suggestions the user
+            reviews and approves; phone numbers and email addresses in post notes are masked before sending, and no platform data is
+            used to train AI models. Contact: pawel.sawczuk.email@gmail.com.
           </p>
 
           <h2 className="text-base font-semibold text-foreground">15. Kontakt</h2>

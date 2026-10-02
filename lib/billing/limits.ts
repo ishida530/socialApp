@@ -1,7 +1,7 @@
 import { PlanTier } from '@prisma/client';
 import { FREE_MAX_SCHEDULE_AHEAD_HOURS, PLAN_LIMITS } from './plans';
 
-export type UsageMetric = 'video_uploads' | 'publish_jobs' | 'ai_autopilot_runs';
+export type UsageMetric = 'video_uploads' | 'publish_jobs' | 'ai_autopilot_runs' | 'ai_generations';
 
 export function resolvePlanLimits(plan: PlanTier) {
   return PLAN_LIMITS[plan];

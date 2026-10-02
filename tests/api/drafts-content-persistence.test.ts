@@ -10,9 +10,10 @@ const mockBundles = new Map([
 ]);
 
 vi.mock('@/lib/server/composer-drafts', () => ({
+  previewImageUrls: () => [],
   generatePlatformBundles: vi.fn().mockResolvedValue({
     bundlesByPlatform: mockBundles,
-    orchestrationWarning: null,
+    orchestrationWarning: null, aiGenerated: true, aiUnavailableReason: null,
     schedule: [],
   }),
 }));

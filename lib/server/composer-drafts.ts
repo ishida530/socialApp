@@ -1,6 +1,7 @@
 import { Platform } from '@prisma/client';
 import { orchestrateContent } from './smart-autopilot/orchestrator';
 import type { ScheduleSlot } from './smart-autopilot/types';
+import { AI_QUOTA_EXHAUSTED_MESSAGE, hasAiGenerationQuota, recordAiGeneration } from './subscription';
 
 type PlatformBundle = {
   platform: 'TIKTOK' | 'INSTAGRAM' | 'YOUTUBE' | 'FACEBOOK' | 'LINKEDIN';
@@ -9,6 +10,13 @@ type PlatformBundle = {
   hashtags: string[];
 };
 
+// What the AI gets to look at (2026-10-02): the photo itself, or the video's thumbnail when one
+// exists. Video files themselves aren't sent - the Messages API takes images, not video.
+export function previewImageUrls(video: { mediaType: string; sourceUrl: string | null; thumbnailUrl: string | null }) {
+  const url = video.mediaType === 'IMAGE' ? video.sourceUrl : video.thumbnailUrl;
+  return url ? [url] : [];
+}
+
 export async function generatePlatformBundles(
   userId: string,
   options: {
@@ -16,9 +24,12 @@ export async function generatePlatformBundles(
     targetPlatforms: Platform[];
     timezone: string;
     idempotencyKey: string;
+    imageUrls?: string[];
+    previousCaption?: string;
   },
 ) {
   try {
+    const quotaOk = await hasAiGenerationQuota(userId);
     const result = await orchestrateContent(userId, {
       mode: 'manual',
       publishMode: 'draft',
@@ -26,13 +37,23 @@ export async function generatePlatformBundles(
       targetPlatforms: options.targetPlatforms as PlatformBundle['platform'][],
       timezone: options.timezone,
       idempotencyKey: options.idempotencyKey,
+      ...(options.imageUrls?.length ? { imageUrls: options.imageUrls } : {}),
+      ...(options.previousCaption ? { previousCaption: options.previousCaption } : {}),
+      ...(quotaOk ? {} : { skipAi: true }),
     });
+
+    const aiGenerated = result.aiCopy === true;
+    if (aiGenerated) {
+      await recordAiGeneration(userId);
+    }
 
     return {
       bundlesByPlatform: new Map(result.platformBundles.map((bundle) => [bundle.platform, bundle])),
-      orchestrationWarning: null as string | null,
-      // false = Claude was unavailable and the copy came from the persona templates.
-      aiGenerated: result.aiCopy === true,
+      orchestrationWarning: (quotaOk ? null : AI_QUOTA_EXHAUSTED_MESSAGE) as string | null,
+      // false = the AI didn't write the copy (provider unavailable or quota used up) and the
+      // captions are the user's own note.
+      aiGenerated,
+      aiUnavailableReason: (aiGenerated ? null : quotaOk ? 'provider' : 'quota') as 'provider' | 'quota' | null,
       // EPIC 4 (obserwuj->planuj->działaj->sprawdź->popraw): orchestrateContent already computes
       // a real, reasoned schedule suggestion here - previously silently discarded by every
       // caller of generatePlatformBundles, so the "popraw" step never had a way to reach the
@@ -50,6 +71,7 @@ export async function generatePlatformBundles(
       orchestrationWarning:
         error instanceof Error ? error.message : 'Nie udało się automatycznie wygenerować treści.',
       aiGenerated: false,
+      aiUnavailableReason: 'provider' as 'provider' | 'quota' | null,
       schedule: [] as ScheduleSlot[],
       hasCriticalSafety: false,
     };

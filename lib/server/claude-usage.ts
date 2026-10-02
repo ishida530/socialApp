@@ -20,6 +20,7 @@ export async function recordClaudeUsage(scope: string, model: string, inputToken
 const PRICING_USD_PER_MILLION_TOKENS: Record<string, { input: number; output: number }> = {
   'claude-haiku-4-5-20251001': { input: 1, output: 5 },
   'claude-sonnet-5': { input: 3, output: 15 },
+  'claude-sonnet-5-5': { input: 3, output: 15 },
 };
 const FALLBACK_PRICING = { input: 3, output: 15 };
 
@@ -74,5 +75,62 @@ export async function getClaudeCostSummary(periodDays = 30): Promise<ClaudeCostS
     totalOutputTokens,
     estimatedCostUsd,
     byScope,
+  };
+}
+
+// AI quality metrics (2026-10-02, AI review): how often the AI actually wrote the draft copy (vs
+// the fallback to the user's raw note), and how much users change it before publishing - the most
+// direct signal of whether the generated captions are any good.
+export type AiQualitySummary = {
+  periodDays: number;
+  drafts: number;
+  aiWrittenShare: number | null;
+  published: number;
+  publishedUnchangedShare: number | null;
+  averageSimilarity: number | null;
+};
+
+function words(text: string) {
+  return new Set(text.toLowerCase().split(/[^\p{L}\p{N}#@]+/u).filter(Boolean));
+}
+
+// Jaccard similarity of the word sets: 1 = the same words, 0 = completely rewritten.
+export function captionSimilarity(aiCaption: string, finalCaption: string) {
+  const a = words(aiCaption);
+  const b = words(finalCaption);
+  if (a.size === 0 && b.size === 0) {
+    return 1;
+  }
+  let shared = 0;
+  for (const word of a) {
+    if (b.has(word)) shared += 1;
+  }
+  return shared / (a.size + b.size - shared);
+}
+
+export async function getAiQualitySummary(periodDays = 30): Promise<AiQualitySummary> {
+  const since = new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000);
+  // Only drafts created since the fields exist carry a sourceNote/aiCaption signal.
+  const [drafts, aiWritten, published] = await Promise.all([
+    prisma.publishJob.count({ where: { createdAt: { gte: since } } }),
+    prisma.publishJob.count({ where: { createdAt: { gte: since }, aiCaption: { not: null } } }),
+    prisma.publishJob.findMany({
+      where: { publishedAt: { gte: since }, aiCaption: { not: null } },
+      select: { caption: true, aiCaption: true },
+      take: 2000,
+    }),
+  ]);
+
+  const similarities = published.map((job) => captionSimilarity(job.aiCaption ?? '', job.caption));
+  const unchanged = published.filter((job) => job.caption.trim() === (job.aiCaption ?? '').trim()).length;
+
+  return {
+    periodDays,
+    drafts,
+    aiWrittenShare: drafts > 0 ? aiWritten / drafts : null,
+    published: published.length,
+    publishedUnchangedShare: published.length > 0 ? unchanged / published.length : null,
+    averageSimilarity:
+      similarities.length > 0 ? similarities.reduce((sum, value) => sum + value, 0) / similarities.length : null,
   };
 }

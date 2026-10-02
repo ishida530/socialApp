@@ -273,6 +273,24 @@ export async function sendTelegramLinkReminderEmail(userEmail: string, userName:
   }
 }
 
+// Operational alert to the app owner (2026-10-02) - plain text, e.g. "the AI provider rejects
+// requests because the credit balance is exhausted" (lib/server/ai-alerts.ts).
+export async function sendAdminAlertEmail(to: string[], subject: string, text: string) {
+  const from = process.env.EMAIL_FROM ?? 'PostFly <hello@postfly.pl>';
+
+  const result = await getResendClient().emails.send({
+    from,
+    to,
+    subject: `[PostFly alert] ${subject}`,
+    text,
+    html: `<div style="font-family:Inter,Arial,sans-serif;line-height:1.6;color:#111827;white-space:pre-line">${escapeHtml(text)}</div>`,
+  });
+
+  if (result.error) {
+    throw new Error(`[mail] Resend error ${result.error.statusCode}: ${result.error.message}`);
+  }
+}
+
 declare global {
   var __postflyMailProviderChecked: boolean | undefined;
 }

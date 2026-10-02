@@ -344,6 +344,12 @@ model PublishJob {
   // visibility it sets. Null = not chosen in the web composer (Telegram/autopilot paths), where
   // "public" is used and stated explicitly in the Telegram preview.
   youtubePrivacyStatus String?
+  // AI quality (2026-10-02): sourceNote is the user's own note the caption was generated from -
+  // "Generuj ponownie" starts from it instead of the current caption. aiCaption is the caption
+  // exactly as the AI wrote it (null when the template fallback was used), so the admin summary
+  // can measure how often the AI wrote the copy and how much users edit it before publishing.
+  sourceNote String?
+  aiCaption  String?
   // Telegram-only: per-platform toggle on the preview message's inline keyboard, before the
   // final Publikuj tap. Not exposed in the web composer (that has its own platform checkboxes
   // in ScheduleStep that act immediately, no separate "excluded" state to persist).

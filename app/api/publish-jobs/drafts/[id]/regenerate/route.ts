@@ -3,7 +3,8 @@ import { getAuthUserFromRequest } from '@/lib/server/auth';
 import { prisma } from '@/lib/server/prisma';
 import { badRequest, notFound, serverError, tooManyRequests, unauthorized } from '@/lib/server/http';
 import { consumeRateLimit } from '@/lib/server/rate-limit';
-import { generatePlatformBundles } from '@/lib/server/composer-drafts';
+import { generatePlatformBundles, previewImageUrls } from '@/lib/server/composer-drafts';
+import { AI_QUOTA_EXHAUSTED_MESSAGE } from '@/lib/server/subscription';
 import { collectContentWarnings } from '@/lib/server/content-safety';
 import { PUBLIC_SOCIAL_ACCOUNT_SELECT } from '@/lib/server/public-fields';
 
@@ -36,8 +37,13 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       return notFound('Nie znaleziono niedokończonego posta dla tej platformy.');
     }
 
-    const { bundlesByPlatform, orchestrationWarning, aiGenerated } = await generatePlatformBundles(user.userId, {
-      rawInput: body.rawInput?.trim() || job.caption,
+    const { bundlesByPlatform, orchestrationWarning, aiGenerated, aiUnavailableReason } = await generatePlatformBundles(user.userId, {
+      // 2026-10-02 (AI review): start from the user's original note, not the current caption, and
+      // pass the current caption as the version to move away from - otherwise the model mostly
+      // paraphrased its own previous output.
+      rawInput: body.rawInput?.trim() || job.sourceNote || job.caption,
+      previousCaption: job.caption || undefined,
+      imageUrls: previewImageUrls(job.video),
       targetPlatforms: [job.socialAccount.platform],
       timezone: body.timezone || 'Europe/Warsaw',
       idempotencyKey: `${job.postGroupId}-regenerate-${job.socialAccount.platform}-${Date.now()}`,
@@ -51,6 +57,9 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     // 2026-10-02: "Generuj ponownie" asks for a NEW text from the AI. When Claude is unavailable
     // the template fallback would just prefix the current caption again ("Krótka aktualizacja:
     // Krótka aktualizacja: ..."), so keep the draft unchanged and say what happened instead.
+    if (!aiGenerated && aiUnavailableReason === 'quota') {
+      return NextResponse.json({ message: AI_QUOTA_EXHAUSTED_MESSAGE }, { status: 429 });
+    }
     if (!aiGenerated) {
       return NextResponse.json(
         { message: 'Generator AI jest chwilowo niedostępny. Opis nie został zmieniony - spróbuj ponownie później.' },
@@ -64,6 +73,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
         caption: bundle.caption,
         hashtags: bundle.hashtags,
         title: bundle.title ?? null,
+        aiCaption: bundle.caption,
         contentWarnings: collectContentWarnings(bundle.caption, job.socialAccount.platform),
       },
       include: { video: true, socialAccount: { select: PUBLIC_SOCIAL_ACCOUNT_SELECT } },

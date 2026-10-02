@@ -63,6 +63,13 @@ export type OrchestrateContentInput = {
   subscriptionTier?: SubscriptionTier;
   publishMode: PublishMode;
   idempotencyKey: string;
+  // Public URLs of images showing the material (the photo itself / a video thumbnail), sent to the
+  // AI so the caption describes what is actually in it (2026-10-02).
+  imageUrls?: string[];
+  // "Generuj ponownie": the current caption, so the AI writes a clearly different version.
+  previousCaption?: string;
+  // The account's monthly AI generation quota is used up - go straight to the template fallback.
+  skipAi?: boolean;
 };
 
 export type AnalysisOutput = {

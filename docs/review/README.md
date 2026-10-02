@@ -18,8 +18,10 @@ Wymagania sprawdzone w oficjalnej dokumentacji **1.10.2026**. Interfejs Postfly 
 4. **Angielskie napisy na każdej scenie.** Interfejs jest po polsku, a Meta i Google wprost tego wymagają. Gotowe teksty są w kolumnie „Napis (EN)” w każdym pliku. Wklej je w edytorze wideo (CapCut, Clipchamp itp.).
 5. **Każdy ważny element trzymaj na ekranie 2–3 sekundy.** Nie przyspieszaj filmu.
 6. **Zero błędów na nagraniu.** Jeśli coś pójdzie źle, nagraj tę część od nowa.
-7. Nagrywaj **własne** materiały: własny film lub zdjęcie, bez cudzej muzyki i bez znaków wodnych.
-8. Narzędzia: OBS Studio (darmowe) albo Xbox Game Bar (`Win + Alt + R`). Montaż i napisy: Clipchamp (wbudowany w Windows) lub CapCut.
+7. **Przed nagraniem sprawdź, czy AI działa.** Utwórz testowy post: opis powinien dotyczyć tego, co widać na Twoim materiale. Jeśli pojawia się komunikat „Generator AI jest chwilowo niedostępny” albo opis to tylko Twoja notatka, doładuj konto Anthropic (console.anthropic.com → Plans & Billing). Inaczej recenzent zobaczy na filmie komunikat o błędzie.
+8. Na każdym nagraniu **pokaż, że opis od AI to tylko propozycja**: popraw ręcznie choć jedno słowo albo hashtag. Platformy wymagają, żeby użytkownik kontrolował treść przed publikacją.
+9. Nagrywaj **własne** materiały: własny film lub zdjęcie, bez cudzej muzyki i bez znaków wodnych.
+10. Narzędzia: OBS Studio (darmowe) albo Xbox Game Bar (`Win + Alt + R`). Montaż i napisy: Clipchamp (wbudowany w Windows) lub CapCut.
 
 ## Przygotuj raz, przed wszystkimi nagraniami
 
