@@ -163,11 +163,7 @@ export const FALLBACK_BILLING_CAPABILITIES: BillingCapabilitiesResponse = {
       aiAutopilot: false,
       aiAutopilotRunsLimit: 0,
       aiAutopilotLabel: 'Niedostępny',
-      perks: [
-        'Do 3 kont social lacznie (takze wiele kont na jednej platformie)',
-        'Do 15 wideo / miesiac',
-        'Podstawowy planer',
-      ],
+      perks: PLAN_FEATURES.STARTER,
     },
     {
       name: 'Pro',
@@ -183,12 +179,7 @@ export const FALLBACK_BILLING_CAPABILITIES: BillingCapabilitiesResponse = {
       aiAutopilot: true,
       aiAutopilotRunsLimit: 15,
       aiAutopilotLabel: '15 / mies.',
-      perks: [
-        'Do 10 kont social lacznie (takze wiele kont na jednej platformie)',
-        'Brak twardego limitu publikacji',
-        'Limit miekki: 100 wideo / miesiac',
-        'AI Autopilot Lite: 15 uruchomien / miesiac (draft mode)',
-      ],
+      perks: PLAN_FEATURES.PRO,
     },
     {
       name: 'Business',
@@ -204,11 +195,7 @@ export const FALLBACK_BILLING_CAPABILITIES: BillingCapabilitiesResponse = {
       aiAutopilot: true,
       aiAutopilotRunsLimit: null,
       aiAutopilotLabel: 'Bez limitu',
-      perks: [
-        'Do 25 kont social lacznie (takze wiele kont na jednej platformie)',
-        'Brak twardego limitu publikacji',
-        'AI Autopilot bez limitu uruchomien',
-      ],
+      perks: PLAN_FEATURES.BUSINESS,
     },
   ],
 };

@@ -29,4 +29,9 @@ export const LANDING_FAQ_ITEMS: LandingFaqItem[] = [
     answer:
       'AI Autopilot Lite jest dostępny od planu Pro (z limitem miesięcznym). W planie Business funkcja jest bez limitu i oferuje pełny tryb.',
   },
+  {
+    question: 'Jak działa generowanie opisów przez AI?',
+    answer:
+      'AI przygotowuje propozycję opisu i hashtagów na podstawie Twojej notatki i zdjęcia (albo miniatury filmu), osobno dla każdej platformy. To zawsze tylko propozycja: edytujesz ją i sam klikasz „Opublikuj”. Miesięczny limit tekstów AI zależy od planu: Free 20, Starter 200, Pro 600, Business 1500.',
+  },
 ];
