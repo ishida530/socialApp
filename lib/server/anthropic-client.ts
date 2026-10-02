@@ -28,6 +28,20 @@ function getAnthropicConfig() {
   };
 }
 
+// 2026-10-02: API errors used to be swallowed silently, so an exhausted credit balance showed up
+// only as template captions ("Krótka aktualizacja: ..."). Logged as an error (Vercel logs, and
+// Sentry once configured) with Anthropic's own error type and message - never the request or key.
+async function logAnthropicFailure(scope: string, model: string, response: Response) {
+  let detail = '';
+  try {
+    const body = (await response.json()) as { error?: { type?: string; message?: string } };
+    detail = [body.error?.type, body.error?.message].filter(Boolean).join(': ');
+  } catch {
+    // Non-JSON error body - the status code alone is still useful.
+  }
+  console.error('[anthropic] request failed', { scope, model, status: response.status, detail: detail.slice(0, 300) });
+}
+
 type AnthropicToolResponse = {
   content?: Array<{ type: string; name?: string; input?: unknown }>;
   usage?: { input_tokens?: number; output_tokens?: number };
@@ -90,6 +104,7 @@ export async function callClaudeAgentTurn(params: {
     });
 
     if (!response.ok) {
+      await logAnthropicFailure(params.scope, params.model, response);
       return null;
     }
 
@@ -170,6 +185,7 @@ export async function callClaudeTool<T>(params: {
           continue;
         }
 
+        await logAnthropicFailure(params.scope, params.model, response);
         return null;
       }
 
