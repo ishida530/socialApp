@@ -5,6 +5,8 @@ import { usePathname } from 'next/navigation';
 import { Header } from '@/components/Header';
 import { Sidebar } from '@/components/Sidebar';
 import { SiteFooter } from '@/components/SiteFooter';
+import { Suspense } from 'react';
+import { EmailVerificationBanner } from '@/components/EmailVerificationBanner';
 
 const NO_SHELL_PATHS = [
   '/',
@@ -42,6 +44,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Header />
         </div>
         <main key={pathname} className="animate-page-enter min-h-0 min-w-0 flex-1 pt-20">
+          {/* useSearchParams needs a Suspense boundary of its own. */}
+          <Suspense fallback={null}>
+            <EmailVerificationBanner />
+          </Suspense>
           {children}
         </main>
       </div>

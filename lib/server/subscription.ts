@@ -24,10 +24,19 @@ function resolveTrialWindow(userCreatedAt: Date) {
   };
 }
 
-function resolveEffectivePlan(subscriptionPlan: PlanTier, userCreatedAt: Date) {
+function resolveEffectivePlan(subscriptionPlan: PlanTier, userCreatedAt: Date, emailVerified: boolean) {
   if (subscriptionPlan !== PlanTier.FREE) {
     return {
       effectivePlan: subscriptionPlan,
+      trial: null,
+    };
+  }
+
+  // 2026-10-02: the free PRO trial needs a confirmed email address (stops repeat trials on
+  // throwaway addresses). Paid plans above are unaffected.
+  if (!emailVerified) {
+    return {
+      effectivePlan: PlanTier.FREE,
       trial: null,
     };
   }
@@ -186,7 +195,7 @@ export async function incrementUsage(userId: string, metric: UsageMetric, amount
 async function resolveSubscriptionContext(userId: string) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { createdAt: true },
+    select: { createdAt: true, emailVerifiedAt: true },
   });
 
   if (!user) {
@@ -200,7 +209,7 @@ async function resolveSubscriptionContext(userId: string) {
 
 export async function getEffectivePlan(userId: string) {
   const { subscription, user } = await resolveSubscriptionContext(userId);
-  const effective = resolveEffectivePlan(subscription.plan, user.createdAt);
+  const effective = resolveEffectivePlan(subscription.plan, user.createdAt, Boolean(user.emailVerifiedAt));
   return effective.effectivePlan;
 }
 
@@ -211,7 +220,7 @@ export async function checkUsageLimits(userId: string, metric: UsageMetric) {
     throw new Error('Subskrypcja jest nieaktywna.');
   }
 
-  const effective = resolveEffectivePlan(subscription.plan, user.createdAt);
+  const effective = resolveEffectivePlan(subscription.plan, user.createdAt, Boolean(user.emailVerifiedAt));
   const current = await getCurrentUsage(userId, metric);
   const limit = resolvePlanLimits(effective.effectivePlan)[metric];
 
@@ -267,7 +276,7 @@ export async function assertScheduleWindowAllowed(userId: string, scheduledFor: 
 export async function getSubscriptionSnapshot(userId: string) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { createdAt: true },
+    select: { createdAt: true, emailVerifiedAt: true },
   });
 
   if (!user) {
@@ -279,7 +288,7 @@ export async function getSubscriptionSnapshot(userId: string) {
   const effective =
     resolveAppMode() === 'personal'
       ? { effectivePlan: PlanTier.BUSINESS, trial: null }
-      : resolveEffectivePlan(subscription.plan, user.createdAt);
+      : resolveEffectivePlan(subscription.plan, user.createdAt, Boolean(user.emailVerifiedAt));
 
   const [videoUsage, publishUsage, aiUsage] = await Promise.all([
     getCurrentUsage(userId, 'video_uploads'),

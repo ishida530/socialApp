@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUserFromRequest } from '@/lib/server/auth';
 import { unauthorized } from '@/lib/server/http';
+import { prisma } from '@/lib/server/prisma';
 import { commentsFeatureEnabledFor, platformsInReviewFor } from '@/lib/server/platform-availability';
 
 // What this user can use right now (2026-10-02): platforms still waiting for their review and
@@ -9,9 +10,11 @@ import { commentsFeatureEnabledFor, platformsInReviewFor } from '@/lib/server/pl
 export async function GET(request: NextRequest) {
   try {
     const user = getAuthUserFromRequest(request);
+    const record = await prisma.user.findUnique({ where: { id: user.userId }, select: { emailVerifiedAt: true } });
     return NextResponse.json({
       platformsInReview: platformsInReviewFor(user.email),
       commentsEnabled: commentsFeatureEnabledFor(user.email),
+      emailVerified: Boolean(record?.emailVerifiedAt),
     });
   } catch {
     return unauthorized();

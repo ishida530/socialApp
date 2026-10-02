@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthUserFromRequest } from '@/lib/server/auth';
+import {
+  getAuthUserFromRequest,
+  getSessionMaxAgeSec,
+  issueAccessToken,
+  shouldRenewSession,
+  TOKEN_COOKIE_NAME,
+} from '@/lib/server/auth';
 import { prisma } from '@/lib/server/prisma';
 import { badRequest, unauthorized } from '@/lib/server/http';
 import {
@@ -27,7 +33,7 @@ export async function GET(request: NextRequest) {
         twoFactorEnabled: true,
       },
     });
-    return NextResponse.json({
+    const response = NextResponse.json({
       user,
       businessDescription: profile?.businessDescription ?? null,
       communicationStyle: profile?.communicationStyle ?? null,
@@ -36,6 +42,21 @@ export async function GET(request: NextRequest) {
       autopilotEnabled: profile?.autopilotEnabled ?? false,
       twoFactorEnabled: profile?.twoFactorEnabled ?? false,
     });
+
+    // Sliding session (2026-10-02): every app load calls this; a token older than a day is
+    // replaced, so an active user stays signed in while an abandoned session still expires.
+    const currentToken = request.cookies.get(TOKEN_COOKIE_NAME)?.value?.trim();
+    if (profile && currentToken && shouldRenewSession(currentToken)) {
+      response.cookies.set(TOKEN_COOKIE_NAME, issueAccessToken(user.userId, user.email), {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: getSessionMaxAgeSec(),
+      });
+    }
+
+    return response;
   } catch {
     return unauthorized();
   }

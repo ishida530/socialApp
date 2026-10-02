@@ -6,6 +6,7 @@ import { apiClient } from '@/lib/api-client';
 export type Features = {
   platformsInReview: string[];
   commentsEnabled: boolean;
+  emailVerified: boolean;
 };
 
 // What the signed-in user can use right now (GET /api/features, prefetched by every authenticated
@@ -25,7 +26,7 @@ export function useFeatures(): Features | null {
       })
       .catch(() => {
         if (!cancelled) {
-          setFeatures({ platformsInReview: [], commentsEnabled: false });
+          setFeatures({ platformsInReview: [], commentsEnabled: false, emailVerified: true });
         }
       });
 

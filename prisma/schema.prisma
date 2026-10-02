@@ -71,6 +71,10 @@ model User {
   email          String          @unique
   name           String
   passwordHash   String?
+  // 2026-10-02: set when the user proves they own the address (verification link, Google login,
+  // password reset/invite link). The 7-day PRO trial starts only once it is set - stops repeat
+  // trials on throwaway addresses. Accounts created before this field are backfilled as verified.
+  emailVerifiedAt DateTime?
   defaultExplicitContent Boolean?
   // One free-text sentence or two describing what this account is FOR (e.g. "Jestem raperem,
   // publikuję freestyle", "Prowadzę salon kosmetyczny, paznokcie i rzęsy") - threaded into the
