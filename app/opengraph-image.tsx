@@ -1,4 +1,5 @@
 import { ImageResponse } from 'next/og';
+import { isFreeBeta } from '@/lib/beta';
 
 export const size = {
   width: 1200,
@@ -31,7 +32,7 @@ export default function OpengraphImage() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 12 }}>
-            {['7 dni PRO bez karty', 'Propozycje opisów AI', 'Ceny w złotówkach'].map((pill) => (
+            {[isFreeBeta() ? 'Darmowa beta' : '7 dni PRO bez karty', 'Propozycje opisów AI', 'Polski produkt'].map((pill) => (
               <div
                 key={pill}
                 style={{

@@ -57,7 +57,11 @@ export function SiteFooter() {
       <p className="mx-auto w-full max-w-7xl px-4 pb-4 pt-2 text-center text-xs text-muted-foreground/80 sm:px-6">
         © {new Date().getFullYear()} Postfly
         <span aria-hidden="true" className="mx-2 text-border">·</span>
-        Usługodawca: Paweł Sawczuk (
+        Usługodawca: Paweł Sawczuk,{' '}
+        <a href="mailto:hello@postfly.pl" className="transition-colors hover:text-foreground">
+          hello@postfly.pl
+        </a>{' '}
+        (
         <Link href="/terms" className="transition-colors hover:text-foreground">
           dane w Regulaminie
         </Link>

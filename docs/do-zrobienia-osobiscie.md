@@ -1,8 +1,8 @@
 # Postfly: co musisz zrobić osobiście
 
-Stan na **2.10.2026**. Kod jest gotowy na płatny start z Facebookiem, Instagramem i LinkedIn. Poniższe kroki wymagają Twoich kont, płatności albo decyzji, więc nie mogę ich zrobić za Ciebie.
+Stan na **3.10.2026**. Postfly startuje jako **darmowa beta** (każde konto z potwierdzonym e-mailem ma plan PRO, płatności są wyłączone), bo JDG Code94 jest zawieszona, a przy zawieszonej działalności nie można sprzedawać. Poniższe kroki wymagają Twoich kont albo decyzji, więc nie mogę ich zrobić za Ciebie.
 
-Kolejność ma znaczenie: **część A blokuje pierwszą płatność**, część B warto zrobić w pierwszym tygodniu, część C dotyczy czasu po zatwierdzeniach platform.
+Kolejność: **część A przed udostępnieniem bety**, część B w pierwszym tygodniu (w tym review platform), część C po zatwierdzeniach platform, **część D dopiero wtedy, gdy zechcesz zacząć sprzedawać**.
 
 Po każdym kroku zaznacz `[x]`. Jeśli przy którymś kroku zobaczysz coś innego niż w opisie, wklej mi zrzut ekranu.
 
@@ -17,11 +17,11 @@ Po każdym kroku zaznacz `[x]`. Jeśli przy którymś kroku zobaczysz coś inneg
 
 ---
 
-## A. Przed pierwszą płatnością (ok. 45–60 minut)
+## A. Przed udostępnieniem bety (ok. 45 minut)
 
 ### A1. Vercel Pro — 5 minut
 
-**Dlaczego:** plan Hobby pozwala wyłącznie na użytek niekomercyjny. Przy płatnych klientach to naruszenie regulaminu i ryzyko zablokowania projektu.
+**Dlaczego:** plan Hobby pozwala wyłącznie na użytek niekomercyjny. Darmowa beta produktu, który ma zarabiać, jest na granicy tej definicji, a przy płatnych klientach to już na pewno naruszenie regulaminu. Najpóźniej przed włączeniem płatności (część D) przejdź na Pro.
 
 - [ ] Vercel → avatar zespołu (lewy górny róg) → **Settings** → **Billing**.
 - [ ] **Upgrade to Pro** (20 USD/mies. za osobę w zespole) i dodaj kartę.
@@ -44,33 +44,9 @@ Po każdym kroku zaznacz `[x]`. Jeśli przy którymś kroku zobaczysz coś inneg
 
 Opcjonalnie (czytelniejsze ślady błędów): `SENTRY_ORG`, `SENTRY_PROJECT` i `SENTRY_AUTH_TOKEN` (Sentry → **Settings** → **Auth Tokens** → **Create New Token**). Bez nich wszystko działa, tylko stack trace pokaże skompresowany kod.
 
-### A3. Stripe w trybie live — 15 minut
-
-**Dlaczego:** klucze, webhook i ceny są ustawione, ale z kodu nie widzę, czy to tryb live i czy webhook wskazuje na właściwy adres. Błędny webhook oznacza, że klient zapłaci, a plan się nie zmieni.
-
-- [ ] Stripe → przełącznik **Test mode** wyłączony (prawy górny róg).
-- [ ] Konto aktywowane: **Settings** → **Business** → wszystkie dane firmy i konto bankowe do wypłat uzupełnione, brak żółtych ostrzeżeń.
-- [ ] W Vercelu sprawdź (nie kopiuj wartości, tylko popatrz na początek):
-  - `STRIPE_SECRET_KEY` zaczyna się od `sk_live_` (nie `sk_test_`);
-  - `STRIPE_WEBHOOK_SECRET` zaczyna się od `whsec_`;
-  - 6 zmiennych `STRIPE_PRICE_*` zaczyna się od `price_` i pochodzi z trybu live (w trybie live **Product catalog** → produkt → cena → ID musi się zgadzać).
-  - `STRIPE_SUCCESS_URL` i `STRIPE_CANCEL_URL` to `https://postfly.pl/billing`, nie `localhost`.
-- [ ] Stripe → **Developers** → **Webhooks** (tryb live):
-  - endpoint: `https://postfly.pl/api/billing/webhook/stripe`;
-  - zdarzenia: `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`;
-  - **Signing secret** tego endpointu = wartość `STRIPE_WEBHOOK_SECRET` w Vercelu (jeśli nie masz pewności: **Roll secret**, wklej nową wartość do Vercela, Redeploy).
-- [ ] **Settings** → **Billing** → **Customer portal**: włączony (anulowanie i zmiana planu, faktury).
-- [ ] Opcjonalnie: **Settings** → **Tax** — skonsultuj z księgową, czy i jak naliczać VAT.
-- [ ] **Płatność testowa prawdziwą kartą:**
-  1. Zaloguj się do Postfly na zwykłe konto (nie admina) → **Plan i płatności** → kup najtańszy plan (Starter, miesięczny).
-  2. Po powrocie plan w aplikacji powinien zmienić się na Starter w ciągu kilku sekund.
-  3. Stripe → **Developers** → **Webhooks** → endpoint → wszystkie zdarzenia mają status **200**.
-  4. Stripe → **Payments** → ta płatność → **Refund**, a w **Subscriptions** → **Cancel subscription**.
-  5. Jeśli plan się nie zmienił albo webhook ma błąd 4xx/5xx — wklej mi zrzut ekranu zdarzenia.
-
 ### A4. Domena e-mail w Resend — 5–15 minut + czas propagacji DNS
 
-**Dlaczego:** od 2.10 nowi użytkownicy dostają okres próbny PRO dopiero po kliknięciu linku z e-maila. Bez zweryfikowanej domeny e-maile trafiają do spamu albo nie dochodzą, a reset hasła też przestaje działać.
+**Dlaczego:** nowi użytkownicy dostają plan PRO bety dopiero po kliknięciu linku z e-maila. Bez zweryfikowanej domeny e-maile trafiają do spamu albo nie dochodzą, a reset hasła też przestaje działać.
 
 - [ ] https://resend.com → **Domains**. Domena `postfly.pl` powinna mieć status **Verified**. Jeśli tak — przejdź do testu niżej.
 - [ ] Jeśli jej nie ma: **Add Domain** → `postfly.pl` → region **EU (Ireland)**.
@@ -81,6 +57,14 @@ Opcjonalnie (czytelniejsze ślady błędów): `SENTRY_ORG`, `SENTRY_PROJECT` i `
 - [ ] **Test:** zarejestruj nowe konto na `https://postfly.pl/register` adresem Gmail i adresem Outlook/Onet/WP. E-mail powinien przyjść do **Odebranych** (nie do spamu) w ciągu minuty. Kliknij link → wraca na pulpit z komunikatem „Adres e-mail potwierdzony”, a baner znika.
 - [ ] Usuń testowe konta w aplikacji (**Ustawienia** → usuń konto), żeby nie zaśmiecały statystyk.
 
+### A4b. Skrzynka hello@postfly.pl — 10 minut
+
+**Dlaczego:** od 3.10 to jedyny adres kontaktowy w regulaminie, polityce prywatności, stopce i na stronie usuwania danych dla Mety. Trafiają tam reklamacje i żądania RODO (odpowiedź w 14 dniach / 1 miesiąc), więc wiadomości nie mogą przepadać.
+
+- [ ] Skrzynka albo przekierowanie hello@postfly.pl → Twój prywatny adres (u rejestratora domeny albo np. w ImprovMX / Cloudflare Email Routing, oba darmowe).
+- [ ] Wyślij testową wiadomość na hello@postfly.pl z innego adresu i sprawdź, że dochodzi.
+- [ ] W Google Cloud (Branding → User support email) i w Meta (Settings → Basic → Contact email) możesz zostawić dotychczasowy adres, ale spójny hello@postfly.pl wygląda dla recenzentów lepiej.
+
 ### A5. Konto Anthropic (AI) — 10 minut
 
 **Dlaczego:** 2.10.2026 skończyły się środki na koncie Anthropic. Bez nich opisy postów, „Wygeneruj ponownie” i asystent Telegram nie działają (aplikacja wstawia wtedy samą notatkę użytkownika i pokazuje komunikat o niedostępnym AI).
@@ -90,7 +74,7 @@ Opcjonalnie (czytelniejsze ślady błędów): `SENTRY_ORG`, `SENTRY_PROJECT` i `
 - [ ] **Limits** → ustaw miesięczny limit wydatków (np. 30 USD na start, podnoś razem z liczbą klientów), żeby błąd albo nadużycie nie wygenerowały dowolnego rachunku.
 - [ ] Sprawdź w aplikacji: nowy post ze zdjęciem → opis powinien dotyczyć tego, co jest na zdjęciu.
 - [ ] Alerty: gdy AI przestanie działać z powodu środków albo klucza, aplikacja wyśle e-mail (najwyżej raz na godzinę) na adresy z `ADMIN_EMAILS`. Inny adres ustawisz zmienną `AI_ALERT_EMAILS` w Vercelu. Alert działa po skonfigurowaniu Resend (A4).
-- [ ] Miesięczne limity AI na plan (FREE 20, STARTER 200, PRO 600, BUSINESS 1500 tekstów, w 7-dniowym okresie próbnym 50) są w `lib/billing/plans.ts` → `ai_generations`. Zmień je, jeśli chcesz, a ja zaktualizuję też opis planów w cenniku.
+- [ ] Miesięczne limity AI: w becie każde konto ma limit PRO (600 tekstów). Po becie: FREE 20, STARTER 200, PRO 600, BUSINESS 1500, okres próbny 50 są w `lib/billing/plans.ts` → `ai_generations`. Zmień je, jeśli chcesz, a ja zaktualizuję też opis planów w cenniku.
 - [ ] Przed zmianą modelu albo promptu uruchom ewaluację: `npm run eval:captions` (opis w `evals/README.md`, ok. 1 USD za przebieg).
 
 ---
@@ -163,13 +147,12 @@ Szczegóły: [review/meta.md](review/meta.md).
 
 - [ ] Jeśli łączyłeś Facebooka lub Instagrama przed 30.09.2026: **Połączone konta** → rozłącz → połącz ponownie, żeby token miał aktualny zestaw uprawnień. Zrób jeden testowy post.
 
-### B7. Forma prawna i dokumenty — decyzja biznesowa
+### B7. Forma prawna — rozmowa z księgową
 
-**Dlaczego:** polityka prywatności podaje „działalność nierejestrowaną”. Przy subskrypcjach limit przychodu (75% minimalnego wynagrodzenia miesięcznie w 2026) łatwo przekroczyć, a wtedy trzeba mieć JDG.
+**Dlaczego:** JDG Code94 jest zawieszona. W becie nie ma przychodu, więc to nie przeszkadza, ale przed pierwszą sprzedażą trzeba wiedzieć, na czym sprzedajesz. „Działalność nierejestrowana” najpewniej odpada (nie przysługuje osobie, która prowadziła JDG w ostatnich 60 miesiącach), dlatego usunąłem ją z regulaminu i polityki.
 
-- [ ] Decyzja: JDG (CEIDG, online, bezpłatnie, ok. 30 minut) albo spółka — najlepiej po rozmowie z księgową (ryczałt dla usług IT/SaaS, VAT, faktury dla firm z UE — reverse charge).
-- [ ] Po rejestracji podaj mi: nazwę firmy, adres, NIP, REGON — zaktualizuję regulamin, politykę prywatności i dane w stopce. Te same dane wpisz w Stripe (**Settings** → **Business** i **Invoice template**).
-- [ ] Przegląd regulaminu i polityki przez prawnika (szczególnie: prawo odstąpienia od umowy dla konsumentów, odpowiedzialność za publikacje, umowa powierzenia danych dla klientów firmowych).
+- [ ] Zapytaj księgową: koszt odwieszenia JDG przy etacie (zwykle tylko składka zdrowotna; na ryczałcie zależy od przychodu), ryczałt 12% dla SaaS, zwolnienie z VAT, faktury dla firm z UE.
+- [ ] Zapytaj prawnika o zgodę na natychmiastowe świadczenie usługi (prawo odstąpienia 14 dni) — przed włączeniem płatności dodam checkbox w kasie.
 
 ---
 
@@ -196,6 +179,44 @@ Szczegóły: [review/meta.md](review/meta.md).
 
 ---
 
+## D. Gdy chcesz zacząć sprzedawać (po odwieszeniu JDG)
+
+### D1. Odwieszenie JDG i dane firmy
+
+- [ ] Odwieś JDG w CEIDG (online).
+- [ ] Podaj mi: nazwę firmy, adres, NIP — wpiszę je do regulaminu, polityki prywatności i stopki, dodam checkbox zgody na natychmiastowe świadczenie usługi.
+
+### D2. Wyłączenie bety
+
+- [ ] Vercel (Production): `NEXT_PUBLIC_FREE_BETA` = `0` → Redeploy. Wracają: zakup planów, cennik do zapłaty, 7-dniowy okres próbny, teksty „7 dni PRO” na stronie i w e-mailach.
+- [ ] Zgodnie z regulaminem uprzedź użytkowników bety e-mailem co najmniej 14 dni wcześniej (napisz mi, przygotuję treść i wysyłkę).
+
+### D3. Stripe w trybie live — 15 minut
+
+**Dlaczego:** klucze, webhook i ceny są ustawione, ale z kodu nie widzę, czy to tryb live i czy webhook wskazuje na właściwy adres. Błędny webhook oznacza, że klient zapłaci, a plan się nie zmieni.
+
+- [ ] Stripe → przełącznik **Test mode** wyłączony (prawy górny róg).
+- [ ] Konto aktywowane: **Settings** → **Business** → wszystkie dane firmy i konto bankowe do wypłat uzupełnione, brak żółtych ostrzeżeń.
+- [ ] W Vercelu sprawdź (nie kopiuj wartości, tylko popatrz na początek):
+  - `STRIPE_SECRET_KEY` zaczyna się od `sk_live_` (nie `sk_test_`);
+  - `STRIPE_WEBHOOK_SECRET` zaczyna się od `whsec_`;
+  - 6 zmiennych `STRIPE_PRICE_*` zaczyna się od `price_` i pochodzi z trybu live (w trybie live **Product catalog** → produkt → cena → ID musi się zgadzać).
+  - `STRIPE_SUCCESS_URL` i `STRIPE_CANCEL_URL` to `https://postfly.pl/billing`, nie `localhost`.
+- [ ] Stripe → **Developers** → **Webhooks** (tryb live):
+  - endpoint: `https://postfly.pl/api/billing/webhook/stripe`;
+  - zdarzenia: `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`;
+  - **Signing secret** tego endpointu = wartość `STRIPE_WEBHOOK_SECRET` w Vercelu (jeśli nie masz pewności: **Roll secret**, wklej nową wartość do Vercela, Redeploy).
+- [ ] **Settings** → **Billing** → **Customer portal**: włączony (anulowanie i zmiana planu, faktury).
+- [ ] Opcjonalnie: **Settings** → **Tax** — skonsultuj z księgową, czy i jak naliczać VAT.
+- [ ] **Płatność testowa prawdziwą kartą:**
+  1. Zaloguj się do Postfly na zwykłe konto (nie admina) → **Plan i płatności** → kup najtańszy plan (Starter, miesięczny).
+  2. Po powrocie plan w aplikacji powinien zmienić się na Starter w ciągu kilku sekund.
+  3. Stripe → **Developers** → **Webhooks** → endpoint → wszystkie zdarzenia mają status **200**.
+  4. Stripe → **Payments** → ta płatność → **Refund**, a w **Subscriptions** → **Cancel subscription**.
+  5. Jeśli plan się nie zmienił albo webhook ma błąd 4xx/5xx — wklej mi zrzut ekranu zdarzenia.
+
+---
+
 ## Co sprawdzić raz w miesiącu (5 minut)
 
 - [ ] GitHub → **Actions**: workflow `backup-database` i `uptime` mają zielone przebiegi.
@@ -212,8 +233,8 @@ Szczegóły: [review/meta.md](review/meta.md).
 |---|---|---|---|
 | A1 | Vercel Pro | 5 min | **Tak** |
 | A2 | Sentry | 10 min | **Tak** |
-| A3 | Stripe live + płatność testowa | 15 min | **Tak** |
 | A4 | Domena w Resend | 5–15 min | **Tak** |
+| A4b | Skrzynka hello@postfly.pl | 10 min | **Tak** (adres w regulaminie) |
 | A5 | Środki i limity w Anthropic | 10 min | **Tak** (bez tego nie działa AI) |
 | B1 | Upstash Redis | 10 min | Nie |
 | B2 | Konto recenzenta + `REVIEWER_EMAILS` | 10 min | Przed wnioskami TikTok/Google/Meta |
@@ -221,5 +242,6 @@ Szczegóły: [review/meta.md](review/meta.md).
 | B4 | Google/YouTube: weryfikacja + nagranie | 2–3 h | Nie |
 | B5 | Meta: kontrola panelu | 15 min | Nie |
 | B6 | Ponowne połączenie FB/IG | 2 min | Nie |
-| B7 | Forma prawna, prawnik | decyzja | Przed przekroczeniem limitu przychodu |
+| B7 | Księgowa i prawnik | rozmowa | Przed sprzedażą |
 | C1–C3 | Odblokowania po review, baza preview | 5 min każde | Nie |
+| D1–D3 | Odwieszenie JDG, wyłączenie bety, Stripe live | ok. 1 h | Przed pierwszą płatnością |

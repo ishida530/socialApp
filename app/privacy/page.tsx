@@ -23,13 +23,13 @@ export default function PrivacyPage() {
         <p className="mt-6 text-sm text-muted-foreground">
           Niniejsza Polityka Prywatności opisuje zasady przetwarzania danych w ramach serwisu Postfly.
         </p>
-        <p className="mt-2 text-sm text-muted-foreground">Data ostatniej aktualizacji: 2 października 2026 r.</p>
+        <p className="mt-2 text-sm text-muted-foreground">Data ostatniej aktualizacji: 3 października 2026 r.</p>
 
         <section className="mt-8 space-y-4 text-sm leading-6 text-muted-foreground">
           <h2 className="text-base font-semibold text-foreground">1. Administrator danych</h2>
           <p>
-            Administratorem danych osobowych jest <strong className="text-foreground">Paweł Sawczuk</strong>, 
-            prowadzący działalność nierejestrowaną pod adresem: 126B, 11-010 Barczewko.
+            Administratorem danych osobowych jest <strong className="text-foreground">Paweł Sawczuk</strong>, osoba
+            fizyczna, adres: 126B, 11-010 Barczewko, e-mail: <strong className="text-foreground">hello@postfly.pl</strong>.
           </p>
 
           <h2 className="text-base font-semibold text-foreground">2. Zakres zbieranych danych</h2>
@@ -283,13 +283,13 @@ export default function PrivacyPage() {
             you disconnect the account. AI features (Anthropic Claude) receive the user's own notes, the photo or video
             thumbnail of the post being prepared and aggregated post statistics, only to generate suggestions the user
             reviews and approves; phone numbers and email addresses in post notes are masked before sending, and no platform data is
-            used to train AI models. Contact: pawel.sawczuk.email@gmail.com.
+            used to train AI models. Contact: hello@postfly.pl.
           </p>
 
           <h2 className="text-base font-semibold text-foreground">15. Kontakt</h2>
           <p>
             W sprawach dotyczących prywatności możesz skontaktować się bezpośrednio z Administratorem:
-            <strong className="text-foreground"> Paweł Sawczuk</strong>, e-mail: <strong className="text-foreground">pawel.sawczuk.email@gmail.com</strong>.
+            <strong className="text-foreground"> Paweł Sawczuk</strong>, e-mail: <strong className="text-foreground">hello@postfly.pl</strong>.
           </p>
 
           <h2 className="text-base font-semibold text-foreground">16. Zmiany polityki prywatności</h2>

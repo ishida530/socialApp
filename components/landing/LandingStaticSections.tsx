@@ -3,6 +3,7 @@ import { CalendarClock, LayoutList, MessageCircle, ShieldCheck, Sparkles, Trendi
 import * as m from 'framer-motion/client';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { LANDING_FAQ_ITEMS } from '@/lib/landing-faq';
+import { USE_CASES_TRIAL_LINK } from '@/lib/landing-copy';
 import { InteractiveMotion, SectionReveal } from '@/components/landing/LandingMotion';
 import { container, item, sectionFromLeft, sectionFromRight } from '@/components/landing/landing-motion';
 
@@ -152,7 +153,7 @@ export function LandingSeoSection() {
             </a>{' '}
             albo{' '}
             <Link href="/register?source=landing&intent=trial" className="text-primary hover:underline">
-              wypróbuj Postfly przez 7 dni bez karty
+              {USE_CASES_TRIAL_LINK}
             </Link>
             .
           </m.p>

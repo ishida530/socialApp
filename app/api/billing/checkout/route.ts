@@ -12,6 +12,7 @@ import {
   resolveStripeReturnUrls,
 } from '@/lib/server/stripe';
 import { prisma } from '@/lib/server/prisma';
+import { FREE_BETA_CHECKOUT_MESSAGE, isFreeBeta } from '@/lib/beta';
 
 type PaidPlanTier = Exclude<PlanTier, 'FREE'>;
 
@@ -52,6 +53,12 @@ async function stripeCustomerExists(stripe: Stripe, customerId: string) {
 export async function POST(request: NextRequest) {
   try {
     const user = getAuthUserFromRequest(request);
+
+    // Free beta (lib/beta.ts): no payments until paid plans are switched on.
+    if (isFreeBeta()) {
+      return NextResponse.json({ message: FREE_BETA_CHECKOUT_MESSAGE }, { status: 403 });
+    }
+
     const body = (await request.json()) as { plan?: string; interval?: string };
     const requestedPlan = parseRequestedPlan(body.plan);
     const billingInterval = parseBillingInterval(body.interval);

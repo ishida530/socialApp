@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { isFreeBeta } from '@/lib/beta';
 
 export const metadata: Metadata = {
   title: 'Regulamin | Postfly',
@@ -34,9 +35,17 @@ export default function TermsPage() {
             z TikTokiem i YouTube zostaną udostępnione po ich zatwierdzeniu przez te platformy.
           </p>
           <p>
-            Usługodawcą jest: <strong className="text-foreground">Paweł Sawczuk</strong>,
-            prowadzący działalność nierejestrowaną pod adresem: 126B, 11-010 Barczewko.
+            Usługodawcą jest: <strong className="text-foreground">Paweł Sawczuk</strong>, osoba fizyczna, adres: 126B,
+            11-010 Barczewko, e-mail: <strong className="text-foreground">hello@postfly.pl</strong>.
           </p>
+          {isFreeBeta() ? (
+            <p>
+              Postfly jest obecnie udostępniany w wersji testowej („beta”). W okresie beta Usługa jest świadczona
+              nieodpłatnie i nie są pobierane żadne opłaty. O zakończeniu okresu beta i wprowadzeniu płatnych planów
+              Usługodawca poinformuje Użytkowników e-mailem z co najmniej 14-dniowym wyprzedzeniem; korzystanie z płatnych
+              planów będzie wymagało ich świadomego wyboru przez Użytkownika.
+            </p>
+          ) : null}
 
           <h2 className="text-base font-semibold text-foreground">2. Definicje</h2>
           <p>
@@ -114,12 +123,20 @@ export default function TermsPage() {
           </p>
 
           <h2 className="text-base font-semibold text-foreground">6. Płatności i subskrypcje</h2>
-          <p>
-            Korzystanie z wybranych funkcjonalności Postfly wymaga opłacenia subskrypcji. 
-            Płatności są procesowane przez zewnętrznego operatora – <strong className="text-foreground">Stripe</strong>. 
-            Subskrypcja odnawia się automatycznie, chyba że Użytkownik zrezygnuje z niej przed rozpoczęciem 
-            kolejnego okresu rozliczeniowego poprzez panel zarządzania płatnościami w aplikacji.
-          </p>
+          {isFreeBeta() ? (
+            <p>
+              W okresie beta (punkt 1) Usługa jest nieodpłatna, a płatne subskrypcje nie są oferowane. Postanowienia
+              dotyczące płatności i subskrypcji zostaną określone w zmienionym Regulaminie, udostępnionym przed
+              wprowadzeniem płatnych planów zgodnie z punktem 10.
+            </p>
+          ) : (
+            <p>
+              Korzystanie z wybranych funkcjonalności Postfly wymaga opłacenia subskrypcji.
+              Płatności są procesowane przez zewnętrznego operatora – <strong className="text-foreground">Stripe</strong>.
+              Subskrypcja odnawia się automatycznie, chyba że Użytkownik zrezygnuje z niej przed rozpoczęciem
+              kolejnego okresu rozliczeniowego poprzez panel zarządzania płatnościami w aplikacji.
+            </p>
+          )}
 
           <h2 className="text-base font-semibold text-foreground">7. Odstąpienie od umowy i zwroty</h2>
           <p>
@@ -139,7 +156,7 @@ export default function TermsPage() {
           <h2 className="text-base font-semibold text-foreground">9. Reklamacje i kontakt</h2>
           <p>
             Wszelkie reklamacje dotyczące działania Usługi należy kierować na adres e-mail: 
-            <strong className="text-foreground"> pawel.sawczuk.email@gmail.com</strong>. 
+            <strong className="text-foreground"> hello@postfly.pl</strong>.
             Reklamacja powinna zawierać opis problemu oraz adres e-mail powiązany z Kontem. 
             Odpowiedź zostanie udzielona w terminie 14 dni.
           </p>

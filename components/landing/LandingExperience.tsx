@@ -16,16 +16,16 @@ import { CONTACT_CATEGORIES, type ContactCategory } from '@/lib/contact';
 import { useAuth } from '@/contexts/auth-context';
 import { LandingMotionContext, SectionReveal, type ScrollDirection } from '@/components/landing/LandingMotion';
 import { LandingHeader } from '@/components/landing/LandingHeader';
+import { FINAL_CTA_SUB, HERO_RISK_LINES, IS_FREE_BETA, OFFER_CHIP, TRIAL_CTA_LABEL } from '@/lib/landing-copy';
 import { ProductShowcase } from '@/components/landing/ProductShowcase';
 import { container, item, sectionFromLeft, sectionFromRight } from '@/components/landing/landing-motion';
 
 
 // Hero copy (2026-10-03, conversion/SEO/psychology review): only verifiable facts - no invented
 // numbers, ratings or "start in 2 minutes" claims (Polish consumer law, platform reviewers).
-export const TRIAL_CTA_LABEL = 'Wypróbuj 7 dni za darmo';
 
 const heroProofChips: Array<{ label: string; suffix?: string }> = [
-  { label: '7 dni PRO za darmo, bez karty' },
+  { label: OFFER_CHIP },
   { label: 'Facebook · Instagram · LinkedIn', suffix: '(TikTok, YouTube wkrótce)' },
   { label: 'Polski produkt, ceny w złotówkach' },
 ];
@@ -691,10 +691,10 @@ export function LandingExperience({
           </motion.div>
 
           <motion.div variants={heroItemVariants} className="space-y-1.5 text-xs text-muted-foreground">
-            <p>Bez karty płatniczej. Plan PRO włącza się po potwierdzeniu e-maila i działa przez {capabilities.trial.days} dni.</p>
+            <p>{HERO_RISK_LINES[0]}</p>
             <p className="inline-flex items-start gap-2">
               <CircleCheckBig className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" aria-hidden="true" />
-              Potem konto samo przechodzi na darmowy plan Free - nic nie zapłacisz bez wybrania planu.
+              {HERO_RISK_LINES[1]}
             </p>
           </motion.div>
         </motion.div>
@@ -795,9 +795,17 @@ export function LandingExperience({
           <motion.div variants={item} className="flex items-center justify-between gap-4">
             <div>
               <p className="text-xs uppercase tracking-[0.18em] text-accent">Cennik</p>
-              <h2 className="mt-2 text-balance text-2xl font-semibold sm:text-3xl">Cennik Postfly: zacznij za 0 zł</h2>
+              <h2 className="mt-2 text-balance text-2xl font-semibold sm:text-3xl">
+                {IS_FREE_BETA ? 'Cennik po zakończeniu bety' : 'Cennik Postfly: zacznij za 0 zł'}
+              </h2>
+              {IS_FREE_BETA ? (
+                <p className="mt-2 text-sm text-foreground">
+                  Teraz korzystasz za 0 zł z planem PRO. Płatne plany uruchomimy po ogłoszeniu i uprzedzimy o tym e-mailem - nic
+                  nie zostanie pobrane automatycznie. Poniżej planowane ceny.
+                </p>
+              ) : null}
               <p className="mt-2 text-sm text-muted-foreground">
-                Ceny końcowe w zł za miesiąc. Płatność roczna:{' '}
+                {IS_FREE_BETA ? 'Planowane ceny' : 'Ceny końcowe'} w zł za miesiąc. Płatność roczna:{' '}
                 {capabilities.plans
                   .map((plan) => {
                     const monthly = Number.parseInt(plan.priceYearly, 10);
@@ -1023,7 +1031,7 @@ export function LandingExperience({
                   <span className="text-muted-foreground">{`${zl(selectedPlan.priceMonthly)} / mies.`}</span>
                 </p>
                 <Link
-                  href={resolvePlanHref(selectedPlan)}
+                  href={IS_FREE_BETA ? '/register?source=landing&intent=trial' : resolvePlanHref(selectedPlan)}
                   onClick={() =>
                     trackLandingEvent({
                       event: 'landing_cta_click',
@@ -1034,12 +1042,14 @@ export function LandingExperience({
                   }
                   className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-95"
                 >
-                  {`Wybierz plan ${selectedPlan.name}`}
+                  {IS_FREE_BETA ? TRIAL_CTA_LABEL : `Wybierz plan ${selectedPlan.name}`}
                   <ArrowUpRight className="ml-1.5 h-4 w-4" />
                 </Link>
               </div>
               <p className="mt-2 text-xs text-muted-foreground">
-                {`Pierwsza subskrypcja zaczyna się od 7 dni próbnych. Jeśli nie zrezygnujesz przed ich końcem, Stripe pobierze ${zl(selectedPlan.priceMonthly)}, a subskrypcja będzie się odnawiać co miesiąc. Rezygnujesz w każdej chwili w panelu płatności; konto wraca wtedy na plan Free.`}
+                {IS_FREE_BETA
+                  ? 'W czasie bety korzystasz z planu PRO za darmo. Ceny obowiązują dopiero po zakończeniu bety i włączeniu płatności.'
+                  : `Pierwsza subskrypcja zaczyna się od 7 dni próbnych. Jeśli nie zrezygnujesz przed ich końcem, Stripe pobierze ${zl(selectedPlan.priceMonthly)}, a subskrypcja będzie się odnawiać co miesiąc. Rezygnujesz w każdej chwili w panelu płatności; konto wraca wtedy na plan Free.`}
               </p>
             </motion.div>
           ) : null}
@@ -1079,7 +1089,7 @@ export function LandingExperience({
               Zaplanuj posty na cały tydzień jeszcze dziś
             </motion.h2>
             <motion.p variants={item} className="mx-auto mt-3 max-w-xl text-sm text-muted-foreground">
-              Załóż konto, potwierdź e-mail i przez 7 dni korzystaj z planu PRO. Bez karty - potem zostajesz na Free albo wybierasz plan.
+              {FINAL_CTA_SUB}
             </motion.p>
             <motion.div variants={item} className="mt-7 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
               <motion.div whileHover={interactiveLift} whileTap={interactiveTap}>

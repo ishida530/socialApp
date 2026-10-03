@@ -31,7 +31,7 @@ Kolejność ma znaczenie. Każdy krok jest opisany szczegółowo w [../do-zrobie
   Jeśli coś się nie zgadza, napisz mi przed nagrywaniem.
 - [ ] **5. Wstrzymaj duże zmiany w aplikacji do czasu decyzji platform**, w tym PR #142 od Dependabota (44 aktualizacje). Recenzenci testują produkcję i powinna działać dokładnie tak jak na filmie.
 
-Vercel Pro, Sentry i Stripe live (kroki A1–A3) są potrzebne do płatnego startu, ale nie blokują nagrań.
+Postfly działa jako darmowa beta (bez płatności) — to nie przeszkadza w review, platformy nie wymagają płatnej aplikacji. Vercel Pro i Sentry (A1–A2) nie blokują nagrań.
 
 ## Etap 2. Materiały i konta do nagrań (raz, dla wszystkich platform)
 

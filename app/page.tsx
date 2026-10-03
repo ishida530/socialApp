@@ -8,6 +8,7 @@ import {
 } from '@/components/landing/LandingStaticSections';
 import { LANDING_FAQ_ITEMS } from '@/lib/landing-faq';
 import { getSiteUrl } from '@/lib/site-url';
+import { isFreeBeta } from '@/lib/beta';
 
 const siteUrl = getSiteUrl();
 
@@ -80,11 +81,18 @@ const softwareJsonLd = {
     `${siteUrl}/landing/showcase/rozwoj-desktop.webp`,
   ],
   creator: { '@type': 'Organization', name: 'Code94', url: 'https://www.code94.pl' },
+  // During the free beta (lib/beta.ts) nothing is for sale - only the free offer is listed.
   offers: [
-    { '@type': 'Offer', name: 'Free', price: '0', priceCurrency: 'PLN', url: `${siteUrl}/register?source=landing&intent=free` },
-    monthlyOffer('Starter', '49', 'starter'),
-    monthlyOffer('Pro', '129', 'pro'),
-    monthlyOffer('Business', '299', 'business'),
+    {
+      '@type': 'Offer',
+      name: isFreeBeta() ? 'Darmowa beta (plan PRO)' : 'Free',
+      price: '0',
+      priceCurrency: 'PLN',
+      url: `${siteUrl}/register?source=landing&intent=free`,
+    },
+    ...(isFreeBeta()
+      ? []
+      : [monthlyOffer('Starter', '49', 'starter'), monthlyOffer('Pro', '129', 'pro'), monthlyOffer('Business', '299', 'business')]),
   ],
 };
 
@@ -104,7 +112,7 @@ const faqJsonLd = {
 export const metadata: Metadata = {
   title: 'Planowanie postów na Facebooka i Instagram z AI | Postfly',
   description:
-    'Wrzuć zdjęcie i jedno zdanie – AI zaproponuje opisy i hashtagi na Facebooka, Instagram i LinkedIn. Edytujesz, planujesz, publikujesz. 7 dni PRO bez karty.',
+    'Wrzuć zdjęcie i jedno zdanie – AI zaproponuje opisy i hashtagi na Facebooka, Instagram i LinkedIn. Edytujesz, planujesz, publikujesz. ' + (isFreeBeta() ? 'Darmowa beta bez karty.' : '7 dni PRO bez karty.'),
   robots: {
     index: true,
     follow: true,

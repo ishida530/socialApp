@@ -1,5 +1,6 @@
 "use client";
 
+import { isFreeBeta } from '@/lib/beta';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FormEvent, useEffect, useState } from 'react';
@@ -63,7 +64,9 @@ export default function RegisterPage() {
         ? 'Chcesz zacząć od planu Starter.'
         : intent === 'business'
           ? 'Chcesz zacząć od planu Business.'
-          : 'Zaczynasz darmowy okres próbny.';
+          : isFreeBeta()
+            ? 'Postfly jest w darmowej becie - po potwierdzeniu e-maila masz plan PRO bez opłat.'
+            : 'Zaczynasz darmowy okres próbny.';
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

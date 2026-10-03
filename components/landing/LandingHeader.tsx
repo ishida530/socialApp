@@ -8,6 +8,7 @@ import { useTheme } from 'next-themes';
 import { BrandLogo } from '@/components/BrandLogo';
 import { Sheet, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { trackLandingEvent } from '@/lib/landing-events';
+import { TRIAL_CTA_LABEL } from '@/lib/landing-copy';
 
 // Landing navbar (2026-10-03, UX review: the landing had no navigation, only a side "Zaloguj się"
 // tab). Replaces ScrollProgressWithLogo, SideLoginTab and MobileLoginChip: transparent over the
@@ -171,7 +172,7 @@ export function LandingHeader({
               onClick={() => trackLandingEvent({ event: 'landing_cta_click', cta: 'nav_trial', href: TRIAL_HREF, source: 'landing' })}
               className="hidden items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-foreground transition-transform hover:-translate-y-0.5 md:inline-flex"
             >
-              Wypróbuj 7 dni za darmo
+              {TRIAL_CTA_LABEL}
               <ArrowUpRight className="h-4 w-4" />
             </Link>
 
@@ -243,7 +244,7 @@ export function LandingHeader({
                     onClick={() => trackLandingEvent({ event: 'landing_cta_click', cta: 'nav_trial', href: TRIAL_HREF, source: 'landing' })}
                     className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground"
                   >
-                    Wypróbuj 7 dni za darmo
+                    {TRIAL_CTA_LABEL}
                     <ArrowUpRight className="h-4 w-4" />
                   </Link>
                 </div>
