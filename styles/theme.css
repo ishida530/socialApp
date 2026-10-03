@@ -193,7 +193,10 @@
 }
 
 .animate-page-enter {
-  animation: page-enter 0.26s cubic-bezier(0.22, 1, 0.36, 1) both;
+  /* `backwards`, not `both` (2026-10-03): a kept end state of transform: none still computes to an
+     identity matrix, which turns this wrapper into the containing block for position: fixed
+     descendants - the landing navbar scrolled away with the page instead of staying on top. */
+  animation: page-enter 0.26s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
 @media (prefers-reduced-motion: reduce) {

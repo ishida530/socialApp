@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { CalendarClock, Layers, Sparkles } from 'lucide-react';
+import { CalendarClock, LayoutList, MessageCircle, ShieldCheck, Sparkles, TrendingUp } from 'lucide-react';
 import * as m from 'framer-motion/client';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { LANDING_FAQ_ITEMS } from '@/lib/landing-faq';
@@ -9,95 +9,131 @@ import { container, item, sectionFromLeft, sectionFromRight } from '@/components
 // Static landing sections as Server Components (2026-10-01, landing split): their markup and data
 // are rendered on the server and never ship as client JS. Motion still works - the motion elements
 // come from 'framer-motion/client' and the reveal / hover behavior from the LandingMotion islands.
+//
+// Copy (2026-10-03, conversion/SEO review): benefit-first, only what the product does today.
 
-const lanes = [
-  {
-    icon: CalendarClock,
-    title: 'Prosty harmonogram',
-    description:
-      'Planujesz tydzień publikacji w kilku kliknięciach.',
-  },
-  {
-    icon: Layers,
-    title: 'Wszystkie kanały w jednym panelu',
-    description:
-      'Facebook, Instagram i LinkedIn już teraz, TikTok i YouTube wkrótce. Limity kont zależne od planu: 3, 10 lub 25 łącznie.',
-  },
+const features = [
   {
     icon: Sparkles,
-    title: 'Wnioski AI',
+    title: 'Opis dopasowany do każdej platformy',
     description:
-      'Szybkie podpowiedzi co publikować i kiedy.',
+      'Z jednej notatki dostajesz osobne propozycje opisu i hashtagów na Facebooka, Instagram i LinkedIn. Każdą poprawisz przed publikacją.',
+    demo: true,
+  },
+  {
+    icon: CalendarClock,
+    title: 'Publikuj teraz albo zaplanuj',
+    description: 'Wybierasz dzień i godzinę, a post publikuje się o czasie. Nie musisz pamiętać ani siedzieć z telefonem w ręku.',
+    demo: true,
+  },
+  {
+    icon: LayoutList,
+    title: 'Wszystko w jednym harmonogramie',
+    description: 'Zakładki „Do akceptacji”, „Zaplanowane” i „Opublikowane” pokazują, co czeka, co jest w kolejce i co już poszło.',
+    demo: true,
+  },
+  {
+    icon: TrendingUp,
+    title: 'Rozwój i statystyki w jednym widoku',
+    description:
+      'Obserwujący z każdej platformy i podstawowe statystyki postów opublikowanych przez Postfly - bez logowania się do trzech aplikacji.',
+    demo: false,
+  },
+  {
+    icon: MessageCircle,
+    title: 'Asystent na Telegramie',
+    description:
+      'Wyślij zdjęcie do bota Postfly, zatwierdzaj posty przyciskiem i dostawaj powiadomienia o publikacjach prosto na czacie.',
+    demo: false,
+  },
+  {
+    icon: ShieldCheck,
+    title: 'AI podpowiada, Ty decydujesz',
+    description: 'Żaden opis nie trafi na Twój profil bez Twojego zatwierdzenia. Propozycje AI możesz zmienić, skrócić albo napisać od nowa.',
+    demo: false,
   },
 ];
 
-const seoUseCases = [
+const useCases = [
   {
-    title: 'Planowanie publikacji Reels i postów',
+    title: 'Salon i usługi lokalne',
     description:
-      'Ustal harmonogram publikacji na Facebooku, w Instagram Reels i na LinkedIn z jednego panelu, bez ręcznego przełączania narzędzi. TikTok i YouTube Shorts dołączą po zatwierdzeniu przez platformy.',
+      'Zdjęcie metamorfozy zrobione między klientami, jedno zdanie i post zaplanowany na wieczór. Facebook dla stałych klientów, Instagram dla nowych - każdy z innym opisem.',
   },
   {
-    title: 'Kalendarz publikacji social media dla zespołu',
+    title: 'Sklep i e-commerce',
     description:
-      'Porządkuj kolejkę treści, monitoruj statusy zadań i trzymaj stały rytm publikacji nawet przy wielu kampaniach miesięcznie.',
+      'Nowa dostawa, produkt tygodnia, wyprzedaż: wrzucasz zdjęcie, a AI proponuje opis z hashtagami pod Instagram i Facebook. Posty na cały tydzień zaplanujesz w jedno popołudnie.',
   },
   {
-    title: 'Automatyzacja publikacji i analiza wyników',
+    title: 'Twórca i marka osobista',
     description:
-      'Łącz automatyczne publikowanie z podpowiedziami AI, aby szybciej wyłapywać najlepsze okna czasowe i skalować działania.',
+      'Instagram dla społeczności, LinkedIn dla marki zawodowej. Ten sam materiał, dwa różne teksty - bez pisania od zera. TikTok i YouTube dołączą po zatwierdzeniu integracji.',
   },
 ];
 
 export function LandingFeaturesSection() {
   return (
-      <section data-section="features" className="relative mx-auto w-full max-w-6xl px-6 pb-24">
+      <section id="funkcje" data-section="features" className="relative mx-auto w-full max-w-6xl px-4 pb-24 sm:px-6">
+        <div className="mb-6 max-w-3xl">
+          <p className="text-xs uppercase tracking-[0.18em] text-accent">Funkcje</p>
+          <h2 className="mt-2 text-balance text-2xl font-semibold sm:text-3xl">Planowanie postów bez przepisywania opisów</h2>
+          <p className="mt-3 text-sm text-muted-foreground sm:text-base">
+            Ten sam post na trzy platformy to zwykle trzy różne opisy. Postfly przygotowuje je z jednej notatki, a Ty zostajesz przy
+            decyzjach.
+          </p>
+        </div>
         <SectionReveal
           variants={sectionFromLeft}
-          className="grid gap-4 md:grid-cols-3"
+          className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
         >
-          {lanes.map((lane, index) => {
-            const Icon = lane.icon;
+          {features.map((feature) => {
+            const Icon = feature.icon;
             return (
               <m.article
-                key={lane.title}
+                key={feature.title}
                 variants={item}
-                className="rounded-2xl border border-border bg-card/50 p-6"
+                className="flex flex-col rounded-2xl border border-border bg-card/50 p-5 sm:p-6"
               >
-                <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Krok {index + 1}</p>
                 <div className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-primary/20 text-primary">
-                  <Icon className="h-5 w-5" />
+                  <Icon className="h-5 w-5" aria-hidden="true" />
                 </div>
-                <h3 className="mt-4 text-lg font-semibold">{lane.title}</h3>
-                <p className="mt-2 text-sm text-muted-foreground">{lane.description}</p>
+                <h3 className="mt-4 text-lg font-semibold">{feature.title}</h3>
+                <p className="mt-2 text-sm text-muted-foreground">{feature.description}</p>
+                {feature.demo ? (
+                  <a href="#produkt" className="mt-auto pt-3 text-sm font-medium text-primary hover:underline">
+                    Zobacz nagranie
+                  </a>
+                ) : null}
               </m.article>
             );
           })}
         </SectionReveal>
+        <p className="mt-4 text-xs text-muted-foreground">
+          Wkrótce: podpowiedzi odpowiedzi na komentarze z Facebooka i Instagrama (czekamy na zatwierdzenie przez Meta).
+        </p>
       </section>
   );
 }
 
 export function LandingSeoSection() {
   return (
-      <section data-section="seo-content" className="relative mx-auto w-full max-w-6xl px-6 pb-24">
+      <section id="zastosowania" data-section="seo-content" className="relative mx-auto w-full max-w-6xl px-4 pb-24 sm:px-6">
         <SectionReveal
           variants={sectionFromRight}
-          className="rounded-3xl border border-border bg-card/50 p-6 sm:p-10"
+          className="rounded-3xl border border-border bg-card/50 p-5 sm:p-10"
         >
           <m.p variants={item} className="text-xs uppercase tracking-[0.18em] text-accent">Zastosowania</m.p>
-          <m.h2 variants={item} className="mt-2 text-3xl font-semibold">
-            Narzędzie do planowania publikacji social media dla twórców i marek
+          <m.h2 variants={item} className="mt-2 text-balance text-2xl font-semibold sm:text-3xl">
+            Harmonogram social media dla małych firm i twórców
           </m.h2>
           <m.p variants={item} className="mt-3 max-w-3xl text-sm text-muted-foreground">
-            Postfly pomaga planować publikacje w social media, utrzymywać regularność i skracać czas operacyjny.
-            Jeśli szukasz rozwiązania typu social media scheduler dla polskiego rynku, tutaj połączysz harmonogram,
-            limity planu i panel publikacji w jednym miejscu. Limity kont social: Starter do 3,
-            Pro do 10, Business do 25 łącznie.
+            Salony, gastronomia, sklepy, biura nieruchomości, usługi lokalne i twórcy - wszędzie tam, gdzie zdjęcia powstają
+            w biegu, a na pisanie opisów brakuje czasu.
           </m.p>
 
           <m.div variants={container} className="mt-7 grid gap-4 md:grid-cols-3">
-            {seoUseCases.map((useCase) => (
+            {useCases.map((useCase) => (
               <m.article
                 key={useCase.title}
                 variants={item}
@@ -109,11 +145,14 @@ export function LandingSeoSection() {
             ))}
           </m.div>
 
-          <m.p variants={item} className="mt-6 text-xs text-muted-foreground">
-            Zobacz szczegóły planów w sekcji cennika albo rozpocznij od
-            {' '}
+          <m.p variants={item} className="mt-6 text-sm text-muted-foreground">
+            Porównaj plany w{' '}
+            <a href="#pricing" className="text-primary hover:underline">
+              cenniku
+            </a>{' '}
+            albo{' '}
             <Link href="/register?source=landing&intent=trial" className="text-primary hover:underline">
-              bezpłatnego okresu próbnego
+              wypróbuj Postfly przez 7 dni bez karty
             </Link>
             .
           </m.p>
@@ -137,22 +176,22 @@ const integrations = [
     name: 'Instagram',
     status: 'Dostępne',
     description:
-      'Publikujesz zdjęcia i Reels na swoim koncie profesjonalnym Instagram połączonym ze Stroną. Widzisz liczbę obserwujących i statystyki swoich publikacji.',
+      'Publikujesz zdjęcia i Reels na swoim koncie profesjonalnym Instagram połączonym ze Stroną. Widzisz liczbę obserwujących i statystyki swoich publikacji. Wymagane konto profesjonalne (firmowe lub twórcy) połączone ze Stroną na Facebooku.',
   },
   {
     name: 'LinkedIn',
     status: 'Dostępne',
-    description: 'Publikujesz posty na swoim profilu LinkedIn. Postfly używa nazwy profilu, żeby pokazać, gdzie trafi post.',
+    description: 'Publikujesz posty na swoim profilu LinkedIn. Postfly używa nazwy profilu, żeby pokazać, gdzie trafi post. Obecnie publikacja na profilu osobistym.',
   },
   {
     name: 'TikTok',
-    status: 'W trakcie zatwierdzania przez TikTok',
+    status: 'Wkrótce - czeka na zatwierdzenie przez TikTok',
     description:
       'Publikujesz własne filmy i zdjęcia na swoim koncie TikTok (Direct Post). Przed publikacją sam wybierasz widoczność, zgody na komentarze, duety i stitch oraz oznaczenie treści komercyjnych. Postfly nie dodaje znaków wodnych. Widzisz liczbę obserwujących i statystyki filmów opublikowanych przez Postfly.',
   },
   {
     name: 'YouTube',
-    status: 'W trakcie zatwierdzania przez Google',
+    status: 'Wkrótce - czeka na zatwierdzenie przez Google',
     description:
       'Wgrywasz własne filmy na swój kanał YouTube: sam wpisujesz tytuł i opis, wybierasz widoczność i klikasz „Opublikuj”. Postfly odczytuje liczbę subskrybentów kanału i statystyki filmów opublikowanych przez Postfly, żeby pokazać je tylko Tobie.',
   },
@@ -160,15 +199,15 @@ const integrations = [
 
 export function LandingIntegrationsSection() {
   return (
-      <section id="integracje" data-section="integrations" className="relative mx-auto w-full max-w-6xl px-6 pb-24">
+      <section id="integracje" data-section="integrations" className="relative mx-auto w-full max-w-6xl px-4 pb-24 sm:px-6">
         <SectionReveal
           variants={sectionFromLeft}
           className="rounded-3xl border border-border bg-card/50 p-6 sm:p-10"
         >
           <m.p variants={item} className="text-xs uppercase tracking-[0.18em] text-accent">Integracje</m.p>
-          <m.h2 variants={item} className="mt-2 text-3xl font-semibold">Co Postfly robi z Twoimi kontami</m.h2>
+          <m.h2 variants={item} className="mt-2 text-balance text-2xl font-semibold sm:text-3xl">Bezpieczne połączenie z Facebookiem, Instagramem i LinkedIn</m.h2>
           <m.p variants={item} className="mt-3 max-w-3xl text-sm text-muted-foreground">
-            Łączysz konta przez oficjalne logowanie platform (OAuth). Postfly publikuje wyłącznie treści, które sam
+            Logujesz się przez oficjalne okno platformy (OAuth) - Postfly nigdy nie poznaje Twoich haseł. Postfly publikuje wyłącznie treści, które sam
             przygotujesz i zatwierdzisz przyciskiem, i pokazuje statystyki tylko Tobie. Nie udostępniamy tych danych osobom
             trzecim i nie wykorzystujemy ich do reklam. Połączenie odłączysz w każdej chwili w ustawieniach,
             a dane z platformy zostaną usunięte. Szczegóły w{' '}
@@ -196,7 +235,9 @@ export function LandingIntegrationsSection() {
             ))}
           </m.div>
 
-          <m.p variants={item} lang="en" className="mt-6 text-xs text-muted-foreground">
+          <m.details variants={item} className="mt-6 text-xs text-muted-foreground">
+            <summary className="cursor-pointer select-none">In English (for platform reviewers)</summary>
+            <p lang="en" className="mt-2">
             In English: Postfly is a social media scheduler. Users connect their own Facebook Page, Instagram
             professional account, LinkedIn profile, TikTok account and YouTube channel via official OAuth, then
             publish their own content only after reviewing it and clicking Publish. TikTok: Direct Post of the
@@ -210,7 +251,9 @@ export function LandingIntegrationsSection() {
               Privacy Policy
             </Link>
             .
-          </m.p>
+            {' '}TikTok and YouTube integrations are pending platform approval and are marked "wkrótce" (coming soon) until then.
+            </p>
+          </m.details>
         </SectionReveal>
       </section>
   );
@@ -218,13 +261,13 @@ export function LandingIntegrationsSection() {
 
 export function LandingFaqSection() {
   return (
-      <section id="faq" data-section="faq" className="relative mx-auto w-full max-w-6xl px-6 pb-24">
+      <section id="faq" data-section="faq" className="relative mx-auto w-full max-w-6xl px-4 pb-24 sm:px-6">
         <SectionReveal
           variants={sectionFromRight}
           className="rounded-3xl border border-border bg-card/65 p-6 sm:p-10"
         >
           <m.p variants={item} className="text-xs uppercase tracking-[0.18em] text-accent">FAQ</m.p>
-          <m.h2 variants={item} className="mt-2 text-3xl font-semibold">Najczęstsze pytania o planowanie publikacji</m.h2>
+          <m.h2 variants={item} className="mt-2 text-balance text-2xl font-semibold sm:text-3xl">Pytania o Postfly i planowanie postów</m.h2>
           <m.p variants={item} className="mt-2 max-w-3xl text-sm text-muted-foreground">
             Poniżej znajdziesz odpowiedzi oparte na aktualnym działaniu produktu i limitach planów.
           </m.p>

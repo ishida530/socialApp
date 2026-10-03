@@ -60,33 +60,32 @@ export const PLAN_LIMITS: Record<PlanTier, PlanLimitConfig> = {
   },
 };
 
+// Plan copy (2026-10-03, conversion review): concrete limits only - publications are counted per
+// platform post (publish_jobs), no subjective filler ("Plan flagowy", "Najlepszy stosunek wartości
+// do ceny") and no "Priorytetowe wsparcie" we couldn't define.
 export const PLAN_FEATURES: Record<PlanTier, string[]> = {
   FREE: [
-    '1 kanał social',
-    '3 wideo miesięcznie',
-    'Planowanie maksymalnie 3 dni do przodu',
+    '1 konto social',
+    '3 publikacje miesięcznie (1 post na 1 koncie = 1 publikacja)',
+    'Planowanie maksymalnie 3 dni naprzód',
     '20 tekstów AI miesięcznie (opisy postów i asystent)',
   ],
   STARTER: [
-    'Do 3 kont social łącznie (także wiele kont na jednej platformie)',
-    'Do 15 wideo miesiecznie',
+    'Do 3 kont social łącznie (także kilka kont na jednej platformie)',
+    'Do 15 publikacji miesięcznie',
     '200 tekstów AI miesięcznie (opisy postów i asystent)',
-    'Dla freelancerów i małych marek',
   ],
   PRO: [
-    'Do 10 kont social łącznie (także wiele kont na jednej platformie)',
-    'Brak twardego limitu publikacji',
-    'Limit miękki: 100 wideo/miesiąc',
+    'Do 10 kont social łącznie (także kilka kont na jednej platformie)',
+    'Orientacyjnie do 100 materiałów miesięcznie',
     '600 tekstów AI miesięcznie (opisy postów i asystent)',
-    'AI Autopilot Lite: 15 uruchomień / miesiąc (draft mode)',
-    'Plan flagowy do regularnego publikowania',
+    'AI Autopilot Lite: 15 uruchomień miesięcznie (tryb szkiców)',
   ],
   BUSINESS: [
-    'Do 25 kont social łącznie (także wiele kont na jednej platformie)',
-    'Brak twardego limitu publikacji',
+    'Do 25 kont social łącznie (także kilka kont na jednej platformie)',
+    'Bez twardego limitu publikacji',
     '1500 tekstów AI miesięcznie (opisy postów i asystent)',
-    'AI Autopilot bez limitu uruchomień (pełny)',
-    'Priorytetowe wsparcie',
+    'AI Autopilot bez limitu uruchomień',
   ],
 };
 
@@ -94,28 +93,28 @@ export const PLAN_CATALOG = [
   {
     tier: PlanTier.FREE,
     title: 'Free',
-    description: 'Plan startowy dla pierwszych publikacji.',
+    description: 'Na sprawdzenie: 1 konto, 3 publikacje w miesiącu, planowanie do 3 dni naprzód.',
     priceMonthly: '0 PLN',
     priceYearly: '0 PLN',
   },
   {
     tier: PlanTier.STARTER,
     title: 'Starter',
-    description: 'Dla twórców i małych zespołów.',
+    description: 'Dla jednej firmy na 2-3 kanałach: 3 konta, 15 publikacji i 200 tekstów AI miesięcznie.',
     priceMonthly: '49 PLN',
     priceYearly: '39 PLN',
   },
   {
     tier: PlanTier.PRO,
     title: 'Pro',
-    description: 'Najlepszy stosunek wartości do ceny.',
+    description: 'Dla firm i twórców publikujących kilka razy w tygodniu: 10 kont, 600 tekstów AI, AI Autopilot Lite.',
     priceMonthly: '129 PLN',
     priceYearly: '99 PLN',
   },
   {
     tier: PlanTier.BUSINESS,
     title: 'Business',
-    description: 'Dla skalujących się zespołów i agencji.',
+    description: 'Dla zespołów i agencji z wieloma markami: 25 kont, 1500 tekstów AI, Autopilot bez limitu.',
     priceMonthly: '299 PLN',
     priceYearly: '239 PLN',
   },

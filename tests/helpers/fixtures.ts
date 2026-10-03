@@ -13,7 +13,8 @@ export async function createTestUser(
       email,
       name: overrides.name ?? 'Test User',
       passwordHash: null,
-      emailVerifiedAt: overrides.emailVerifiedAt === undefined ? new Date() : overrides.emailVerifiedAt,
+      // Verified at sign-up by default (the trial counts from verification since 2026-10-03).
+      emailVerifiedAt: overrides.emailVerifiedAt === undefined ? (overrides.createdAt ?? new Date()) : overrides.emailVerifiedAt,
       ...(overrides.createdAt ? { createdAt: overrides.createdAt } : {}),
     },
   });

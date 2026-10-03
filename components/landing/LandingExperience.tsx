@@ -3,45 +3,67 @@
 import Link from 'next/link';
 import { AnimatePresence, motion, useAnimationControls, useInView, useMotionValue, useReducedMotion, useScroll, useSpring, useTransform } from 'framer-motion';
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { ArrowUpRight, CalendarClock, Layers, Sparkles, CircleCheckBig, CircleHelp, Moon, Sun } from 'lucide-react';
+import { ArrowUpRight, CalendarClock, Layers, Sparkles, CircleCheckBig, CircleHelp, Play } from 'lucide-react';
 import { PlatformBrandIcon } from '@/components/BrandIcons';
-import { useTheme } from 'next-themes';
 import { trackLandingEvent } from '@/lib/landing-events';
-import { BrandLogo } from '@/components/BrandLogo';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import {
   type MarketingPlan,
 } from '@/lib/billing/capabilities';
+import { PLAN_LIMITS } from '@/lib/billing/plans';
 import { useBillingCapabilities } from '@/hooks/useBillingCapabilities';
 import { CONTACT_CATEGORIES, type ContactCategory } from '@/lib/contact';
 import { useAuth } from '@/contexts/auth-context';
 import { LandingMotionContext, SectionReveal, type ScrollDirection } from '@/components/landing/LandingMotion';
+import { LandingHeader } from '@/components/landing/LandingHeader';
+import { ProductShowcase } from '@/components/landing/ProductShowcase';
 import { container, item, sectionFromLeft, sectionFromRight } from '@/components/landing/landing-motion';
 
 
-const heroHighlights = ['Facebook · Instagram · LinkedIn', 'AI podpowiedzi', 'Start w 2 minuty'];
+// Hero copy (2026-10-03, conversion/SEO/psychology review): only verifiable facts - no invented
+// numbers, ratings or "start in 2 minutes" claims (Polish consumer law, platform reviewers).
+export const TRIAL_CTA_LABEL = 'Wypróbuj 7 dni za darmo';
 
-const heroProofStrip = [
-  { value: '3 • 10 • 25', label: 'Konta social: Starter / Pro / Business' },
-  { value: '15 • 100', label: 'Wideo mies.: Starter / Pro' },
-  { value: '7 dni', label: 'Trial z subskrypcją Pro' },
+const heroProofChips: Array<{ label: string; suffix?: string }> = [
+  { label: '7 dni PRO za darmo, bez karty' },
+  { label: 'Facebook · Instagram · LinkedIn', suffix: '(TikTok, YouTube wkrótce)' },
+  { label: 'Polski produkt, ceny w złotówkach' },
 ];
 
 const heroFlowSteps = [
-  'Podłączasz kanały i ustawiasz cele publikacji.',
-  'System proponuje okna publikacji i układa kolejkę.',
-  'Publikujesz regularnie i monitorujesz wynik w jednym panelu.',
+  'Wrzucasz zdjęcie lub film i jedno zdanie.',
+  'AI proponuje opis i hashtagi osobno dla każdej platformy.',
+  'Poprawiasz, zatwierdzasz i publikujesz od razu albo w wybranym terminie.',
 ];
+
+const heroExample = {
+  note: 'Nowe kubki z serii Grafit, sprzedaż od piątku 10:00.',
+  captions: [
+    {
+      platform: 'INSTAGRAM' as const,
+      label: 'Instagram',
+      text: 'Grafit już w piątek ☕ Ciemne, lśniące szkliwo i każdy kubek trochę inny. Który bierzesz? #ceramika #rękodzieło',
+    },
+    {
+      platform: 'FACEBOOK' as const,
+      label: 'Facebook',
+      text: 'W piątek o 10:00 startuje sprzedaż nowej serii kubków Grafit. Napiszcie w komentarzu, czy wolicie na kawę, czy na herbatę!',
+    },
+    {
+      platform: 'LINKEDIN' as const,
+      label: 'LinkedIn',
+      text: 'Od szkicu do premiery: w piątek startuje nowa seria Grafit. Kilka słów o tym, jak pracujemy w małej pracowni ceramiki.',
+    },
+  ],
+};
 
 
 const floatingElements = [
   { id: 'orb-1', className: 'left-[6%] top-[14%] h-20 w-20 rounded-full bg-primary/20', x: [0, 64, 118, 82, 0], y: [0, 18, 56, 28, 0], rotate: [0, 10, 16, 8, 0], duration: 20 },
   { id: 'orb-2', className: 'right-[9%] top-[20%] h-16 w-16 rounded-full bg-accent/25', x: [0, -22, -46, -18, 0], y: [0, 34, 84, 46, 0], rotate: [0, -9, -14, -7, 0], duration: 19 },
-  { id: 'orb-3', className: 'left-[18%] bottom-[14%] h-14 w-14 rounded-full bg-chart-4/25', x: [0, 12, -8, 0], y: [0, -16, 8, 0], rotate: [0, 6, -4, 0], duration: 14 },
-  { id: 'glass-1', className: 'right-[22%] bottom-[18%] h-24 w-24 rounded-2xl border border-white/20 bg-white/5 backdrop-blur-sm', x: [0, -16, 10, 0], y: [0, 14, -10, 0], rotate: [0, 10, -8, 0], duration: 20 },
-  { id: 'glass-2', className: 'left-[34%] top-[8%] h-10 w-10 rounded-lg border border-primary/25 bg-primary/10', x: [0, 10, -6, 0], y: [0, -12, 8, 0], rotate: [0, -12, 7, 0], duration: 12 },
-  { id: 'ring-1', className: 'right-[35%] top-[36%] h-20 w-20 rounded-full border border-accent/30', x: [0, 14, -10, 0], y: [0, -10, 8, 0], rotate: [0, 12, -10, 0], duration: 22 },
 ];
+
+const zl = (price: string) => price.replace(' PLN', ' zł');
 
 function resolvePlanHref(plan: MarketingPlan) {
   return `/register?source=landing&intent=${plan.slug}`;
@@ -74,7 +96,6 @@ function PlatformIcons() {
       <PlatformBrandIcon platform="FACEBOOK" className="h-4 w-4" />
       <PlatformBrandIcon platform="INSTAGRAM" className="h-4 w-4" />
       <PlatformBrandIcon platform="LINKEDIN" className="h-4 w-4" />
-      <span className="text-[11px] text-muted-foreground">+ TikTok, YouTube wkrótce</span>
     </div>
   );
 }
@@ -94,7 +115,7 @@ function AiAutopilotLabel() {
           </button>
         </HoverCardTrigger>
         <HoverCardContent align="start" className="w-72 text-xs leading-relaxed">
-          Autopilot AI analizuje oczekujące zadania publikacji (status: oczekujące), proponuje lepsze okna czasowe i może automatycznie zastosować harmonogram.
+          Autopilot przegląda oczekujące publikacje i proponuje lepsze godziny ich wysłania na podstawie wyników Twoich wcześniejszych postów. Nie zmienia treści postów.
         </HoverCardContent>
       </HoverCard>
     </div>
@@ -167,177 +188,13 @@ function FloatingBackground({ reduceMotion }: { reduceMotion: boolean }) {
   );
 }
 
-function ScrollProgressWithLogo({ mounted }: { mounted: boolean }) {
-  const { scrollYProgress } = useScroll();
-  const progress = useSpring(scrollYProgress, { stiffness: 120, damping: 24, mass: 0.2 });
-  const { theme, setTheme } = useTheme();
-
-  return (
-    <div className="pointer-events-none fixed inset-x-0 top-0 z-40 px-3 pt-3 sm:px-6">
-      <div className="mx-auto flex w-full max-w-6xl items-start gap-3">
-        <div className="inline-flex shrink-0 items-center rounded-2xl border border-border/70 bg-background/82 px-4 py-1 shadow-lg backdrop-blur-md">
-          <BrandLogo className="h-10 w-auto" />
-        </div>
-        <div className="flex-1 flex items-center gap-2">
-          <div className="mt-3 h-1.5 flex-1 overflow-hidden rounded-full bg-background/55 ring-1 ring-border/45 backdrop-blur-sm">
-            <motion.div className="h-full origin-left rounded-full bg-gradient-to-r from-primary to-accent" style={{ scaleX: progress }} />
-          </div>
-          {mounted && (
-            <div className="pointer-events-auto mt-3 flex items-center gap-1 rounded-lg border border-border/70 bg-background/82 p-1 backdrop-blur-md">
-              <button
-                type="button"
-                onClick={() => {
-                  setTheme('light');
-                  trackLandingEvent({
-                    event: 'landing_cta_click',
-                    cta: 'theme_toggle_light',
-                    source: 'landing',
-                  });
-                }}
-                className={`rounded-md p-1.5 transition-colors ${
-                  theme === 'light' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground'
-                }`}
-                aria-label="Light mode"
-                title="Jasny motyw"
-              >
-                <Sun className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setTheme('dark');
-                  trackLandingEvent({
-                    event: 'landing_cta_click',
-                    cta: 'theme_toggle_dark',
-                    source: 'landing',
-                  });
-                }}
-                className={`rounded-md p-1.5 transition-colors ${
-                  theme === 'dark' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground'
-                }`}
-                aria-label="Dark mode"
-                title="Ciemny motyw"
-              >
-                <Moon className="h-4 w-4" />
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ActivityBubble({ messages, reduceMotion }: { messages: string[]; reduceMotion: boolean }) {
-  const [index, setIndex] = useState(0);
-
-  useEffect(() => {
-    if (messages.length < 2) {
-      return;
-    }
-
-    const interval = window.setInterval(() => {
-      setIndex((prev) => (prev + 1) % messages.length);
-    }, 15000);
-
-    return () => window.clearInterval(interval);
-  }, [messages]);
-
-  if (messages.length === 0) {
-    return null;
-  }
-
-  return (
-    <div className="pointer-events-none fixed bottom-4 left-4 z-30 hidden max-w-[17rem] lg:block">
-      <div className="rounded-2xl border border-border/70 bg-background/75 p-3 shadow-xl backdrop-blur-md">
-        <p className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Podgląd aktywności</p>
-        <AnimatePresence mode="wait">
-          <motion.p
-            key={index}
-            initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={reduceMotion ? { opacity: 1 } : { opacity: 0, y: -8 }}
-            transition={{ duration: 0.28 }}
-            className="mt-1 text-xs text-foreground"
-          >
-            {messages[index]}
-          </motion.p>
-        </AnimatePresence>
-      </div>
-    </div>
-  );
-}
-
-function SideLoginTab({ reduceMotion, loginHref }: { reduceMotion: boolean; loginHref: string }) {
-  return (
-    <motion.div
-      initial={reduceMotion ? { x: 0, opacity: 1 } : { x: 120, opacity: 0 }}
-      animate={{ x: 0, opacity: 1 }}
-      transition={{ duration: 0.56, delay: 0.18, ease: [0.22, 1, 0.36, 1] }}
-      className="fixed right-0 top-1/2 z-40 hidden -translate-y-1/2 md:block"
-    >
-      <motion.div
-        animate={reduceMotion ? undefined : { x: [0, -8, 0] }}
-        transition={{ duration: 2.2, repeat: Number.POSITIVE_INFINITY, ease: 'easeInOut' }}
-      >
-        <Link
-          href={loginHref}
-          onClick={() =>
-            trackLandingEvent({
-              event: 'landing_cta_click',
-              cta: 'side_login_tab',
-              href: loginHref,
-              source: 'landing',
-            })
-          }
-          className="group flex items-center gap-2 rounded-l-2xl border border-primary/40 bg-card/92 px-4 py-3 shadow-2xl backdrop-blur-md transition-all hover:-translate-x-1 hover:bg-card"
-          aria-label="Zaloguj się do konta"
-        >
-          <span className="text-xs font-semibold tracking-[0.02em] text-foreground">Zaloguj się</span>
-          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary/18 text-primary">
-            <ArrowUpRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-          </span>
-        </Link>
-      </motion.div>
-    </motion.div>
-  );
-}
-
-function MobileLoginChip({ visible, loginHref }: { visible: boolean; loginHref: string }) {
-  return (
-    <motion.div
-      initial={false}
-      animate={{ x: visible ? 0 : 90, opacity: visible ? 1 : 0 }}
-      transition={{ duration: 0.24, ease: 'easeOut' }}
-      className="fixed right-4 top-20 z-40 md:hidden"
-    >
-      <Link
-        href={loginHref}
-        onClick={() =>
-          trackLandingEvent({
-            event: 'landing_cta_click',
-            cta: 'mobile_login_chip',
-            href: loginHref,
-            source: 'landing',
-          })
-        }
-        className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-card/92 px-3 py-2 text-xs font-semibold text-foreground shadow-xl backdrop-blur-md"
-        aria-label="Zaloguj się do konta"
-      >
-        Zaloguj
-        <ArrowUpRight className="h-3.5 w-3.5 text-primary" />
-      </Link>
-    </motion.div>
-  );
-}
-
 function MobileStickyCTA({ visible }: { visible: boolean }) {
   return (
     <motion.div
       initial={false}
       animate={{ y: visible ? 0 : 120, opacity: visible ? 1 : 0 }}
       transition={{ duration: 0.24, ease: 'easeOut' }}
-      className="fixed inset-x-0 bottom-0 z-50 px-4 pb-4 pt-2 lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-50 px-4 pb-4 pt-2 md:hidden"
     >
       <Link
         href="/register?source=landing&intent=trial"
@@ -351,7 +208,7 @@ function MobileStickyCTA({ visible }: { visible: boolean }) {
         }
         className="flex w-full items-center justify-center gap-2 rounded-xl border border-primary/40 bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-2xl"
       >
-        Wypróbuj za darmo przez 7 dni
+        {TRIAL_CTA_LABEL}
         <ArrowUpRight className="h-4 w-4" />
       </Link>
     </motion.div>
@@ -375,11 +232,12 @@ export function LandingExperience({
   const capabilities = useBillingCapabilities();
   const shouldReduceMotion = useReducedMotion();
   const reduceMotion = shouldReduceMotion ?? false;
-  const [mounted, setMounted] = useState(false);
   const [isLowPowerDevice, setIsLowPowerDevice] = useState(false);
   const [scrollDirection, setScrollDirection] = useState<ScrollDirection>('down');
   const [selectedPlanSlug, setSelectedPlanSlug] = useState<MarketingPlan['slug']>('pro');
   const [showMobileStickyCta, setShowMobileStickyCta] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [stickyCtaBlocked, setStickyCtaBlocked] = useState(false);
   const [activeHeroStep, setActiveHeroStep] = useState(0);
   const [heroReady, setHeroReady] = useState(false);
   const [contactName, setContactName] = useState('');
@@ -407,7 +265,7 @@ export function LandingExperience({
   const freeScheduleAheadLabel =
     capabilities.free.maxScheduleAheadHours === null
       ? 'Bez limitu planowania'
-      : `Planowanie do ${capabilities.free.maxScheduleAheadHours}h`;
+      : `Planowanie do ${Math.round(capabilities.free.maxScheduleAheadHours / 24)} dni naprzód`;
 
   const starterMonthlyVideoLimit = extractFirstNumber(starterPlan?.monthlyVideoLabel ?? '', 15);
   const proMonthlySoftLimit = extractFirstNumber(proPlan?.monthlyVideoLabel ?? '', 100);
@@ -428,10 +286,23 @@ export function LandingExperience({
         business: businessPlan?.maxSocialAccounts?.toString() ?? '-',
       },
       {
-        label: 'Wideo / miesiąc',
+        label: 'Publikacje / miesiąc',
         starter: `${starterMonthlyVideoLimit}`,
-        pro: `${proMonthlySoftLimit}`,
-        business: (businessPlan?.monthlyVideoLabel ?? '').toLowerCase().includes('brak') ? 'Brak limitu' : normalizeMonthlyLabel(businessPlan?.monthlyVideoLabel ?? '-'),
+        // Pro's 100 is an orientation figure, not an enforced limit (2026-10-03).
+        pro: `Orientacyjnie do ${proMonthlySoftLimit} materiałów`,
+        business: 'Bez twardego limitu',
+      },
+      {
+        label: 'Teksty AI / miesiąc',
+        starter: `${PLAN_LIMITS.STARTER.ai_generations}`,
+        pro: `${PLAN_LIMITS.PRO.ai_generations}`,
+        business: `${PLAN_LIMITS.BUSINESS.ai_generations}`,
+      },
+      {
+        label: 'Planowanie naprzód',
+        starter: 'Bez limitu',
+        pro: 'Bez limitu',
+        business: 'Bez limitu',
       },
       {
         label: 'AI_AUTOPILOT_LABEL',
@@ -441,17 +312,6 @@ export function LandingExperience({
       },
     ],
     [businessPlan, proMonthlySoftLimit, proPlan, starterMonthlyVideoLimit, starterPlan],
-  );
-
-  const activityMessages = useMemo(
-    () => [
-      `Okres próbny: ${capabilities.trial.days} dni dla nowych kont i pierwszej subskrypcji.`,
-      `Starter: do ${starterMonthlyVideoLimit} wideo miesięcznie.`,
-      `Pro: limit miękki ${proMonthlySoftLimit} wideo / miesiąc.`,
-      `AI Autopilot: Pro ${proPlan?.aiAutopilotLabel ?? '15 / mies.'}, Business bez limitu.`,
-      'Konta social: Starter 3, Pro 10, Business 25 (łącznie).',
-    ],
-    [capabilities.trial.days, proMonthlySoftLimit, proPlan?.aiAutopilotLabel, starterMonthlyVideoLimit],
   );
 
   useEffect(() => {
@@ -495,10 +355,6 @@ export function LandingExperience({
   }, []);
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
     const mediaQuery = window.matchMedia('(max-width: 1024px), (pointer: coarse)');
     const update = () => setIsLowPowerDevice(mediaQuery.matches);
 
@@ -525,6 +381,39 @@ export function LandingExperience({
 
     return () => unsubscribe();
   }, [scrollY]);
+
+  useEffect(() => {
+    const blockers = new Set<Element>();
+    let contactFocused = false;
+    const update = () => setStickyCtaBlocked(contactFocused || blockers.size > 0);
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => (entry.isIntersecting ? blockers.add(entry.target) : blockers.delete(entry.target)));
+        update();
+      },
+      { threshold: 0.05 },
+    );
+    document.querySelectorAll('[data-section="final-cta"], footer[role="contentinfo"]').forEach((node) => observer.observe(node));
+
+    const contact = document.getElementById('contact');
+    const onFocusIn = () => {
+      contactFocused = true;
+      update();
+    };
+    const onFocusOut = () => {
+      contactFocused = false;
+      update();
+    };
+    contact?.addEventListener('focusin', onFocusIn);
+    contact?.addEventListener('focusout', onFocusOut);
+
+    return () => {
+      observer.disconnect();
+      contact?.removeEventListener('focusin', onFocusIn);
+      contact?.removeEventListener('focusout', onFocusOut);
+    };
+  }, []);
 
   useEffect(() => {
     // Run hero entrance after hydration so hard refresh reliably replays motion.
@@ -659,7 +548,7 @@ export function LandingExperience({
       if (!response.ok) {
         setContactStatus({
           type: 'error',
-          message: 'Nie udalo sie wyslac wiadomosci. Sprobuj ponownie za chwile.',
+          message: 'Nie udało się wysłać wiadomości. Spróbuj ponownie za chwilę.',
         });
         return;
       }
@@ -671,7 +560,7 @@ export function LandingExperience({
       setContactHpWebsite('');
       setContactStatus({
         type: 'success',
-        message: 'Dzieki! Wiadomosc zostala wyslana. Odpowiemy najszybciej jak mozliwe.',
+        message: 'Dzięki! Wiadomość została wysłana. Odpowiemy najszybciej, jak to możliwe.',
       });
 
       trackLandingEvent({
@@ -682,7 +571,7 @@ export function LandingExperience({
     } catch {
       setContactStatus({
         type: 'error',
-        message: 'Wystapil blad sieci. Sprobuj ponownie za chwile.',
+        message: 'Wystąpił błąd sieci. Spróbuj ponownie za chwilę.',
       });
     } finally {
       setIsContactSubmitting(false);
@@ -691,18 +580,17 @@ export function LandingExperience({
 
   return (
     <LandingMotionContext.Provider value={{ scrollDirection, motionBudgetReduced }}>
-      <main className="relative min-h-full bg-background text-foreground">
-      <ScrollProgressWithLogo mounted={mounted} />
+      <main className="relative min-h-full overflow-x-clip bg-background text-foreground">
+      <LandingHeader loginHref={loginHref} isAuthenticated={!isLoading && isAuthenticated} onMenuOpenChange={setMenuOpen} />
       <FloatingBackground reduceMotion={motionBudgetReduced} />
-      <ActivityBubble messages={activityMessages} reduceMotion={motionBudgetReduced} />
-      <SideLoginTab reduceMotion={motionBudgetReduced} loginHref={loginHref} />
-      <MobileLoginChip visible={!showMobileStickyCta} loginHref={loginHref} />
 
       <section
+        id="tresc"
+        tabIndex={-1}
         data-section="hero"
         onMouseMove={handleHeroPointerMove}
         onMouseLeave={handleHeroPointerLeave}
-        className="relative mx-auto grid min-h-[100svh] w-full max-w-6xl items-center gap-10 px-6 pb-16 pt-24 lg:grid-cols-[1.1fr_0.9fr] lg:pb-20 lg:pt-28"
+        className="relative mx-auto grid min-h-[100svh] w-full max-w-6xl items-center gap-10 px-4 pb-16 pt-24 focus:outline-none sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:pb-20 lg:pt-28"
       >
         <motion.div
           aria-hidden="true"
@@ -717,53 +605,46 @@ export function LandingExperience({
             variants={heroItemVariants}
             className="inline-flex w-fit rounded-full border border-border/70 bg-card/50 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground/85"
           >
-            Dla tworcow i zespolow marketingu
+            <span className="sm:hidden">Dla firm lokalnych i twórców</span>
+            <span className="hidden sm:inline">Dla salonów, sklepów, usług lokalnych i twórców</span>
           </motion.p>
 
-          <motion.h1 variants={heroItemVariants} className="font-semibold leading-[0.93] text-4xl sm:text-6xl lg:text-7xl">
-            Publikuj
-            <span className="block sm:hidden">regularnie</span>
+          {/* One text node (2026-10-03): the old responsive duplicate spans made the H1 read
+              "Publikujregularnieregularnie i prostoi prosto" to search engines and screen readers. */}
+          <motion.h1 variants={heroItemVariants} className="text-balance text-4xl font-semibold leading-[1.02] sm:text-6xl lg:text-[4.25rem]">
+            Planuj posty na{' '}
             <motion.span
-              className="block bg-gradient-to-r from-primary via-chart-4 to-accent bg-clip-text text-transparent"
+              className="bg-gradient-to-r from-primary via-chart-4 to-accent bg-clip-text text-transparent"
               animate={motionBudgetReduced ? undefined : { backgroundPosition: ['0% 50%', '100% 50%', '0% 50%'] }}
               transition={{ duration: motionBudgetReduced ? 0 : 7.2, repeat: Number.POSITIVE_INFINITY, ease: 'easeInOut' }}
               style={{ backgroundSize: '220% 220%' }}
             >
-              <span className="hidden sm:inline">regularnie i prosto</span>
-              <span className="sm:hidden">i prosto</span>
+              Facebooka, Instagram i LinkedIn
             </motion.span>
           </motion.h1>
 
-          <motion.p variants={heroItemVariants} className="max-w-2xl text-base text-muted-foreground sm:text-lg">
-            Planuj i publikuj treści na Facebooku, Instagramie i LinkedIn z jednego panelu. TikTok i YouTube wkrótce.
-            <span className="block text-foreground/85">Mniej chaosu, wiecej regularnych publikacji.</span>
-          </motion.p>
-
-          <motion.div variants={heroContainerVariants} className="flex flex-wrap items-center gap-x-4 gap-y-2">
-            {heroProofStrip.map((proof, index) => (
-              <motion.div key={proof.label} variants={heroItemVariants} className="inline-flex items-baseline gap-1.5">
-                <p className="text-sm font-semibold text-foreground">{proof.value}</p>
-                <p className="text-xs text-muted-foreground">{proof.label}</p>
-                {index < heroProofStrip.length - 1 ? <span aria-hidden="true" className="ml-2 text-muted-foreground/50">|</span> : null}
-              </motion.div>
-            ))}
+          <motion.div variants={heroItemVariants} className="max-w-2xl space-y-2">
+            <p className="text-base text-muted-foreground sm:text-lg">
+              Wrzuć zdjęcie lub film i napisz jedno zdanie. AI zaproponuje osobny opis i hashtagi dla każdej platformy - Ty
+              poprawiasz, zatwierdzasz i planujesz.
+            </p>
           </motion.div>
 
-          <motion.div variants={heroContainerVariants} className="flex flex-wrap gap-2">
-            {heroHighlights.map((highlight) => (
-              <motion.span
-                key={highlight}
+          <motion.ul variants={heroContainerVariants} className="flex flex-wrap gap-2" aria-label="Najważniejsze fakty">
+            {heroProofChips.map((chip) => (
+              <motion.li
+                key={chip.label}
                 variants={heroItemVariants}
-                whileHover={interactiveLift}
-                whileTap={interactiveTap}
-                className="rounded-full border border-border/80 bg-card/60 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.08em] text-foreground/90"
+                className="inline-flex flex-wrap items-center gap-x-1.5 rounded-full border border-border/80 bg-card/60 px-3 py-1 text-xs font-medium text-foreground/90"
               >
-                {highlight}
-              </motion.span>
+                <CircleCheckBig className="h-3.5 w-3.5 text-emerald-500" aria-hidden="true" />
+                {chip.label}
+                {chip.suffix ? <span className="text-muted-foreground">{chip.suffix}</span> : null}
+              </motion.li>
             ))}
-          </motion.div>
+          </motion.ul>
 
-          <motion.div variants={heroItemVariants} className="flex flex-wrap gap-3">
+          <motion.div variants={heroItemVariants} className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <motion.div whileHover={interactiveLift} whileTap={interactiveTap}>
               <Link
                 href="/register?source=landing&intent=trial"
@@ -775,7 +656,7 @@ export function LandingExperience({
                     source: 'landing',
                   })
                 }
-                className="group relative inline-flex items-center gap-2 overflow-hidden rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground transition-transform hover:-translate-y-0.5"
+                className="group relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground transition-transform hover:-translate-y-0.5 sm:inline-flex sm:w-auto"
               >
                 {!motionBudgetReduced ? (
                   <motion.span
@@ -791,39 +672,35 @@ export function LandingExperience({
                   animate={motionBudgetReduced ? undefined : { x: ['-180%', '420%'] }}
                   transition={{ duration: motionBudgetReduced ? 0 : 2, repeat: Number.POSITIVE_INFINITY, repeatDelay: 1.2, ease: 'easeInOut' }}
                 />
-                <span className="relative">Wypróbuj za darmo przez 7 dni</span>
+                <span className="relative">{TRIAL_CTA_LABEL}</span>
                 <ArrowUpRight className="h-4 w-4" />
               </Link>
             </motion.div>
             <motion.div whileHover={interactiveLift} whileTap={interactiveTap}>
-              <Link
-                href="#pricing"
-                onClick={(event) => {
-                  event.preventDefault();
-                  scrollToPricing();
-                  trackLandingEvent({
-                    event: 'landing_cta_click',
-                    cta: 'hero_compare_plans',
-                    href: '#pricing',
-                    source: 'landing',
-                  });
-                }}
-                className="inline-flex items-center rounded-xl border border-border bg-card/40 px-5 py-3 text-sm font-semibold text-foreground hover:bg-card/70"
+              <a
+                href="#produkt"
+                onClick={() =>
+                  trackLandingEvent({ event: 'landing_cta_click', cta: 'hero_see_product', href: '#produkt', source: 'landing' })
+                }
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-card/40 px-5 py-3 text-sm font-semibold text-foreground hover:bg-card/70 sm:inline-flex sm:w-auto"
               >
-                Sprawdź plany
-              </Link>
+                <Play className="h-4 w-4" aria-hidden="true" />
+                Zobacz, jak to działa
+              </a>
             </motion.div>
           </motion.div>
-          <motion.p variants={heroItemVariants} className="text-xs text-muted-foreground">
-            Okres próbny: {capabilities.trial.days} dni ({capabilities.trial.eligibilityNote})
-          </motion.p>
 
-          <motion.p variants={heroItemVariants} className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-            <CircleCheckBig className="h-3.5 w-3.5 text-emerald-400" />
-            Widzisz limity i cenę przed zakupem. Bez gwiazdek.
-          </motion.p>
+          <motion.div variants={heroItemVariants} className="space-y-1.5 text-xs text-muted-foreground">
+            <p>Bez karty płatniczej. Plan PRO włącza się po potwierdzeniu e-maila i działa przez {capabilities.trial.days} dni.</p>
+            <p className="inline-flex items-start gap-2">
+              <CircleCheckBig className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" aria-hidden="true" />
+              Potem konto samo przechodzi na darmowy plan Free - nic nie zapłacisz bez wybrania planu.
+            </p>
+          </motion.div>
         </motion.div>
 
+        {/* Example card (2026-10-03): shows how one note becomes three captions - the core value -
+            instead of sample KPI bars that read as invented metrics. */}
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={heroReady ? { opacity: 1, x: 0 } : { opacity: 0, x: 20 }}
@@ -832,31 +709,16 @@ export function LandingExperience({
           className="relative [transform-style:preserve-3d]"
         >
           <div className="absolute -inset-2 rounded-[2rem] bg-gradient-to-br from-primary/40 via-transparent to-accent/35 blur-xl" />
-          <motion.div
-            aria-hidden="true"
-            className="absolute -right-3 -top-3 z-20 rounded-full border border-emerald-400/35 bg-emerald-400/20 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-emerald-100"
-            animate={motionBudgetReduced ? undefined : { y: [0, -6, 0], opacity: [0.8, 1, 0.8] }}
-            transition={{ duration: 2.6, repeat: Number.POSITIVE_INFINITY, ease: 'easeInOut' }}
-          >
-                Podgląd
-          </motion.div>
-          <div className="relative overflow-hidden rounded-[2rem] border border-border bg-card/80 p-6 shadow-2xl">
-            <div className="mb-5 flex items-center justify-between">
-              <p className="text-sm font-medium text-foreground">Przykładowe KPI po zalogowaniu</p>
-            </div>
-            <div className="mb-4 rounded-xl border border-border/70 bg-card/55 p-3">
-              <div className="mb-2 flex items-center gap-2">
+          <div className="absolute -right-2 -top-3 z-20 rounded-full border border-emerald-400/35 bg-emerald-400/20 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-emerald-700 dark:text-emerald-100">
+            Przykład
+          </div>
+          <div className="relative overflow-hidden rounded-[2rem] border border-border bg-card/85 p-5 shadow-2xl sm:p-6">
+            <p className="text-sm font-semibold text-foreground">Tak powstaje post w Postfly</p>
+
+            <div className="mt-4 rounded-xl border border-border/70 bg-card/55 p-3">
+              <div className="mb-2 flex items-center gap-2" aria-hidden="true">
                 {heroFlowSteps.map((step, index) => (
-                  <motion.span
-                    key={step}
-                    className={`h-1.5 flex-1 rounded-full ${index === activeHeroStep ? 'bg-primary' : 'bg-secondary'}`}
-                    animate={
-                      motionBudgetReduced
-                        ? undefined
-                        : { opacity: index === activeHeroStep ? [0.55, 1, 0.55] : 1 }
-                    }
-                    transition={{ duration: 0.9, repeat: Number.POSITIVE_INFINITY, ease: 'easeInOut' }}
-                  />
+                  <span key={step} className={`h-1.5 flex-1 rounded-full ${index === activeHeroStep ? 'bg-primary' : 'bg-secondary'}`} />
                 ))}
               </div>
               <AnimatePresence mode="wait">
@@ -868,51 +730,56 @@ export function LandingExperience({
                   transition={{ duration: 0.25 }}
                   className="text-xs text-foreground/90"
                 >
-                  {heroFlowSteps[activeHeroStep]}
+                  {activeHeroStep + 1}. {heroFlowSteps[activeHeroStep]}
                 </motion.p>
               </AnimatePresence>
             </div>
-            <p className="mb-1 text-xs text-muted-foreground">To jest przykład widoku danych po podłączeniu kont.</p>
-            <p className="mb-4 text-[11px] text-muted-foreground/80">Rzeczywiste KPI liczymy z publikacji, statusów zadań i podłączonych kanałów.</p>
 
-            <div className="space-y-4">
-              {[
-                { label: 'Skuteczność publikacji', display: '91%', progress: 91 },
-                { label: 'Podłączone kanały', display: '3/4', progress: 75 },
-                { label: 'Wideo w ostatnich 30 dniach', display: '42', progress: 84 },
-              ].map((kpi, idx) => (
-                <motion.div
-                  key={kpi.label}
-                  initial={{ opacity: 0, y: 16 }}
+            <div className="mt-4 rounded-xl border border-dashed border-border bg-secondary/30 p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Twoja notatka</p>
+              <p className="mt-1 text-sm text-foreground">{heroExample.note}</p>
+            </div>
+
+            <ul className="mt-3 space-y-2.5">
+              {heroExample.captions.map((caption, index) => (
+                <motion.li
+                  key={caption.platform}
+                  initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.35 + idx * 0.14 }}
-                  className="rounded-xl border border-border bg-card/50 p-4"
+                  transition={{ delay: 0.35 + index * 0.14 }}
+                  className="rounded-xl border border-border bg-card/60 p-3"
                 >
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span>{kpi.label}</span>
-                    <span>{kpi.display}</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                      <PlatformBrandIcon platform={caption.platform} className="h-3.5 w-3.5" />
+                      {caption.label}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">Propozycja AI · do edycji</span>
                   </div>
-                  <div className="mt-2 h-2 rounded-full bg-secondary">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${kpi.progress}%` }}
-                      transition={{ duration: 0.9, delay: 0.45 + idx * 0.12 }}
-                      className="h-full rounded-full bg-gradient-to-r from-primary to-accent"
-                    />
-                  </div>
-                </motion.div>
+                  <p className="mt-1.5 text-xs leading-relaxed text-foreground/85">{caption.text}</p>
+                </motion.li>
               ))}
+            </ul>
+
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-[11px] font-medium text-primary">
+                <CalendarClock className="h-3.5 w-3.5" aria-hidden="true" />
+                Zaplanowane · pt 10:00
+              </span>
+              <span className="text-[10px] text-muted-foreground">Przykładowe teksty. Każdą propozycję edytujesz.</span>
             </div>
           </div>
         </motion.div>
       </section>
 
 
+      <ProductShowcase />
+
       {featuresSection}
 
       {seoSection}
 
-      <section id="pricing" data-section="pricing" className="relative mx-auto w-full max-w-6xl px-6 pb-24">
+      <section id="pricing" data-section="pricing" className="relative mx-auto w-full max-w-6xl px-4 pb-24 sm:px-6">
         <SectionReveal
           variants={sectionFromLeft}
           className="relative rounded-3xl border border-white/10 bg-gradient-to-br from-card/80 via-card/55 to-accent/15 p-6 shadow-[0_20px_60px_rgba(2,6,23,0.35)] backdrop-blur-xl sm:p-10"
@@ -928,8 +795,17 @@ export function LandingExperience({
           <motion.div variants={item} className="flex items-center justify-between gap-4">
             <div>
               <p className="text-xs uppercase tracking-[0.18em] text-accent">Cennik</p>
-              <h2 className="mt-2 text-3xl font-semibold">Wybierz plan</h2>
-              <p className="mt-2 text-xs text-muted-foreground">Oszczędzasz ok. 20% przy rozliczeniu rocznym.</p>
+              <h2 className="mt-2 text-balance text-2xl font-semibold sm:text-3xl">Cennik Postfly: zacznij za 0 zł</h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Ceny końcowe w zł za miesiąc. Płatność roczna:{' '}
+                {capabilities.plans
+                  .map((plan) => {
+                    const monthly = Number.parseInt(plan.priceYearly, 10);
+                    return `${plan.name} ${monthly} zł/mies. (${monthly * 12} zł rocznie)`;
+                  })
+                  .join(', ')}
+                .
+              </p>
             </div>
           </motion.div>
 
@@ -939,9 +815,9 @@ export function LandingExperience({
                 <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary">Plan Free (na start)</p>
                 <p className="mt-1 text-sm text-foreground">{capabilities.free.subtitle}</p>
                 <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                  <span className="rounded-full border border-border/70 bg-card/50 px-2.5 py-1">0 PLN / mies.</span>
+                  <span className="rounded-full border border-border/70 bg-card/50 px-2.5 py-1">0 zł / mies.</span>
                   <span className="rounded-full border border-border/70 bg-card/50 px-2.5 py-1">{`${capabilities.free.socialAccounts} konto social łącznie`}</span>
-                  <span className="rounded-full border border-border/70 bg-card/50 px-2.5 py-1">{`${freeVideoUploadsLabel} wideo / mies.`}</span>
+                  <span className="rounded-full border border-border/70 bg-card/50 px-2.5 py-1">{`${freeVideoUploadsLabel} publikacje / mies.`}</span>
                   <span className="rounded-full border border-border/70 bg-card/50 px-2.5 py-1">{freeScheduleAheadLabel}</span>
                 </div>
               </div>
@@ -960,6 +836,7 @@ export function LandingExperience({
                 Zacznij od Free
               </Link>
             </div>
+            <p className="mt-2 text-xs text-muted-foreground">Bez karty i bez limitu czasu.</p>
           </motion.div>
 
           <motion.div variants={item} className="mt-6 rounded-2xl border border-border bg-card/50 md:hidden">
@@ -976,7 +853,7 @@ export function LandingExperience({
               <tbody>
                 <tr className="border-b border-border/80">
                   <th scope="row" className="px-3 py-3 text-left text-xs font-medium text-muted-foreground">Cena / miesiąc</th>
-                  <td className="px-3 py-3 font-semibold text-foreground">{selectedPlan?.priceMonthly ?? '-'}</td>
+                  <td className="px-3 py-3 font-semibold text-foreground">{selectedPlan ? zl(selectedPlan.priceMonthly) : '-'}</td>
                 </tr>
                 {comparisonRows.map((row) => (
                   <tr key={`mobile-${row.label}`} className="border-b border-border/80 last:border-b-0">
@@ -991,6 +868,7 @@ export function LandingExperience({
               </tbody>
             </table>
           </motion.div>
+          <p className="mt-2 text-xs text-muted-foreground md:hidden">TikTok i YouTube wkrótce - po zatwierdzeniu integracji przez platformy.</p>
 
           <motion.div ref={pricingTableScrollRef} variants={item} className="mt-8 hidden overflow-x-auto rounded-2xl border border-border bg-card/50 md:block">
             <table className="min-w-[760px] w-full text-sm" aria-label="Porównanie planów Postfly">
@@ -1017,6 +895,9 @@ export function LandingExperience({
                       }`}
                     >
                       {plan.name}
+                      {plan.featured ? (
+                        <span className="ml-2 rounded-full border border-primary/40 px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] text-primary">Polecany</span>
+                      ) : null}
                     </th>
                   ))}
                 </tr>
@@ -1041,7 +922,7 @@ export function LandingExperience({
                       <span className="mb-1 block text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground md:hidden">
                         Cena / miesiąc
                       </span>
-                      {plan.priceMonthly}
+                      {zl(plan.priceMonthly)}
                     </td>
                   ))}
                 </tr>
@@ -1073,10 +954,11 @@ export function LandingExperience({
               </tbody>
             </table>
           </motion.div>
+          <p className="mt-2 hidden text-xs text-muted-foreground md:block">TikTok i YouTube wkrótce - po zatwierdzeniu integracji przez platformy.</p>
 
           <motion.div
             variants={container}
-            className="mt-5 grid gap-3 sm:grid-cols-3"
+            className="mt-5 grid gap-3 md:grid-cols-3"
           >
             {capabilities.plans.map((plan) => (
               <motion.div
@@ -1117,14 +999,14 @@ export function LandingExperience({
                       transition={{ duration: motionBudgetReduced ? 0 : 0.28, ease: 'easeOut' }}
                     />
                   ) : null}
-                  {plan.slug === selectedPlanSlug ? (
+                  {plan.featured || plan.slug === selectedPlanSlug ? (
                     <span className="absolute -top-2 z-10 rounded-full border border-primary/40 bg-background px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] text-primary">
-                      {plan.featured ? 'Najczęściej wybierany' : 'Wybrany'}
+                      {plan.featured ? 'Polecany' : 'Wybrany'}
                     </span>
                   ) : null}
-                  <span className="relative z-10">{`Odbierz dostęp: ${plan.name}`}</span>
-                  <span className="relative z-10 mx-2 text-foreground/45" aria-hidden="true">|</span>
-                  <span className="relative z-10 text-xs font-medium opacity-85">{`${plan.priceMonthly} / mies.`}</span>
+                  <span className="relative z-10">{plan.name}</span>
+                  <span className="relative z-10 mx-1.5 opacity-60" aria-hidden="true">·</span>
+                  <span className="relative z-10 text-xs font-medium opacity-85">{`${zl(plan.priceMonthly)}/mies.`}</span>
                 </motion.button>
               </motion.div>
             ))}
@@ -1138,7 +1020,7 @@ export function LandingExperience({
                   {' '}
                   <span className="font-semibold text-primary">{selectedPlan.name}</span>
                   {' '}
-                  <span className="text-muted-foreground">{`${selectedPlan.priceMonthly} / mies.`}</span>
+                  <span className="text-muted-foreground">{`${zl(selectedPlan.priceMonthly)} / mies.`}</span>
                 </p>
                 <Link
                   href={resolvePlanHref(selectedPlan)}
@@ -1152,10 +1034,13 @@ export function LandingExperience({
                   }
                   className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-95"
                 >
-                  Kontynuuj z planem
+                  {`Wybierz plan ${selectedPlan.name}`}
                   <ArrowUpRight className="ml-1.5 h-4 w-4" />
                 </Link>
               </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                {`Pierwsza subskrypcja zaczyna się od 7 dni próbnych. Jeśli nie zrezygnujesz przed ich końcem, Stripe pobierze ${zl(selectedPlan.priceMonthly)}, a subskrypcja będzie się odnawiać co miesiąc. Rezygnujesz w każdej chwili w panelu płatności; konto wraca wtedy na plan Free.`}
+              </p>
             </motion.div>
           ) : null}
         </SectionReveal>
@@ -1164,15 +1049,90 @@ export function LandingExperience({
 
       {faqSection}
 
-      <section id="contact" data-section="contact" className="relative mx-auto w-full max-w-6xl px-6 pb-24">
+      <section data-section="final-cta" className="mx-auto w-full max-w-6xl px-4 pb-24 sm:px-6">
+        <SectionReveal
+          variants={sectionFromRight}
+          className="relative overflow-hidden rounded-3xl border border-border bg-card/70 p-8 text-center sm:p-12"
+        >
+          <motion.div
+            className="pointer-events-none absolute inset-0 opacity-40"
+            animate={
+              motionBudgetReduced
+                ? undefined
+                : {
+                    backgroundPosition: ['0% 0%', '100% 100%', '0% 0%'],
+                  }
+            }
+            transition={{ duration: 16, repeat: Number.POSITIVE_INFINITY, ease: 'easeInOut' }}
+            style={{
+              backgroundImage:
+                'radial-gradient(circle at 10% 20%, var(--primary) 0%, transparent 40%), radial-gradient(circle at 90% 80%, var(--accent) 0%, transparent 35%)',
+              backgroundSize: '180% 180%',
+            }}
+          />
+          <motion.div variants={container} className="relative">
+            <motion.p variants={item} className="inline-flex items-center gap-2 rounded-full border border-border bg-card/60 px-3 py-1 text-xs uppercase tracking-[0.16em] text-foreground">
+              <Sparkles className="h-3.5 w-3.5" />
+              Zacznij dziś
+            </motion.p>
+            <motion.h2 variants={item} className="mx-auto mt-4 max-w-2xl text-balance text-2xl font-semibold sm:text-4xl">
+              Zaplanuj posty na cały tydzień jeszcze dziś
+            </motion.h2>
+            <motion.p variants={item} className="mx-auto mt-3 max-w-xl text-sm text-muted-foreground">
+              Załóż konto, potwierdź e-mail i przez 7 dni korzystaj z planu PRO. Bez karty - potem zostajesz na Free albo wybierasz plan.
+            </motion.p>
+            <motion.div variants={item} className="mt-7 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
+              <motion.div whileHover={interactiveLift} whileTap={interactiveTap}>
+                <Link
+                  href="/register?source=landing&intent=trial"
+                  onClick={() =>
+                    trackLandingEvent({
+                      event: 'landing_cta_click',
+                      cta: 'final_start_trial',
+                      href: '/register?source=landing&intent=trial',
+                      source: 'landing',
+                    })
+                  }
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground hover:brightness-95 sm:w-auto"
+                >
+                  {TRIAL_CTA_LABEL}
+                  <ArrowUpRight className="h-4 w-4" />
+                </Link>
+              </motion.div>
+              <motion.div whileHover={interactiveLift} whileTap={interactiveTap}>
+                <Link
+                  href={loginHref}
+                  onClick={() =>
+                    trackLandingEvent({
+                      event: 'landing_cta_click',
+                      cta: 'final_login',
+                      href: loginHref,
+                      source: 'landing',
+                    })
+                  }
+                  className="inline-flex w-full items-center justify-center rounded-xl border border-border bg-card/60 px-5 py-3 text-sm font-semibold text-foreground hover:bg-card/80 sm:w-auto"
+                >
+                  Mam konto
+                </Link>
+              </motion.div>
+            </motion.div>
+          </motion.div>
+        </SectionReveal>
+      </section>
+
+      <section id="contact" data-section="contact" className="relative mx-auto w-full max-w-6xl px-4 pb-24 sm:px-6">
         <SectionReveal
           variants={sectionFromLeft}
           className="rounded-3xl border border-border bg-card/65 p-6 sm:p-10"
         >
           <motion.p variants={item} className="text-xs uppercase tracking-[0.18em] text-accent">Kontakt</motion.p>
-          <motion.h2 variants={item} className="mt-2 text-3xl font-semibold">Napisz do nas</motion.h2>
+          <motion.h2 variants={item} className="mt-2 text-balance text-2xl font-semibold sm:text-3xl">Napisz do nas</motion.h2>
           <motion.p variants={item} className="mt-2 max-w-3xl text-sm text-muted-foreground">
-            Masz pytanie, znalazles blad albo chcesz podzielic sie sugestia? Napisz wiadomosc - odpiszemy.
+            Masz pytanie, znalazłeś błąd albo chcesz podzielić się sugestią? Napisz wiadomość - odpiszemy.
+            <span className="mt-2 block">
+              Kto stoi za Postfly: to polski produkt prowadzony przez Pawła Sawczuka, zaprojektowany i zbudowany przez studio
+              Code94. Wiadomość z formularza trafia bezpośrednio do twórcy aplikacji.
+            </span>
           </motion.p>
 
           <motion.form
@@ -1197,7 +1157,7 @@ export function LandingExperience({
 
             <motion.div variants={item} className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <label htmlFor="contact-name" className="text-sm text-foreground">Imie i nazwisko</label>
+                <label htmlFor="contact-name" className="text-sm text-foreground">Imię i nazwisko</label>
                 <input
                   id="contact-name"
                   value={contactName}
@@ -1219,13 +1179,13 @@ export function LandingExperience({
                   type="email"
                   required
                   className="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground"
-                  placeholder="jan@postfly.app"
+                  placeholder="jan@firma.pl"
                 />
               </div>
             </motion.div>
 
             <motion.div variants={item} className="space-y-2">
-              <label htmlFor="contact-category" className="text-sm text-foreground">Kategoria wiadomosci</label>
+              <label htmlFor="contact-category" className="text-sm text-foreground">Kategoria wiadomości</label>
               <select
                 id="contact-category"
                 value={contactCategory}
@@ -1239,7 +1199,7 @@ export function LandingExperience({
             </motion.div>
 
             <motion.div variants={item} className="space-y-2">
-              <label htmlFor="contact-message" className="text-sm text-foreground">Wiadomosc</label>
+              <label htmlFor="contact-message" className="text-sm text-foreground">Wiadomość</label>
               <textarea
                 id="contact-message"
                 value={contactMessage}
@@ -1249,7 +1209,7 @@ export function LandingExperience({
                 maxLength={4000}
                 rows={6}
                 className="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground"
-                placeholder="Napisz, w czym mozemy pomoc..."
+                placeholder="Napisz, w czym możemy pomóc..."
               />
             </motion.div>
 
@@ -1277,73 +1237,7 @@ export function LandingExperience({
         </SectionReveal>
       </section>
 
-      <section data-section="final-cta" className="mx-auto w-full max-w-6xl px-6 pb-24">
-        <SectionReveal
-          variants={sectionFromRight}
-          className="relative overflow-hidden rounded-3xl border border-border bg-card/70 p-8 text-center sm:p-12"
-        >
-          <motion.div
-            className="pointer-events-none absolute inset-0 opacity-40"
-            animate={
-              motionBudgetReduced
-                ? undefined
-                : {
-                    backgroundPosition: ['0% 0%', '100% 100%', '0% 0%'],
-                  }
-            }
-            transition={{ duration: 16, repeat: Number.POSITIVE_INFINITY, ease: 'easeInOut' }}
-            style={{
-              backgroundImage:
-                'radial-gradient(circle at 10% 20%, var(--primary) 0%, transparent 40%), radial-gradient(circle at 90% 80%, var(--accent) 0%, transparent 35%)',
-              backgroundSize: '180% 180%',
-            }}
-          />
-          <motion.div variants={container} className="relative">
-            <motion.p variants={item} className="inline-flex items-center gap-2 rounded-full border border-border bg-card/60 px-3 py-1 text-xs uppercase tracking-[0.16em] text-foreground">
-              <Sparkles className="h-3.5 w-3.5" />
-              Zacznij teraz
-            </motion.p>
-            <motion.h3 variants={item} className="mx-auto mt-4 max-w-2xl text-3xl font-semibold sm:text-4xl">
-              Mniej chaosu, więcej regularnych publikacji.
-            </motion.h3>
-            <motion.div variants={item} className="mt-7 flex flex-wrap items-center justify-center gap-3">
-              <motion.div whileHover={interactiveLift} whileTap={interactiveTap}>
-                <Link
-                  href="/register?source=landing&intent=trial"
-                  onClick={() =>
-                    trackLandingEvent({
-                      event: 'landing_cta_click',
-                      cta: 'final_start_trial',
-                      href: '/register?source=landing&intent=trial',
-                      source: 'landing',
-                    })
-                  }
-                  className="rounded-xl bg-accent px-5 py-3 text-sm font-semibold text-accent-foreground hover:brightness-95"
-                >
-                  Wypróbuj za darmo przez 7 dni
-                </Link>
-              </motion.div>
-              <motion.div whileHover={interactiveLift} whileTap={interactiveTap}>
-                <Link
-                  href={loginHref}
-                  onClick={() =>
-                    trackLandingEvent({
-                      event: 'landing_cta_click',
-                      cta: 'final_login',
-                      href: loginHref,
-                      source: 'landing',
-                    })
-                  }
-                  className="rounded-xl border border-border bg-card/60 px-5 py-3 text-sm font-semibold text-foreground hover:bg-card/80"
-                >
-                  Mam konto
-                </Link>
-              </motion.div>
-            </motion.div>
-          </motion.div>
-        </SectionReveal>
-      </section>
-        <MobileStickyCTA visible={showMobileStickyCta} />
+        <MobileStickyCTA visible={showMobileStickyCta && !menuOpen && !stickyCtaBlocked} />
       </main>
     </LandingMotionContext.Provider>
   );

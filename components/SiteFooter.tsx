@@ -11,6 +11,36 @@ export function SiteFooter() {
             </Link>
           </li>
           <li>
+            <Link href="/#produkt" className="transition-colors hover:text-foreground">
+              Jak to działa
+            </Link>
+          </li>
+          <li>
+            <Link href="/#funkcje" className="transition-colors hover:text-foreground">
+              Funkcje
+            </Link>
+          </li>
+          <li>
+            <Link href="/#integracje" className="transition-colors hover:text-foreground">
+              Integracje
+            </Link>
+          </li>
+          <li>
+            <Link href="/#pricing" className="transition-colors hover:text-foreground">
+              Cennik
+            </Link>
+          </li>
+          <li>
+            <Link href="/#faq" className="transition-colors hover:text-foreground">
+              FAQ
+            </Link>
+          </li>
+          <li>
+            <Link href="/#contact" className="transition-colors hover:text-foreground">
+              Kontakt
+            </Link>
+          </li>
+          <li>
             <Link href="/terms" className="transition-colors hover:text-foreground">
               Regulamin
             </Link>
@@ -26,6 +56,12 @@ export function SiteFooter() {
           links, opening in a new tab. Postfly was designed and built by Code94. */}
       <p className="mx-auto w-full max-w-7xl px-4 pb-4 pt-2 text-center text-xs text-muted-foreground/80 sm:px-6">
         © {new Date().getFullYear()} Postfly
+        <span aria-hidden="true" className="mx-2 text-border">·</span>
+        Usługodawca: Paweł Sawczuk (
+        <Link href="/terms" className="transition-colors hover:text-foreground">
+          dane w Regulaminie
+        </Link>
+        )
         <span aria-hidden="true" className="mx-2 text-border">·</span>
         Realizacja:{' '}
         <a

@@ -23,14 +23,15 @@ export default function TermsPage() {
         <p className="mt-6 text-sm text-muted-foreground">
           Niniejszy Regulamin określa zasady korzystania z aplikacji Postfly.
         </p>
-        <p className="mt-2 text-sm text-muted-foreground">Data ostatniej aktualizacji: 1 października 2026 r.</p>
+        <p className="mt-2 text-sm text-muted-foreground">Data ostatniej aktualizacji: 3 października 2026 r.</p>
 
         <section className="mt-8 space-y-4 text-sm leading-6 text-muted-foreground">
           <h2 className="text-base font-semibold text-foreground">1. Postanowienia ogólne</h2>
           <p>
             Niniejszy Regulamin określa zasady korzystania z aplikacji SaaS „Postfly”, służącej
-            do planowania i publikacji materiałów wideo w serwisach społecznościowych (m.in.
-            TikTok, YouTube) z wykorzystaniem oficjalnych integracji API i mechanizmów OAuth.
+            do planowania i publikacji treści (zdjęć, filmów i tekstów) w serwisach społecznościowych z wykorzystaniem
+            oficjalnych integracji API i mechanizmów OAuth. Obecnie dostępne są Facebook, Instagram i LinkedIn; integracje
+            z TikTokiem i YouTube zostaną udostępnione po ich zatwierdzeniu przez te platformy.
           </p>
           <p>
             Usługodawcą jest: <strong className="text-foreground">Paweł Sawczuk</strong>,

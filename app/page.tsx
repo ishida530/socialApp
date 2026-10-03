@@ -11,12 +11,25 @@ import { getSiteUrl } from '@/lib/site-url';
 
 const siteUrl = getSiteUrl();
 
+// SEO (2026-10-03, conversion/SEO review): one description reused across the structured data, no
+// meta keywords (ignored by Google, and the old list advertised TikTok/YouTube scheduling that
+// isn't live yet), no ratings or reviews we don't have.
+const PRODUCT_DESCRIPTION =
+  'Aplikacja do planowania i publikowania postów na Facebooku, Instagramie i LinkedIn z propozycjami opisów AI dla każdej platformy.';
+
 const organizationJsonLd = {
   '@context': 'https://schema.org',
   '@type': 'Organization',
   name: 'Postfly',
   url: siteUrl,
   logo: `${siteUrl}/icon.png`,
+  areaServed: 'PL',
+  contactPoint: {
+    '@type': 'ContactPoint',
+    contactType: 'customer support',
+    availableLanguage: ['pl'],
+    url: `${siteUrl}/#contact`,
+  },
 };
 
 const websiteJsonLd = {
@@ -25,39 +38,53 @@ const websiteJsonLd = {
   name: 'Postfly',
   url: siteUrl,
   inLanguage: 'pl-PL',
-  description: 'Aplikacja SaaS do planowania i publikacji treści social media.',
+  description: PRODUCT_DESCRIPTION,
 };
+
+function monthlyOffer(name: string, price: string, intent: string) {
+  return {
+    '@type': 'Offer',
+    name,
+    price,
+    priceCurrency: 'PLN',
+    url: `${siteUrl}/register?source=landing&intent=${intent}`,
+    priceSpecification: {
+      '@type': 'UnitPriceSpecification',
+      price,
+      priceCurrency: 'PLN',
+      referenceQuantity: { '@type': 'QuantitativeValue', value: 1, unitCode: 'MON' },
+    },
+  };
+}
 
 const softwareJsonLd = {
   '@context': 'https://schema.org',
   '@type': 'SoftwareApplication',
   name: 'Postfly',
+  url: siteUrl,
+  inLanguage: 'pl',
   applicationCategory: 'BusinessApplication',
+  applicationSubCategory: 'Social media scheduler',
   operatingSystem: 'Web',
-  description:
-    'Planowanie i publikacja treści na Facebooku, Instagramie i LinkedIn z jednego panelu.',
+  description: PRODUCT_DESCRIPTION,
+  featureList: [
+    'Propozycje opisów i hashtagów AI dla każdej platformy',
+    'Planowanie i publikacja postów',
+    'Harmonogram publikacji',
+    'Rozwój kont i statystyki',
+    'Bot Telegram',
+  ],
+  screenshot: [
+    `${siteUrl}/landing/showcase/opis-ai-desktop.webp`,
+    `${siteUrl}/landing/showcase/harmonogram-desktop.webp`,
+    `${siteUrl}/landing/showcase/rozwoj-desktop.webp`,
+  ],
+  creator: { '@type': 'Organization', name: 'Code94', url: 'https://www.code94.pl' },
   offers: [
-    {
-      '@type': 'Offer',
-      name: 'Starter',
-      price: '49',
-      priceCurrency: 'PLN',
-      url: `${siteUrl}/register?source=landing&intent=starter`,
-    },
-    {
-      '@type': 'Offer',
-      name: 'Pro',
-      price: '129',
-      priceCurrency: 'PLN',
-      url: `${siteUrl}/register?source=landing&intent=pro`,
-    },
-    {
-      '@type': 'Offer',
-      name: 'Business',
-      price: '299',
-      priceCurrency: 'PLN',
-      url: `${siteUrl}/register?source=landing&intent=business`,
-    },
+    { '@type': 'Offer', name: 'Free', price: '0', priceCurrency: 'PLN', url: `${siteUrl}/register?source=landing&intent=free` },
+    monthlyOffer('Starter', '49', 'starter'),
+    monthlyOffer('Pro', '129', 'pro'),
+    monthlyOffer('Business', '299', 'business'),
   ],
 };
 
@@ -75,17 +102,9 @@ const faqJsonLd = {
 };
 
 export const metadata: Metadata = {
-  title: 'Postfly | Planowanie publikacji: Facebook, Instagram, LinkedIn',
+  title: 'Planowanie postów na Facebooka i Instagram z AI | Postfly',
   description:
-    'Planuj i publikuj treści na Facebooku, Instagramie i LinkedIn z jednego panelu. Starter: do 3 kont i 15 wideo/mies., Pro: do 10 kont i limit miękki 100 wideo/mies. + AI Autopilot Lite, Business: do 25 kont i AI Autopilot bez limitu. Okres próbny 7 dni dla nowych kont i pierwszej subskrypcji.',
-  keywords: [
-    'planowanie publikacji social media',
-    'harmonogram publikacji tiktok',
-    'narzędzie do publikacji instagram reels',
-    'social media scheduler polska',
-    'automatyzacja publikacji youtube shorts',
-    'panel do publikacji social media',
-  ],
+    'Wrzuć zdjęcie i jedno zdanie – AI zaproponuje opisy i hashtagi na Facebooka, Instagram i LinkedIn. Edytujesz, planujesz, publikujesz. 7 dni PRO bez karty.',
   robots: {
     index: true,
     follow: true,
@@ -101,9 +120,9 @@ export const metadata: Metadata = {
     canonical: '/',
   },
   openGraph: {
-    title: 'Postfly | Planowanie publikacji social media',
+    title: 'Postfly – planowanie postów z AI dla małych firm',
     description:
-      'Planuj i publikuj treści na Facebooku, Instagramie i LinkedIn z jednego panelu.',
+      'Jedno zdjęcie i jedno zdanie → osobne opisy na Facebooka, Instagram i LinkedIn. Ty zatwierdzasz, Postfly publikuje o czasie. TikTok i YouTube wkrótce.',
     url: '/',
     siteName: 'Postfly',
     images: [
@@ -111,7 +130,7 @@ export const metadata: Metadata = {
         url: '/opengraph-image',
         width: 1200,
         height: 630,
-        alt: 'Postfly - planowanie publikacji social media',
+        alt: 'Postfly – planowanie postów na Facebooka, Instagram i LinkedIn',
       },
     ],
     locale: 'pl_PL',
@@ -119,9 +138,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Postfly | Planowanie publikacji social media',
+    title: 'Postfly – planowanie postów z AI dla małych firm',
     description:
-      'Jeden panel do planowania i publikacji treści na Facebooku, Instagramie i LinkedIn.',
+      'Jedno zdjęcie i jedno zdanie → osobne opisy na Facebooka, Instagram i LinkedIn. Ty zatwierdzasz, Postfly publikuje o czasie.',
     images: ['/twitter-image'],
   },
 };

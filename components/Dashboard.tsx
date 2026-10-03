@@ -59,7 +59,7 @@ export function Dashboard({
       {
         label: 'Opublikowane (30 dni)',
         value: totals?.jobsSucceeded,
-        hint: 'Status SUCCESS',
+        hint: 'Posty opublikowane bez błędów',
         className:
           'bg-gradient-to-br from-primary/10 to-accent/10 backdrop-blur-sm border border-primary/20 rounded-xl p-5',
         hintClassName: 'text-xs text-green-500 mt-2',

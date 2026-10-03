@@ -2,7 +2,6 @@
 
 import { Sparkles, TrendingUp, Clock3 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
 
 type JobPlatform = 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'FACEBOOK' | 'LINKEDIN';
@@ -42,7 +41,8 @@ const PLATFORM_LABELS: Record<JobPlatform, string> = {
 
 export function DashboardAIAdvisor() {
   const [scheduledPosts, setScheduledPosts] = useState<ScheduledPost[]>([]);
-  const [latestReadyVideoTitle, setLatestReadyVideoTitle] = useState<string>('Twój najnowszy materiał');
+  const [latestReadyVideoTitle, setLatestReadyVideoTitle] = useState<string | null>(null);
+  const [upcomingWeekCount, setUpcomingWeekCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -64,6 +64,13 @@ export function DashboardAIAdvisor() {
         ]);
 
         const next24h = Date.now() + 24 * 60 * 60 * 1000;
+        const next7d = Date.now() + 7 * 24 * 60 * 60 * 1000;
+        setUpcomingWeekCount(
+          jobsResponse.data.data.filter((job) => {
+            const ts = new Date(job.scheduledFor).getTime();
+            return job.status === 'PENDING' && ts >= Date.now() && ts <= next7d;
+          }).length,
+        );
 
         const posts = jobsResponse.data.data
           .filter((job) => job.socialAccount?.platform)
@@ -125,22 +132,30 @@ export function DashboardAIAdvisor() {
   const alerts = useMemo<AlertCard[]>(() => {
     const cards: AlertCard[] = [];
 
+    // Both cards state only facts from this user's own data (2026-10-03) - they used to be
+    // hardcoded claims ("Trend na TikToku przyspiesza", "odbiorcy na Facebooku są aktywni rano")
+    // shown to every account regardless of its platforms or results.
     cards.push({
-      id: 'trend-1',
+      id: 'material-1',
       type: 'trend',
-      title: 'Alert trendu',
-      description: `Trend na TikToku przyspiesza. Wideo „${latestReadyVideoTitle}” dobrze pasuje do formatu short.`,
-      actionLabel: 'Generuj na podstawie trendu',
+      title: latestReadyVideoTitle ? 'Materiał gotowy do publikacji' : 'Dodaj pierwszy materiał',
+      description: latestReadyVideoTitle
+        ? `„${latestReadyVideoTitle}” możesz zamienić w post - AI przygotuje osobny opis dla każdej podłączonej platformy.`
+        : 'Wrzuć zdjęcie albo film i dopisz jedno zdanie - AI przygotuje osobny opis dla każdej podłączonej platformy.',
+      actionLabel: 'Przygotuj post',
       onAction: () => {
         window.dispatchEvent(new Event('post-composer:open'));
       },
     });
 
     cards.push({
-      id: 'opt-1',
+      id: 'cadence-1',
       type: 'optimization',
-      title: 'Optymalizacja',
-      description: 'Twoi odbiorcy na Facebooku są bardziej aktywni rano. Przesunąć jutrzejszy post na 9:00?',
+      title: 'Regularność',
+      description:
+        upcomingWeekCount === 0
+          ? 'Na najbliższe 7 dni nie masz zaplanowanych publikacji. Regularne posty pomagają utrzymać zasięgi.'
+          : `Na najbliższe 7 dni masz zaplanowane ${upcomingWeekCount} ${upcomingWeekCount === 1 ? 'publikację' : upcomingWeekCount < 5 ? 'publikacje' : 'publikacji'}.${upcomingWeekCount < 3 ? ' Dodaj kilka, żeby utrzymać regularność.' : ''}`,
       actionLabel: 'Otwórz harmonogram',
       onAction: () => {
         window.location.assign('/schedule');
@@ -148,7 +163,7 @@ export function DashboardAIAdvisor() {
     });
 
     return cards;
-  }, [latestReadyVideoTitle]);
+  }, [latestReadyVideoTitle, upcomingWeekCount]);
 
   return (
     <section className="space-y-4">
@@ -210,14 +225,11 @@ export function DashboardAIAdvisor() {
 
             {firstGapOver6h && (
               <button
-                onClick={() => {
-                  toast.message('Sugestia z biblioteki jest gotowa w Harmonogramie.');
-                  window.location.assign('/schedule');
-                }}
+                onClick={() => window.location.assign('/schedule')}
                 className="absolute top-9 rounded-md border border-primary/30 bg-primary/10 px-2 py-1 text-[11px] text-primary hover:bg-primary/20"
                 style={{ left: '50%', transform: 'translateX(-50%)' }}
               >
-                Uzupełnić lukę w harmonogramie: zaplanować {latestReadyVideoTitle}?
+                {latestReadyVideoTitle ? `Luka w harmonogramie - zaplanuj „${latestReadyVideoTitle}”` : 'Luka w harmonogramie - zaplanuj post'}
               </button>
             )}
           </div>

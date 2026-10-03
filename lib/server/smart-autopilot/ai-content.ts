@@ -62,10 +62,25 @@ type GeneratedBundlesToolResult = {
   }>;
 };
 
+const DATA_URL = /^data:(image\/(?:jpeg|png|gif|webp));base64,([A-Za-z0-9+/=]+)$/;
+
 function usableImageUrls(input: OrchestrateContentInput) {
   return (input.imageUrls ?? [])
-    .filter((url) => /^https:\/\//i.test(url) && SUPPORTED_IMAGE_EXTENSIONS.test(url))
+    .filter((url) => (/^https:\/\//i.test(url) && SUPPORTED_IMAGE_EXTENSIONS.test(url)) || DATA_URL.test(url))
     .slice(0, MAX_IMAGES);
+}
+
+// A public https URL is fetched by Anthropic; a data: URL (an image the API can't reach, e.g. on a
+// private or local host) is sent inline as base64 (2026-10-03).
+function imageBlock(url: string): AnthropicUserContentBlock {
+  const inline = url.match(DATA_URL);
+  if (inline) {
+    return {
+      type: 'image',
+      source: { type: 'base64', media_type: inline[1] as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp', data: inline[2] },
+    };
+  }
+  return { type: 'image', source: { type: 'url', url } };
 }
 
 export async function generateBundlesWithClaude(
@@ -114,7 +129,7 @@ export async function generateBundlesWithClaude(
       system: CONTENT_SYSTEM_PROMPT,
       userContent: withImages
         ? ([
-            ...imageUrls.map((url) => ({ type: 'image', source: { type: 'url', url } }) as const),
+            ...imageUrls.map(imageBlock),
             { type: 'text', text: promptData },
           ] satisfies AnthropicUserContentBlock[])
         : promptData,
