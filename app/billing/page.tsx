@@ -300,7 +300,7 @@ function BillingPageContent() {
                 </p>
               </div>
 
-              {/* 2026-10-02: monthly AI text quota (post copy, "Generuj ponownie", Telegram assistant). */}
+              {/* 2026-10-02: monthly AI text quota (post copy, "Wygeneruj ponownie", Telegram assistant). */}
               <div className="p-4 rounded-lg border border-border bg-secondary/20">
                 <p className="text-sm text-foreground">Teksty AI</p>
                 <p className="text-xs text-muted-foreground mt-1">

@@ -4,7 +4,7 @@ import type { AnalysisOutput, OrchestrateContentInput, PlatformBundle } from './
 //
 // 2026-10-02 (AI review): the old persona templates prefixed the user's note with copywriting
 // instructions that ended up verbatim in real posts - "Hook w 1 sekundzie: ...", "Lifestyle cut:
-// ...", "Krótka aktualizacja: ..." - and stacked on every "Generuj ponownie". The fallback now
+// ...", "Krótka aktualizacja: ..." - and stacked on every "Wygeneruj ponownie". The fallback now
 // keeps the user's own words untouched (the composer tells them the AI was unavailable, so they
 // know to polish it) and only adds hashtags typical for the platform and kind of account. Nothing
 // here leaves our servers, so the text is not redacted either - it's the user's own post.

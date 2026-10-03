@@ -19,7 +19,8 @@ type VideoDto = {
   durationSec: number | null;
 };
 
-const CONTENT_TYPE_SUGGESTIONS = ['Nowy kawałek', 'Zapowiedź', 'Freestyle', 'Behind the scenes', 'Clip z koncertu'];
+// Neutral across industries (2026-10-03) - the old music-only suggestions showed up in review recordings.
+const CONTENT_TYPE_SUGGESTIONS = ['Nowość w ofercie', 'Zapowiedź', 'Promocja', 'Efekt pracy / realizacja', 'Za kulisami', 'Porada'];
 
 function wait(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -211,12 +212,12 @@ export function MediaStep({
 
       <div className="rounded-2xl border border-border bg-secondary/20 p-3 space-y-3">
         <div>
-          <label className="block text-sm font-medium text-foreground mb-2">Co to za treść?</label>
+          <label className="block text-sm font-medium text-foreground mb-2">O czym jest ten post? (AI napisze opis na tej podstawie)</label>
           <input
             list="content-type-suggestions"
             value={contentType}
             onChange={(event) => onContentTypeChange(event.target.value)}
-            placeholder="Nowy kawałek, zapowiedź, freestyle..."
+            placeholder="np. nowa usługa od piątku, efekt remontu po 2 dniach"
             className="w-full px-4 py-2.5 bg-secondary/30 border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
           />
           <datalist id="content-type-suggestions">
@@ -227,11 +228,11 @@ export function MediaStep({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-foreground mb-2">Tytuł utworu / projektu (opcjonalnie)</label>
+          <label className="block text-sm font-medium text-foreground mb-2">Nazwa produktu / projektu (opcjonalnie)</label>
           <input
             value={songTitle}
             onChange={(event) => onSongTitleChange(event.target.value)}
-            placeholder="np. Cień miasta"
+            placeholder="np. Laminacja brwi, Osiedle Zielone Tarasy"
             className="w-full px-4 py-2.5 bg-secondary/30 border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
           />
         </div>

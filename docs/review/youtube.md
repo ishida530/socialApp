@@ -14,6 +14,10 @@ Postfly spełnia je od PR #123 i #124:
 - wymagane zapisy w polityce prywatności;
 - oficjalne logo i przycisk Google.
 
+## 0. Najpierw etap 1 z [README](README.md)
+
+Środki w Anthropic, domena w Resend, konto recenzenta (`REVIEWER_EMAILS`) i test generalny. Bez tego nagranie pokaże YouTube jako „Wkrótce” albo komunikat o niedostępnym AI.
+
 ## 1. Przed nagraniem: konfiguracja w Google Cloud Console
 
 Projekt, z którego pochodzi `GOOGLE_CLIENT_ID` (YouTube) → menu **Google Auth Platform**:
@@ -51,14 +55,15 @@ Wymagania Google:
 | 1 | Otwórz `https://postfly.pl`, przewiń do sekcji **„Integracje”** (karta YouTube z opisem, co aplikacja robi z kanałem), potem do stopki, otwórz **Politykę Prywatności** i przewiń do sekcji **14** (YouTube/Google, z angielskim podsumowaniem). | Postfly home page and privacy policy, including the section on YouTube API Services and Google user data (Limited Use). |
 | 2 | **„Zaloguj się”** do Postfly na konto testowe z [README](README.md) (adres z `REVIEWER_EMAILS`) → menu **„Połączone konta”** → karta YouTube → **„Kontynuuj z Google”**. | The user connects their YouTube channel with Google OAuth. |
 | 3 | **Ekran zgody Google: zatrzymaj się.** Kliknij w pasek adresu, żeby był widoczny cały URL z **`client_id=…`**. Pokaż nazwę **„Postfly”** i listę uprawnień. Zaakceptuj. | Google consent screen: app name "Postfly" and the OAuth client ID in the address bar. The user grants youtube.upload and youtube.readonly. |
-| 4 | Powrót do Postfly: kanał widoczny jako połączony. | The YouTube channel is connected. |
-| 5 | **„Nowy post”** → **„Wgraj materiał”** (własny film) → **„Dalej”** → zakładka **YouTube**: pokaż tytuł i opis zaproponowane przez AI, potem wpisz własny **„Tytuł”**, popraw opis i hashtagi. | youtube.upload: the title and description are suggested by AI from the user's own note and fully edited by the user. |
+| 4 | Powrót do Postfly: kanał widoczny jako połączony. | The YouTube channel is connected. || 5 | **„Nowy post”** → **„Wgraj materiał”** (własny film) → w polu **„O czym jest ten post?”** wpisz jedno zdanie → **„Dalej”** → zakładka **YouTube**: pokaż tytuł i opis zaproponowane przez AI, potem wpisz własny **„Tytuł”**, popraw opis i hashtagi. | youtube.upload: the title and description are suggested by AI from the user's own note and fully edited by the user. |
 | 6 | **„Dalej”** → blok **„Publikacja na YouTube (YouTube upload)”**: pokaż podgląd tytułu i opisu. Rozwiń **„Widoczność filmu (Visibility)”**: nic nie jest wybrane. Wybierz **„Prywatny (Private)”**. Pokaż link **„YouTube Terms of Service”**. | The exact title and description that will be sent are shown. The user must choose the visibility (no default) and agrees to the YouTube Terms of Service. |
 | 7 | **„Opublikuj teraz”** → ekran statusu → **„Opublikowano”** → **„Zobacz post”** → film na YouTube. | The video is uploaded only after the user clicks Publish, with exactly the chosen settings. |
 | 8 | Menu **„Rozwój”**: liczba subskrybentów kanału. Menu **„Analityka”**: statystyki filmu. | youtube.readonly: subscriber count of the user's own channel and statistics of their own videos. Stored at most 30 days. |
 | 9 | **„Połączone konta”** → przy kanale YouTube **„Rozłącz”**. | Disconnecting revokes the Google token immediately and deletes the channel's data from Postfly. |
 
 Na nagraniu wybierz „Prywatny”: przed audytem YouTube i tak wymusza tę widoczność, a wtedy nagranie zgadza się z efektem.
+
+**Ekran „Google hasn't verified this app”** między scenami 2 i 3 jest przed weryfikacją normalny. Kliknij **„Advanced” → „Go to Postfly (unsafe)”** i nagrywaj dalej. Google wie, że aplikacja jest w trakcie weryfikacji, i tego nie ocenia. Najważniejsze, żeby na samym ekranie zgody były widoczne nazwa „Postfly”, lista uprawnień i `client_id`.
 
 **Wgraj film na YouTube jako „Niepubliczny” (Unlisted)** i skopiuj link. Ten link podajesz we wniosku.
 
@@ -70,6 +75,7 @@ Na nagraniu wybierz „Prywatny”: przed audytem YouTube i tak wymusza tę wido
    - **uzasadnienie każdego wrażliwego scope'a**: wklej teksty z punktu 4;
    - **link do filmu demo**: link Unlisted z punktu 2;
    - potwierdzenie zgodności z [Google API Services User Data Policy](https://developers.google.com/terms/api-services-user-data-policy).
+   - jeśli formularz albo zespół weryfikacji poprosi o **konto testowe**: *Test account: https://postfly.pl → "Zaloguj się" (Log in), email <E-MAIL KONTA RECENZENTA>, password <HASŁO>. While verification is pending, the YouTube connection is enabled only for this test account; other accounts see YouTube as "Wkrótce" (coming soon).*
 4. Odpowiadaj na maile od zespołu weryfikacji (przychodzą na adres kontaktowy z Brandingu). Często proszą o drobne poprawki: przekaż mi je, a poprawię.
 5. Czas: zwykle 2–4 tygodnie.
 

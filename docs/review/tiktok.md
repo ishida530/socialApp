@@ -4,6 +4,10 @@ Poprzedni wniosek (ref. `20260913074631`) został odrzucony z powodu niezgodnoś
 [Content Sharing Guidelines](https://developers.tiktok.com/doc/content-sharing-guidelines) (aktualizacja z 4.08.2026).
 Interfejs jest już poprawiony. Ten plik opisuje, co nagrać i jak wysłać wniosek ponownie.
 
+## 0. Najpierw etap 1 z [README](README.md)
+
+Środki w Anthropic, domena w Resend, konto recenzenta (`REVIEWER_EMAILS`) i test generalny. Bez tego nagranie pokaże TikToka jako „Wkrótce” albo komunikat o niedostępnym AI.
+
 ## 1. Przed nagraniem: portal TikTok
 
 [developers.tiktok.com](https://developers.tiktok.com) → **Manage apps** → aplikacja Postfly:
@@ -34,7 +38,7 @@ Interfejs jest już poprawiony. Ten plik opisuje, co nagrać i jak wysłać wnio
 | 2 | Pokaż stronę `/register` (bez wysyłania formularza), potem **„Zaloguj się”** na konto testowe z [README](README.md) (adres z `REVIEWER_EMAILS`, potwierdzony e-mail). Nie zakładaj nowego konta na nagraniu: zobaczyłoby TikToka jako „Wkrótce”. | Any creator can sign up for their own account. For this demo we log in to a prepared account. |
 | 3 | Menu **„Połączone konta”** → karta TikTok → **„Kontynuuj z TikTok”**. | The creator connects their own TikTok account with TikTok Login Kit. |
 | 4 | Okno TikToka: zaloguj się, pokaż listę uprawnień, zaakceptuj. Po powrocie konto jest widoczne jako połączone. | Requested scopes: user.info.basic (account name), video.publish (Direct Post), user.info.stats (follower growth screen), video.list (post statistics). |
-| 5 | Przycisk **„Nowy post”** → **„Wgraj materiał”** → wybierz swój film z dysku → **„Dalej”**. | The creator uploads their own original video from their device. |
+| 5 | Przycisk **„Nowy post”** → **„Wgraj materiał”** → wybierz swój film z dysku → w polu **„O czym jest ten post?”** wpisz jedno zdanie (np. „efekt remontu elewacji po 2 dniach”) → **„Dalej”**. | The creator uploads their own original video and adds a short note about it. |
 | 6 | Krok przeglądu, zakładka **TikTok**: pokaż opis zaproponowany przez AI, potem ręcznie zmień pole **„Tytuł (Title)”**, dodaj albo usuń hashtag. | The caption is an AI suggestion based on the creator's own note and photo. The title and hashtags are fully editable before posting. |
 | 7 | **„Dalej”** → ekran publikacji. Pokaż podgląd filmu i treści (prawa kolumna). | Final "Post to TikTok" page: a preview of exactly what will be posted. |
 | 8 | Najedź na **„Publikujesz na koncie TikTok (posting to): …”**. Pokaż też nazwę konta na przycisku TikTok. | The creator's TikTok nickname is shown, fetched live from creator_info. |
@@ -90,6 +94,11 @@ Limity: maksymalnie 5 plików po 50 MB. Jeśli film wyjdzie większy, wyeksportu
 > never republishes content from other platforms. Every TikTok post is initiated and confirmed by the creator
 > in the web app; TikTok posts are never published automatically. TikTok user data (account name, follower and
 > post statistics) is used only to show the creator their own results and is never used to train AI models.
+>
+> Test account (if you want to try it yourself): https://postfly.pl → "Zaloguj się" (Log in),
+> email: <E-MAIL KONTA RECENZENTA>, password: <HASŁO>. While this review is pending, the TikTok connection
+> is enabled only for this test account; other accounts see TikTok as "Wkrótce" (coming soon) until the
+> app is approved.
 
 ## 5. Gdzie to jest w kodzie (na wypadek pytań TikToka)
 
