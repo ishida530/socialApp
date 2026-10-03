@@ -1,4 +1,5 @@
 import { ImageResponse } from 'next/og';
+import { isFreeBeta } from '@/lib/beta';
 
 export const size = {
   width: 1200,
@@ -25,13 +26,13 @@ export default function OpengraphImage() {
         <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', maxWidth: '72%' }}>
           <div style={{ fontSize: 28, opacity: 0.9 }}>Postfly</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div style={{ fontSize: 76, lineHeight: 1.04, fontWeight: 700 }}>Publikuj regularnie i prosto</div>
+            <div style={{ fontSize: 68, lineHeight: 1.06, fontWeight: 700 }}>Planuj posty na Facebooka, Instagram i LinkedIn</div>
             <div style={{ fontSize: 32, color: '#cbd5e1' }}>
-              Planowanie i publikacja na YouTube, TikTok, Instagram i Facebook.
+              Opisy AI dla każdej platformy · TikTok i YouTube wkrótce
             </div>
           </div>
           <div style={{ display: 'flex', gap: 12 }}>
-            {['4 platformy', 'AI podpowiedzi', 'Starter 15/mies.'].map((pill) => (
+            {[isFreeBeta() ? 'Darmowa beta' : '7 dni PRO bez karty', 'Propozycje opisów AI', 'Polski produkt'].map((pill) => (
               <div
                 key={pill}
                 style={{

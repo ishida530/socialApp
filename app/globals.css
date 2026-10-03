@@ -5,6 +5,8 @@ html {
   height: 100%;
   overflow-x: hidden;
   scroll-behavior: smooth;
+  /* Landing navbar is 64px tall and fixed (2026-10-03) - anchored sections land below it. */
+  scroll-padding-top: 80px;
 }
 
 body {

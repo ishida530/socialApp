@@ -3,6 +3,7 @@ import { prisma } from './prisma';
 import { resolveBillingMode } from './billing-mode';
 import { resolveAppMode } from './app-mode';
 import { isReviewerEmail } from './admin';
+import { isFreeBeta } from '@/lib/beta';
 import {
   NEW_USER_PRO_TRIAL_DAYS,
   TRIAL_AI_GENERATIONS,
@@ -15,12 +16,15 @@ import {
   type UsageMetric,
 } from '@/lib/billing/limits';
 
-function resolveTrialWindow(userCreatedAt: Date) {
-  const trialEndsAt = new Date(userCreatedAt.getTime() + NEW_USER_PRO_TRIAL_DAYS * 24 * 60 * 60 * 1000);
+// The 7 days run from the email confirmation (2026-10-03) - that's when the trial actually unlocks,
+// and what the landing promises; counting from sign-up silently cost late confirmers days.
+// Accounts created before verification existed have emailVerifiedAt = createdAt (migration).
+function resolveTrialWindow(trialStart: Date) {
+  const trialEndsAt = new Date(trialStart.getTime() + NEW_USER_PRO_TRIAL_DAYS * 24 * 60 * 60 * 1000);
   const isActive = trialEndsAt.getTime() > Date.now();
 
   return {
-    trialStartedAt: userCreatedAt,
+    trialStartedAt: trialStart,
     trialEndsAt,
     isActive,
   };
@@ -54,7 +58,16 @@ function resolveEffectivePlan(subscriptionPlan: PlanTier, user: PlanUser) {
     };
   }
 
-  const trial = resolveTrialWindow(user.createdAt);
+  // Free beta (lib/beta.ts, 2026-10-03): every confirmed account gets PRO for free, no time limit
+  // (still capped by PRO's monthly AI quota).
+  if (isFreeBeta()) {
+    return {
+      effectivePlan: PlanTier.PRO,
+      trial: null,
+    };
+  }
+
+  const trial = resolveTrialWindow(user.emailVerifiedAt);
   if (!trial.isActive) {
     return {
       effectivePlan: PlanTier.FREE,

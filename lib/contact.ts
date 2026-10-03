@@ -1,10 +1,10 @@
 export const CONTACT_CATEGORIES = [
-  { value: 'general', label: 'Pytanie ogolne' },
-  { value: 'bug', label: 'Blad techniczny' },
+  { value: 'general', label: 'Pytanie ogólne' },
+  { value: 'bug', label: 'Błąd techniczny' },
   { value: 'suggestion', label: 'Sugestia funkcji' },
   { value: 'pricing', label: 'Pytanie o plan lub cennik' },
-  { value: 'account', label: 'Sprawa konta lub rozliczen' },
-  { value: 'partnership', label: 'Wspolpraca' },
+  { value: 'account', label: 'Sprawa konta lub rozliczeń' },
+  { value: 'partnership', label: 'Współpraca' },
 ] as const;
 
 export type ContactCategory = (typeof CONTACT_CATEGORIES)[number]['value'];

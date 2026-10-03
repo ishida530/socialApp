@@ -1,5 +1,6 @@
 'use client';
 
+import { isFreeBeta } from '@/lib/beta';
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
@@ -311,6 +312,18 @@ function BillingPageContent() {
               </div>
             </div>
 
+            {isFreeBeta() ? (
+              // Free beta (lib/beta.ts): no purchases - every confirmed account has PRO for free.
+              <div className="rounded-lg border border-primary/30 bg-primary/10 p-4 text-sm">
+                <p className="font-semibold text-foreground">Darmowa beta</p>
+                <p className="mt-1 text-muted-foreground">
+                  Postfly jest teraz w darmowej becie: masz plan PRO bez opłat i bez limitu czasu (z miesięcznym limitem
+                  tekstów AI). Płatne plany uruchomimy później i uprzedzimy o tym e-mailem z wyprzedzeniem - nic nie zostanie
+                  pobrane automatycznie.
+                </p>
+              </div>
+            ) : (
+              <>
             <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-secondary/20 p-3">
               <p className="text-sm text-foreground">Rozliczenie</p>
               <p className="text-xs text-muted-foreground">{capabilities.trial.days} dni okresu próbnego ({capabilities.trial.eligibilityNote.toLowerCase()}) przy pierwszej subskrypcji.</p>
@@ -344,13 +357,13 @@ function BillingPageContent() {
                         <p className="text-sm font-semibold text-foreground">{plan.title}</p>
                         {plan.tier === 'PRO' && (
                           <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/30">
-                            Najczęściej wybierany
+                            Polecany
                           </span>
                         )}
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">{plan.description}</p>
                       <p className="text-sm text-primary mt-2">
-                        {billingInterval === 'MONTHLY' ? plan.priceMonthly : plan.priceYearly} / miesiąc netto
+                        {(billingInterval === 'MONTHLY' ? plan.priceMonthly : plan.priceYearly).replace(' PLN', ' zł')} / miesiąc
                       </p>
                     </div>
 
@@ -401,6 +414,8 @@ function BillingPageContent() {
                 Zarządzaj subskrypcją
               </button>
             </div>
+              </>
+            )}
           </section>
     </main>
   );

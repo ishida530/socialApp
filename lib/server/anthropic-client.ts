@@ -108,7 +108,8 @@ type AnthropicToolResponse = {
 // caption describes what's actually in the material. Public Blob URLs - Anthropic fetches them.
 export type AnthropicUserContentBlock =
   | { type: 'text'; text: string }
-  | { type: 'image'; source: { type: 'url'; url: string } };
+  | { type: 'image'; source: { type: 'url'; url: string } }
+  | { type: 'image'; source: { type: 'base64'; media_type: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'; data: string } };
 
 // Agent-mentor (multi-tool, model-driven tool_choice) support - deliberately separate from
 // callClaudeTool above, which forces exactly one tool and returns only its parsed input. This one

@@ -1,3 +1,4 @@
+import { isFreeBeta } from '@/lib/beta';
 import { Resend } from 'resend';
 import type { ContactCategory } from '@/lib/contact';
 
@@ -50,16 +51,19 @@ export async function sendEmailVerificationEmail(userEmail: string, userName: st
   const safeName = escapeHtml(userName?.trim() || 'Twórco');
   const safeLink = escapeHtml(verifyLink);
 
+  // Free beta (lib/beta.ts): the confirmed address unlocks PRO for the whole beta, not 7 days.
+  const unlock = isFreeBeta() ? 'darmowy plan PRO na czas bety' : '7 dni pełnego pakietu PRO';
+
   const result = await getResendClient().emails.send({
     from,
     to: userEmail,
-    subject: 'PostFly - potwierdź adres e-mail i odblokuj 7 dni PRO',
+    subject: isFreeBeta() ? 'PostFly - potwierdź adres e-mail i odblokuj darmowy plan PRO' : 'PostFly - potwierdź adres e-mail i odblokuj 7 dni PRO',
     text:
-      `Cześć ${userName || 'Twórco'}!\n\nWitamy w PostFly. Potwierdź adres e-mail, aby odblokować 7 dni pełnego pakietu PRO:\n` +
+      `Cześć ${userName || 'Twórco'}!\n\nWitamy w PostFly. Potwierdź adres e-mail, aby odblokować ${unlock}:\n` +
       `${verifyLink}\n\nLink jest ważny 3 dni. Jeśli to nie Ty zakładałeś konto, zignoruj tę wiadomość.\n\nPozdrawiamy,\nZespół PostFly`,
     html:
       '<div style="font-family:Inter,Arial,sans-serif;line-height:1.6;color:#111827">' +
-      `<p>Cześć ${safeName}!</p><p>Witamy w <strong>PostFly</strong>. Potwierdź adres e-mail, aby odblokować <strong>7 dni pełnego pakietu PRO</strong>.</p>` +
+      `<p>Cześć ${safeName}!</p><p>Witamy w <strong>PostFly</strong>. Potwierdź adres e-mail, aby odblokować <strong>${unlock}</strong>.</p>` +
       `<p><a href="${safeLink}" style="display:inline-block;padding:10px 18px;border-radius:8px;background:#f97316;color:#ffffff;text-decoration:none;font-weight:600">Potwierdź adres e-mail</a></p>` +
       `<p style="font-size:13px;color:#6b7280">Link jest ważny 3 dni. Jeśli to nie Ty zakładałeś konto, zignoruj tę wiadomość.</p>` +
       '<p>Pozdrawiamy,<br/>Zespół PostFly</p></div>',

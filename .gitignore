@@ -32,3 +32,7 @@ pnpm-debug.log*
 
 # AI eval reports (npm run eval:captions)
 evals/results/
+
+# Landing showcase recordings (marketing/): Playwright output and raw clips
+.marketing-output/
+.marketing-raw/

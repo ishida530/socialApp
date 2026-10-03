@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   description: 'Jak usunąć swoje dane z Postfly, w tym dane z Facebooka i Instagrama. How to delete your data from Postfly.',
 };
 
-const CONTACT_EMAIL = 'pawel.sawczuk.email@gmail.com';
+const CONTACT_EMAIL = 'hello@postfly.pl';
 
 export default function DataDeletionPage() {
   return (
@@ -25,7 +25,7 @@ export default function DataDeletionPage() {
         </div>
 
         <h1 className="text-3xl font-semibold tracking-tight">Usuwanie danych z Postfly</h1>
-        <p className="mt-2 text-sm text-muted-foreground">Data ostatniej aktualizacji: 25 września 2026 r.</p>
+        <p className="mt-2 text-sm text-muted-foreground">Data ostatniej aktualizacji: 3 października 2026 r.</p>
 
         <section className="mt-8 space-y-4 text-sm leading-6 text-muted-foreground">
           <p>

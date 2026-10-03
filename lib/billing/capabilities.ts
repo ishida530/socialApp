@@ -89,7 +89,7 @@ function resolveMonthlyVideoLabel(plan: typeof PAID_PLAN_ORDER[number]) {
   }
 
   if (limits.soft_video_uploads_limit !== null) {
-    return `Limit miekki ${limits.soft_video_uploads_limit}`;
+    return `Orientacyjnie do ${limits.soft_video_uploads_limit}`;
   }
 
   return 'Brak twardego limitu';
@@ -126,7 +126,7 @@ export function buildBillingCapabilities(): BillingCapabilitiesResponse {
       socialAccounts: PLAN_LIMITS.FREE.social_accounts,
       videoUploads: PLAN_LIMITS.FREE.video_uploads,
       maxScheduleAheadHours: PLAN_LIMITS.FREE.max_schedule_ahead_hours,
-      subtitle: `Free: ${PLAN_LIMITS.FREE.social_accounts} kanał social, planowanie do ${PLAN_LIMITS.FREE.max_schedule_ahead_hours}h`,
+      subtitle: `Free: ${PLAN_LIMITS.FREE.social_accounts} konto social, planowanie do ${Math.round(PLAN_LIMITS.FREE.max_schedule_ahead_hours! / 24)} dni naprzód`,
     },
     trial: {
       days: NEW_USER_PRO_TRIAL_DAYS,
@@ -142,7 +142,7 @@ export const FALLBACK_BILLING_CAPABILITIES: BillingCapabilitiesResponse = {
     socialAccounts: 1,
     videoUploads: 3,
     maxScheduleAheadHours: 72,
-    subtitle: 'Free: 1 kanał social, planowanie do 72h',
+    subtitle: 'Free: 1 konto social, planowanie do 3 dni naprzód',
   },
   trial: {
     days: 7,
@@ -175,7 +175,7 @@ export const FALLBACK_BILLING_CAPABILITIES: BillingCapabilitiesResponse = {
       maxSocialAccounts: 10,
       accountsPerPlatformLabel: 'W ramach limitu planu',
       multiAccountPerPlatformEnabled: true,
-      monthlyVideoLabel: 'Limit miekki 100',
+      monthlyVideoLabel: 'Orientacyjnie do 100',
       aiAutopilot: true,
       aiAutopilotRunsLimit: 15,
       aiAutopilotLabel: '15 / mies.',

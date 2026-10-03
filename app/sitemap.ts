@@ -4,8 +4,8 @@ import { getSiteUrl } from '@/lib/site-url';
 const siteUrl = getSiteUrl();
 
 const LAST_MODIFIED = {
-  landing: new Date('2026-03-07T00:00:00.000Z'),
-  legal: new Date('2026-03-02T00:00:00.000Z'),
+  landing: new Date('2026-10-03T00:00:00.000Z'),
+  legal: new Date('2026-10-03T00:00:00.000Z'),
 } as const;
 
 export default function sitemap(): MetadataRoute.Sitemap {

@@ -78,7 +78,7 @@ export function PlatformCaptionTab({
   // TikTok guideline 2a ("allow users to enter ... Title"): for a TikTok video the caption IS the
   // post title TikTok receives (post_info.title); for a photo post there's a separate title
   // (max 90) plus a description - both labelled as what TikTok calls them.
-  const captionLabel = isTikTokPhoto ? 'Opis (Description)' : isTikTok ? 'Tytuł (Title)' : 'Caption';
+  const captionLabel = isTikTokPhoto ? 'Opis (Description)' : isTikTok ? 'Tytuł (Title)' : 'Opis';
   const limit = isTikTokPhoto ? 4000 : PLATFORM_CAPTION_LIMIT[job.socialAccount.platform];
   const remaining = limit - job.caption.length;
   const showCounter = remaining <= CHAR_WARNING_THRESHOLD;
@@ -134,8 +134,7 @@ export function PlatformCaptionTab({
             and platform reviewers (TikTok, Google, Meta) both look for this. */}
         {job.aiCaption && (
           <p className="mt-1.5 text-xs text-muted-foreground">
-            Propozycja AI na podstawie Twojej notatki i materiału - sprawdź i popraw przed publikacją.{' '}
-            <span lang="en">(AI suggestion - review and edit before publishing.)</span>
+            Propozycja AI na podstawie Twojej notatki i materiału - sprawdź i popraw przed publikacją.
           </p>
         )}
       </div>
@@ -178,7 +177,7 @@ export function PlatformCaptionTab({
         <div>
           <label className="flex items-center gap-2 text-sm font-medium text-foreground mb-2">
             <AtSign className="w-4 h-4" />
-            Oznacz artystę (feat.)
+            Oznacz osoby lub konta (@)
           </label>
           <ChipInput
             values={job.mentions}
