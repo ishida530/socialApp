@@ -534,7 +534,12 @@ export async function enqueueDraftGroupOptimally(userId: string, postGroupId: st
   // TikTok never goes through the automatic/optimal-time path (2026-09-30, guideline 5c): its
   // consent has to be given by clicking Publish in the web composer, so it always stays a DRAFT
   // here (preserved via skippedPlatforms below) for the user to finish there.
-  const readyJobs = draftJobs.filter((job) => job.socialAccount.platform !== 'TIKTOK');
+  // YouTube likewise without a visibility the user picked (2026-10-03, YouTube API policy).
+  const readyJobs = draftJobs.filter(
+    (job) =>
+      job.socialAccount.platform !== 'TIKTOK' &&
+      !(job.socialAccount.platform === 'YOUTUBE' && (!job.youtubePrivacyStatus || !job.title?.trim())),
+  );
   const skippedPlatforms = draftJobs
     .filter((job) => !readyJobs.includes(job))
     .map((job) => job.socialAccount.platform as SocialPlatform);

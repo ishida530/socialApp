@@ -89,7 +89,13 @@ export type GetCampaignReportResult = { ok: true; report: CampaignReport } | { o
 
 // Finds a campaign by exact name match (case-insensitive) OR by ID - a Telegram user will
 // naturally type the name back ("/campaign-report Premiera singla"), not remember a cuid.
-export async function getCampaignReport(userId: string, nameOrId: string): Promise<GetCampaignReportResult> {
+// excludeYouTube (2026-10-03, Google Limited Use): set when the report is handed to the AI - YouTube
+// API data is shown to the user on screens but never sent to an AI service.
+export async function getCampaignReport(
+  userId: string,
+  nameOrId: string,
+  options: { excludeYouTube?: boolean } = {},
+): Promise<GetCampaignReportResult> {
   const query = nameOrId.trim();
   const campaign = await prisma.campaign.findFirst({
     where: {
@@ -104,7 +110,11 @@ export async function getCampaignReport(userId: string, nameOrId: string): Promi
   }
 
   const jobs = await prisma.publishJob.findMany({
-    where: { campaignId: campaign.id, status: 'SUCCESS' },
+    where: {
+      campaignId: campaign.id,
+      status: 'SUCCESS',
+      ...(options.excludeYouTube ? { socialAccount: { platform: { not: 'YOUTUBE' as const } } } : {}),
+    },
     select: { id: true, socialAccount: { select: { platform: true } } },
   });
 

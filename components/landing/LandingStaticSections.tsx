@@ -236,7 +236,8 @@ export function LandingIntegrationsSection() {
             ))}
           </m.div>
 
-          <m.details variants={item} className="mt-6 text-xs text-muted-foreground">
+          {/* Open by default (2026-10-03 audit): reviewers must see the English summary without a click. */}
+          <m.details open variants={item} className="mt-6 text-xs text-muted-foreground">
             <summary className="cursor-pointer select-none">In English (for platform reviewers)</summary>
             <p lang="en" className="mt-2">
             In English: Postfly is a social media scheduler. Users connect their own Facebook Page, Instagram

@@ -4,7 +4,7 @@ import { prisma } from '@/lib/server/prisma';
 import { badRequest, notFound, serverError, tooManyRequests, unauthorized } from '@/lib/server/http';
 import { consumeRateLimit } from '@/lib/server/rate-limit';
 import { generatePlatformBundles, previewImageUrls } from '@/lib/server/composer-drafts';
-import { AI_QUOTA_EXHAUSTED_MESSAGE } from '@/lib/server/subscription';
+import { aiQuotaDeniedMessage } from '@/lib/server/subscription';
 import { collectContentWarnings } from '@/lib/server/content-safety';
 import { PUBLIC_SOCIAL_ACCOUNT_SELECT } from '@/lib/server/public-fields';
 
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     // the template fallback would just prefix the current caption again ("Krótka aktualizacja:
     // Krótka aktualizacja: ..."), so keep the draft unchanged and say what happened instead.
     if (!aiGenerated && aiUnavailableReason === 'quota') {
-      return NextResponse.json({ message: AI_QUOTA_EXHAUSTED_MESSAGE }, { status: 429 });
+      return NextResponse.json({ message: await aiQuotaDeniedMessage(user.userId) }, { status: 429 });
     }
     if (!aiGenerated) {
       return NextResponse.json(

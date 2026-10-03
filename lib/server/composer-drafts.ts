@@ -1,7 +1,7 @@
 import { Platform } from '@prisma/client';
 import { orchestrateContent } from './smart-autopilot/orchestrator';
 import type { ScheduleSlot } from './smart-autopilot/types';
-import { AI_QUOTA_EXHAUSTED_MESSAGE, hasAiGenerationQuota, recordAiGeneration } from './subscription';
+import { aiQuotaDeniedMessage, hasAiGenerationQuota, recordAiGeneration } from './subscription';
 import { logError } from './observability';
 
 type PlatformBundle = {
@@ -50,7 +50,7 @@ export async function generatePlatformBundles(
 
     return {
       bundlesByPlatform: new Map(result.platformBundles.map((bundle) => [bundle.platform, bundle])),
-      orchestrationWarning: (quotaOk ? null : AI_QUOTA_EXHAUSTED_MESSAGE) as string | null,
+      orchestrationWarning: (quotaOk ? null : await aiQuotaDeniedMessage(userId)) as string | null,
       // false = the AI didn't write the copy (provider unavailable or quota used up) and the
       // captions are the user's own note.
       aiGenerated,

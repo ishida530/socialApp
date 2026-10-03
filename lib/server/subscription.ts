@@ -361,14 +361,20 @@ export async function getSubscriptionSnapshot(userId: string) {
       },
       ai_generations: {
         count: aiGenerationsUsage.count,
-        limit: resolveAiGenerationsLimit(effective),
+        limit: resolveAiGenerationsLimit(effective, subscription.plan),
       },
     },
   };
 }
 
-function resolveAiGenerationsLimit(effective: ReturnType<typeof resolveEffectivePlan>) {
-  return effective.trial?.isActive ? TRIAL_AI_GENERATIONS : resolvePlanLimits(effective.effectivePlan).ai_generations;
+// Free beta (2026-10-03, founder review): beta PRO accounts get the trial-sized AI allowance (50 a
+// month), not PRO's 600 - the API bill is the only cost that scales with sign-ups. Accounts that are
+// actually on a paid/assigned plan (subscription plan above FREE) keep that plan's limit.
+function resolveAiGenerationsLimit(effective: ReturnType<typeof resolveEffectivePlan>, basePlan: PlanTier) {
+  if (effective.trial?.isActive || (isFreeBeta() && basePlan === PlanTier.FREE && effective.effectivePlan === PlanTier.PRO)) {
+    return TRIAL_AI_GENERATIONS;
+  }
+  return resolvePlanLimits(effective.effectivePlan).ai_generations;
 }
 
 // AI generation quota (2026-10-02, AI review): post-copy generation, "Wygeneruj ponownie" and the
@@ -382,7 +388,12 @@ export async function hasAiGenerationQuota(userId: string) {
 
   try {
     const { subscription, user } = await resolveSubscriptionContext(userId);
-    const limit = resolveAiGenerationsLimit(resolveEffectivePlan(subscription.plan, user));
+    // No AI before the email is confirmed - mass sign-ups on throwaway addresses must not cost
+    // anything (2026-10-03). Reviewer accounts (REVIEWER_EMAILS) are always verified by hand.
+    if (!user.emailVerifiedAt) {
+      return false;
+    }
+    const limit = resolveAiGenerationsLimit(resolveEffectivePlan(subscription.plan, user), subscription.plan);
     if (limit === null) {
       return true;
     }
@@ -403,5 +414,17 @@ export async function recordAiGeneration(userId: string) {
   await incrementUsage(userId, 'ai_generations').catch(() => {});
 }
 
-export const AI_QUOTA_EXHAUSTED_MESSAGE =
-  'Wykorzystano miesięczny limit generowania tekstów AI w Twoim planie. Opis możesz edytować ręcznie albo zmienić plan.';
+export const AI_EMAIL_UNVERIFIED_MESSAGE =
+  'Teksty AI odblokujesz po potwierdzeniu adresu e-mail (link jest w Twojej skrzynce). Do tego czasu opis możesz napisać ręcznie.';
+
+// Why AI was refused (2026-10-03): an unconfirmed email is not an exhausted limit - say which one.
+export async function aiQuotaDeniedMessage(userId: string) {
+  const user = await prisma.user
+    .findUnique({ where: { id: userId }, select: { emailVerifiedAt: true } })
+    .catch(() => null);
+  return user && !user.emailVerifiedAt ? AI_EMAIL_UNVERIFIED_MESSAGE : AI_QUOTA_EXHAUSTED_MESSAGE;
+}
+
+export const AI_QUOTA_EXHAUSTED_MESSAGE = isFreeBeta()
+  ? 'Wykorzystano miesięczny limit tekstów AI w becie - odnowi się 1. dnia miesiąca. Opis możesz napisać lub poprawić ręcznie.'
+  : 'Wykorzystano miesięczny limit generowania tekstów AI w Twoim planie. Opis możesz edytować ręcznie albo zmienić plan.';

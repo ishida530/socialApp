@@ -4,7 +4,7 @@ import { prisma } from '@/lib/server/prisma';
 import { badRequest, serverError, tooManyRequests, unauthorized } from '@/lib/server/http';
 import { suggestCommunicationStyle } from '@/lib/server/communication-style';
 import { consumeRateLimit } from '@/lib/server/rate-limit';
-import { AI_QUOTA_EXHAUSTED_MESSAGE, hasAiGenerationQuota, recordAiGeneration } from '@/lib/server/subscription';
+import { aiQuotaDeniedMessage, hasAiGenerationQuota, recordAiGeneration } from '@/lib/server/subscription';
 
 const DRAFT_MAX_LENGTH = 500;
 
@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
       return tooManyRequests('Too many requests. Try again later.', rateLimit.retryAfterSec);
     }
     if (!(await hasAiGenerationQuota(user.userId))) {
-      return NextResponse.json({ message: AI_QUOTA_EXHAUSTED_MESSAGE }, { status: 429 });
+      return NextResponse.json({ message: await aiQuotaDeniedMessage(user.userId) }, { status: 429 });
     }
 
     const body = (await request.json().catch(() => ({}))) as { draft?: string };

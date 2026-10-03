@@ -9,7 +9,8 @@
 // integrations set up before per-account keys keep working until they switch to a key.
 import { timingSafeEqual } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
-import { badRequest, serverError, unauthorized } from '@/lib/server/http';
+import { badRequest, serverError, tooManyRequests, unauthorized } from '@/lib/server/http';
+import { consumeRateLimit } from '@/lib/server/rate-limit';
 import { ingestExternalContent, type ExternalContentPayload } from '@/lib/server/external-content';
 import { resolveIntegrationKey } from '@/lib/server/integration-keys';
 import { prisma } from '@/lib/server/prisma';
@@ -117,6 +118,12 @@ export async function POST(request: NextRequest) {
     const userId = await resolveTargetUserId(request);
     if (!userId) {
       return unauthorized('Invalid integration key');
+    }
+
+    // Each intake can cost AI calls - cap the rate per account (2026-10-03, security review).
+    const rateLimit = await consumeRateLimit({ key: `external:intake:${userId}`, limit: 30, windowMs: 60 * 60 * 1000 });
+    if (!rateLimit.allowed) {
+      return tooManyRequests('Too many intake requests. Try again later.', rateLimit.retryAfterSec);
     }
 
     const body = (await request.json()) as IntakeBody;

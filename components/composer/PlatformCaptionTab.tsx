@@ -146,7 +146,7 @@ export function PlatformCaptionTab({
           </label>
           <input
             value={job.title ?? ''}
-            maxLength={isTikTokPhoto ? 90 : undefined}
+            maxLength={isTikTokPhoto ? 90 : 100}
             onChange={(event) => onUpdateField(job.id, { title: event.target.value })}
             className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
           />

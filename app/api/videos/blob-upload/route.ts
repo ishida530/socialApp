@@ -117,6 +117,8 @@ export async function POST(request: NextRequest) {
               'image/webp',
             ],
             addRandomSuffix: true,
+            // Same 500MB cap as the server upload route (2026-10-03, security review).
+            maximumSizeInBytes: 500 * 1024 * 1024,
             validUntil,
             tokenPayload,
           };

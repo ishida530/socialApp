@@ -3,8 +3,24 @@ import { prisma } from '@/lib/server/prisma';
 import { readFile } from 'fs/promises';
 import { getAuthUserFromRequest } from '@/lib/server/auth';
 import { isValidSignedVideoSource } from '@/lib/server/video-source-signature';
+import { isOwnMediaSourceUrl } from '@/lib/server/url-safety';
 
 export const dynamic = 'force-dynamic';
+
+function mediaContentType(mediaType: string, sourceUrl: string) {
+  const path = sourceUrl.split('?')[0].toLowerCase();
+  if (mediaType === 'IMAGE') {
+    if (path.endsWith('.png')) return 'image/png';
+    if (path.endsWith('.webp')) return 'image/webp';
+    return 'image/jpeg';
+  }
+  if (path.endsWith('.mov')) return 'video/quicktime';
+  if (path.endsWith('.mkv')) return 'video/x-matroska';
+  if (path.endsWith('.3gp')) return 'video/3gpp';
+  if (path.endsWith('.3g2')) return 'video/3gpp2';
+  if (path.endsWith('.mpeg') || path.endsWith('.mpg')) return 'video/mpeg';
+  return 'video/mp4';
+}
 
 function hasValidSourceSignature(request: NextRequest, videoId: string) {
   const exp = request.nextUrl.searchParams.get('exp');
@@ -27,6 +43,7 @@ async function resolveSourceResponse(videoId: string) {
       sourceUrl: true,
       localPath: true,
       status: true,
+      mediaType: true,
     },
   });
 
@@ -34,20 +51,30 @@ async function resolveSourceResponse(videoId: string) {
     return null;
   }
 
+  // Only media Postfly stored itself is proxied (2026-10-03, SSRF review), and the response type is
+  // forced from our own record - never the upstream Content-Type.
+  const contentType = mediaContentType(video.mediaType, video.sourceUrl);
+
   if (video.localPath) {
     const fileBuffer = await readFile(video.localPath);
     return new NextResponse(fileBuffer, {
       status: 200,
       headers: {
-        'Content-Type': 'video/mp4',
+        'Content-Type': contentType,
         'Cache-Control': 'public, max-age=300',
+        'X-Content-Type-Options': 'nosniff',
       },
     });
+  }
+
+  if (!isOwnMediaSourceUrl(video.sourceUrl)) {
+    return null;
   }
 
   const upstream = await fetch(video.sourceUrl, {
     method: 'GET',
     cache: 'no-store',
+    redirect: 'error',
   });
 
   if (!upstream.ok || !upstream.body) {
@@ -59,9 +86,10 @@ async function resolveSourceResponse(videoId: string) {
   return new NextResponse(upstream.body, {
     status: 200,
     headers: {
-      'Content-Type': upstream.headers.get('content-type') ?? 'video/mp4',
+      'Content-Type': contentType,
       'Accept-Ranges': upstream.headers.get('accept-ranges') ?? 'bytes',
       'Cache-Control': 'public, max-age=300',
+      'X-Content-Type-Options': 'nosniff',
       ...(contentLength ? { 'Content-Length': contentLength } : {}),
     },
   });
@@ -118,12 +146,14 @@ export async function HEAD(
       userId: true,
       sourceUrl: true,
       status: true,
+      mediaType: true,
     },
   });
 
-  if (!video || video.status !== 'READY') {
+  if (!video || video.status !== 'READY' || !isOwnMediaSourceUrl(video.sourceUrl)) {
     return new NextResponse(null, { status: 404 });
   }
+  const contentType = mediaContentType(video.mediaType, video.sourceUrl);
 
   const signedAccess = hasValidSourceSignature(request, params.id);
   if (!signedAccess) {
@@ -144,6 +174,7 @@ export async function HEAD(
   const upstream = await fetch(video.sourceUrl, {
     method: 'HEAD',
     cache: 'no-store',
+    redirect: 'error',
   });
 
   const contentLength = upstream.headers.get('content-length');
@@ -151,9 +182,10 @@ export async function HEAD(
   return new NextResponse(null, {
     status: upstream.ok ? 200 : 404,
     headers: {
-      'Content-Type': upstream.headers.get('content-type') ?? 'video/mp4',
+      'Content-Type': contentType,
       'Accept-Ranges': upstream.headers.get('accept-ranges') ?? 'bytes',
       'Cache-Control': 'public, max-age=300',
+      'X-Content-Type-Options': 'nosniff',
       ...(contentLength ? { 'Content-Length': contentLength } : {}),
     },
   });

@@ -75,7 +75,7 @@ describe('publish-processor - LinkedIn', () => {
     const { user } = await createTestUser();
     cleanupUserId = user.id;
     const account = await createSocialAccount(user.id, 'LINKEDIN', { accessToken: encrypt('token') });
-    const video = await createVideo(user.id, { mediaType: 'IMAGE', sourceUrl: 'https://example.com/dom-na-sprzedaz.jpg' });
+    const video = await createVideo(user.id, { mediaType: 'IMAGE', sourceUrl: 'https://test.public.blob.vercel-storage.com/dom-na-sprzedaz.jpg' });
 
     const job = await prisma.publishJob.create({
       data: {
@@ -101,7 +101,7 @@ describe('publish-processor - LinkedIn', () => {
         };
       }
 
-      if (url === 'https://example.com/dom-na-sprzedaz.jpg') {
+      if (url === 'https://test.public.blob.vercel-storage.com/dom-na-sprzedaz.jpg') {
         return { ok: true, text: async () => '', arrayBuffer: async () => new TextEncoder().encode('fake-image-bytes').buffer };
       }
 
@@ -126,7 +126,7 @@ describe('publish-processor - LinkedIn', () => {
 
     expect(calls.map((c) => c.url)).toEqual([
       'https://api.linkedin.com/rest/images?action=initializeUpload',
-      'https://example.com/dom-na-sprzedaz.jpg',
+      'https://test.public.blob.vercel-storage.com/dom-na-sprzedaz.jpg',
       'https://upload.linkedin.com/put-here',
       'https://api.linkedin.com/rest/posts',
     ]);

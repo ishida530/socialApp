@@ -42,6 +42,16 @@ export default function LoginPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     setSource(params.get('source') ?? '');
+
+    // Google sign-in for an account with 2FA (2026-10-03, security review): the callback sends the
+    // short-lived pending token in the URL fragment (never reaches server logs) - continue with the
+    // code step here, exactly like after a correct password.
+    const hash = new URLSearchParams(window.location.hash.slice(1));
+    const googlePending = hash.get('2fa');
+    if (googlePending) {
+      setPendingToken(googlePending);
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
   }, []);
 
   useEffect(() => {
@@ -273,6 +283,19 @@ export default function LoginPage() {
           <GoogleGLogo className="h-5 w-5" />
           {isGoogleSubmitting ? 'Przekierowanie do Google...' : 'Zaloguj się przez Google'}
         </button>
+        {/* Google sign-in can create an account (2026-10-03, founder review): the terms must be
+            accepted there too, not only in the email registration form. */}
+        <p className="-mt-2 text-xs text-muted-foreground text-center">
+          Kontynuując przez Google, akceptujesz{' '}
+          <Link href="/terms" target="_blank" className="text-primary hover:underline">
+            Regulamin
+          </Link>{' '}
+          i potwierdzasz zapoznanie się z{' '}
+          <Link href="/privacy" target="_blank" className="text-primary hover:underline">
+            Polityką prywatności
+          </Link>
+          .
+        </p>
 
         <p className="text-sm text-muted-foreground text-center">
           Nie masz konta?{' '}

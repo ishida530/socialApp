@@ -273,7 +273,7 @@ async function executeTool(userId: string, name: string, input: unknown): Promis
         return JSON.stringify({ error: 'Brak nazwy kampanii i brak aktywnej kampanii do pokazania.' });
       }
 
-      return JSON.stringify(await getCampaignReport(userId, target));
+      return JSON.stringify(await getCampaignReport(userId, target, { excludeYouTube: true }));
     }
 
     if (name === 'list_campaigns') {
@@ -284,7 +284,8 @@ async function executeTool(userId: string, name: string, input: unknown): Promis
     }
 
     if (name === 'get_follower_growth') {
-      const growth = await getFollowerGrowth(userId);
+      // YouTube API data never reaches the AI (2026-10-03, Google Limited Use review).
+      const growth = (await getFollowerGrowth(userId)).filter((entry) => entry.platform !== 'YOUTUBE');
       return JSON.stringify({ growth });
     }
 

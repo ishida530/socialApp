@@ -46,6 +46,7 @@ test('successful registration with valid data redirects to the dashboard', async
   await page.getByPlaceholder('Jan Kowalski').fill('Nowy Użytkownik');
   await page.getByPlaceholder('jan@postfly.app').fill('nowy@postfly.app');
   await page.getByPlaceholder('Minimum 8 znaków').fill('bezpieczne-haslo-123');
+  await page.getByRole('checkbox', { name: /Akceptuję Regulamin/ }).check();
   await page.getByRole('button', { name: 'Utwórz konto' }).click();
 
   await expect(page.getByText('Konto utworzone.')).toBeVisible();
@@ -72,6 +73,7 @@ test('registration with an already-used email shows an error and stays on the pa
   await page.getByPlaceholder('Jan Kowalski').fill('Istniejący Użytkownik');
   await page.getByPlaceholder('jan@postfly.app').fill('istnieje@postfly.app');
   await page.getByPlaceholder('Minimum 8 znaków').fill('bezpieczne-haslo-123');
+  await page.getByRole('checkbox', { name: /Akceptuję Regulamin/ }).check();
   await page.getByRole('button', { name: 'Utwórz konto' }).click();
 
   await expect(page.getByText('Rejestracja nie powiodła się.')).toBeVisible();

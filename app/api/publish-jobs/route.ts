@@ -109,11 +109,16 @@ export async function POST(request: NextRequest) {
     if (socialAccount.platform === 'TIKTOK') {
       return badRequest('Posty na TikTok publikujesz z kreatora posta (wymagany wybór prywatności i zgoda).');
     }
+    // Same for YouTube (2026-10-03, YouTube API policy): visibility must be the user's explicit choice.
+    if (socialAccount.platform === 'YOUTUBE') {
+      return badRequest('Filmy na YouTube publikujesz z kreatora posta (wymagany wybór widoczności).');
+    }
 
     const job = await prisma.publishJob.create({
       data: {
         scheduledFor,
-        status: body.status ?? 'PENDING',
+        // Never a client-chosen terminal state (SUCCESS/FAILED would corrupt stats).
+        status: 'PENDING',
         postGroupId: randomUUID(),
         video: { connect: { id: body.videoId } },
         socialAccount: { connect: { id: body.socialAccountId } },

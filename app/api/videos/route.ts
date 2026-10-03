@@ -32,7 +32,8 @@ export async function GET(request: NextRequest) {
             }
           : {}),
       },
-      include: { user: true, publishJobs: true },
+      // No `user` include: it returned the whole User row (password hash, 2FA secret) to the client.
+      include: { publishJobs: true },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -46,43 +47,5 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
-  try {
-    const user = getAuthUserFromRequest(request);
-    const body = (await request.json()) as {
-      title?: string;
-      description?: string;
-      sourceUrl?: string;
-      thumbnailUrl?: string;
-      durationSec?: number;
-      status?: VideoStatus;
-    };
-
-    if (!body.title || !body.sourceUrl) {
-      return badRequest('Validation failed', [
-        'title: Tytuł jest wymagany',
-        'sourceUrl: sourceUrl jest wymagany',
-      ]);
-    }
-
-    const video = await prisma.video.create({
-      data: {
-        title: body.title,
-        description: body.description,
-        sourceUrl: body.sourceUrl,
-        thumbnailUrl: body.thumbnailUrl,
-        durationSec: body.durationSec,
-        status: body.status ?? VideoStatus.UPLOADED,
-        user: { connect: { id: user.userId } },
-      },
-    });
-
-    return NextResponse.json(video);
-  } catch (error) {
-    if (error instanceof Error && error.message === 'Unauthorized') {
-      return unauthorized();
-    }
-
-    return serverError(error);
-  }
-}
+// POST was removed (2026-10-03, security review): it accepted any sourceUrl plus a client-chosen
+// status. Media enters only through the upload routes (videos/upload, videos/blob-upload).

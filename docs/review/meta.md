@@ -3,7 +3,8 @@
 Facebook i Instagram łączą się przez **Facebook Login** (Instagram to konto firmowe lub twórcy podpięte do Strony).
 Zasady nagrań Meta: [Screen Recordings](https://developers.facebook.com/docs/app-review/submission-guide/screen-recordings/).
 W skrócie:
-- angielski interfejs albo angielskie napisy;
+- angielski interfejs albo angielskie napisy (okno logowania Facebooka najlepiej po angielsku: na czas nagrania ustaw język konta FB na English);
+- pasek adresu przeglądarki widoczny w każdej scenie;
 - bez dźwięku, 1080p;
 - pokazać logowanie, udzielanie uprawnień i użycie **każdego** zgłoszonego uprawnienia.
 
@@ -29,6 +30,7 @@ W [Meta for Developers](https://developers.facebook.com/apps) → aplikacja Post
   - Terms of Service URL `https://postfly.pl/terms`;
   - **User data deletion**: „Data deletion instructions URL” = `https://postfly.pl/data-deletion`;
   - ikona 1024×1024, kategoria i e-mail kontaktowy;
+- [ ] **Uprawnienie `email` nie jest zgłoszone ani używane** (Postfly już o nie nie prosi od 3.10.2026). Jeśli w Vercelu jest zmienna `FACEBOOK_OAUTH_SCOPES`, upewnij się, że nie zawiera `email`.
 - [ ] **Facebook Login → Settings → Valid OAuth Redirect URIs**: `https://postfly.pl/api/auth/callback/facebook` i `https://postfly.pl/api/auth/callback/instagram`.
 
 **Jeśli wszystko jest zielone, publikacji nie zgłaszasz.** Nagrywasz tylko to, czego brakuje:
@@ -53,19 +55,19 @@ Jedno nagranie możesz wgrać przy kilku uprawnieniach, które pokazuje.
 | 8 | Ekran statusu → **„Zobacz post”** przy Facebooku i Instagramie → post widoczny na Stronie i w profilu IG. | The post is live on the Facebook Page and the Instagram profile. |
 | 9 | Menu **„Rozwój”** (obserwujący) i **„Analityka”** (statystyki postów). | pages_read_engagement, instagram_basic: the user sees follower counts and statistics of their own posts. |
 
-## 3. Nagranie B: odpowiedzi na komentarze (`pages_manage_engagement`, `instagram_manage_comments`)
+## 3. Nagranie B: odpowiedzi na komentarze (`pages_manage_engagement`, `pages_read_user_content`, `instagram_manage_comments`)
 
 **Nagrywaj na koncie testowym z [README](README.md)** (adres z `REVIEWER_EMAILS`) albo na koncie administratora. Zwykli użytkownicy nie są o te uprawnienia proszeni, dopóki nie zostaną zatwierdzone. Konto recenzenta i konto administratora dostają je automatycznie przy łączeniu Facebooka i Instagrama. Jeśli łączyłeś Stronę wcześniej, rozłącz ją i połącz ponownie, żeby token miał nowe uprawnienia.
 
-Nagraj **osobny film dla każdego z dwóch uprawnień** (Facebook i Instagram):
+Nagraj **osobny film dla Facebooka** (pokazuje oba uprawnienia: `pages_manage_engagement` i `pages_read_user_content`) **i dla Instagrama** (`instagram_manage_comments`). Komentarze są pobierane tylko spod postów opublikowanych przez Postfly w ostatnich 30 dniach, więc najpierw opublikuj post przez Postfly.
 
 | # | Co robisz na ekranie | Napis (EN) |
 |---|---|---|
 | 1 | Logowanie do Postfly (jak w A1). | The user logs in to Postfly. |
-| 2 | **„Połączone konta”** → Facebook (albo Instagram) → **„Kontynuuj z Facebookiem”** → wybierz Stronę lub konto → pokaż na liście uprawnień **pages_manage_engagement** (lub **instagram_manage_comments**) → zaakceptuj. | The user grants permission to manage comments on their own Page / Instagram account. |
+| 2 | **„Połączone konta”** → Facebook (albo Instagram) → **„Kontynuuj z Facebookiem”** → wybierz Stronę lub konto → pokaż na liście uprawnień **pages_manage_engagement** i **pages_read_user_content** (lub **instagram_manage_comments**) → zaakceptuj. | The user grants permission to read and reply to comments on their own Page / Instagram account. |
 | 3 | Z innego konta dodaj komentarz pod postem opublikowanym przez Postfly. | A follower comments on a post the user published with Postfly. |
-| 4 | Postfly → menu **„Społeczność”** → **„🔄 Sprawdź komentarze teraz”**. Komentarz pojawia się na liście. | Postfly reads new comments on the user's own posts. |
-| 5 | Wpisz odpowiedź (albo popraw sugestię) → **„Wyślij”**. | The user replies to the comment from Postfly. Nothing is sent without this click. |
+| 4 | Postfly → menu **„Społeczność”** → **„🔄 Sprawdź komentarze teraz”**. Komentarz pojawia się na liście **z nazwą autora** (zatrzymaj się na niej). | pages_read_user_content: Postfly reads new comments and their authors' names on the user's own posts. |
+| 5 | Pokaż sugestię odpowiedzi AI, **wyraźnie ją popraw** (dopisz słowo) → **„Wyślij”**. | pages_manage_engagement: the AI only suggests a reply; the user edits it and sends it. Nothing is sent without this click. |
 | 6 | Otwórz post na Facebooku lub Instagramie i pokaż odpowiedź pod komentarzem. | The reply appears under the comment on Facebook / Instagram. |
 
 ---
@@ -88,8 +90,9 @@ Nagraj **osobny film dla każdego z dwóch uprawnień** (Facebook i Instagram):
 >    Facebook) on the Facebook or Instagram card. Select the Page (and the Instagram account) and grant the permissions.
 > 3. Publishing: click "Nowy post" (New post) → "Wgraj materiał" (Upload) → "Dalej" (Next) → edit the caption →
 >    "Dalej" → "Opublikuj teraz" (Publish now).
-> 4. Comments: open "Społeczność" (Community) → "Sprawdź komentarze teraz" (Check comments now) → type a reply →
->    "Wyślij" (Send).
+> 4. Comments: first publish a post to the Page via Postfly (step 3), then comment on it from another Facebook account.
+>    In Postfly open "Społeczność" (Community) → "Sprawdź komentarze teraz" (Check comments now) → edit the suggested
+>    reply → "Wyślij" (Send). Only comments under posts published through Postfly in the last 30 days are shown.
 > The UI is in Polish; English names are given in brackets. The screen recordings have English captions.
 
 ## 6. Opisy uprawnień (pole „How will your app use this permission?”)
@@ -101,6 +104,7 @@ Nagraj **osobny film dla każdego z dwóch uprawnień** (Facebook i Instagram):
 - **instagram_basic**: *Reads the connected Instagram account's username, follower count and basic media statistics to identify the account and show the user their results.*
 - **instagram_content_publish**: *Publishes a photo or Reel to the user's own Instagram professional account only after the user writes the caption and clicks "Publish now" in Postfly.*
 - **pages_manage_engagement**: *Lets the user reply to comments under their own Page posts from Postfly's Community screen. Postfly may suggest a reply with AI; the user edits it, and a reply is sent only when the user clicks "Send".*
+- **pages_read_user_content**: *Reads comments (text and the commenter's name) under posts the user published to their own Page through Postfly, so the user can see them on Postfly's Community screen and reply. The data is shown only to that user and deleted when the Page is disconnected.*
 - **instagram_manage_comments**: *Reads new comments under the user's own Instagram posts and lets the user reply from Postfly's Community screen. Postfly may suggest a reply with AI; the user edits it, and a reply is sent only when the user clicks "Send".*
 
 Jeśli w opisie publikacji (`pages_manage_posts`, `instagram_content_publish`) pojawi się pytanie o treść: *The caption may be pre-filled with an AI suggestion based on the user's own note and photo; the user always reviews and edits it before clicking "Publish now".*
@@ -111,7 +115,7 @@ Meta pyta o to przy App Review i przy corocznym Data Use Checkup. Odpowiedzi zgo
 
 | Pytanie | Odpowiedź |
 |---|---|
-| Czy udostępniasz dane z platformy podmiotom przetwarzającym (data processors / service providers)? | **Tak.** Vercel (hosting), Supabase (baza danych), Anthropic (AI: propozycje opisów i odpowiedzi na komentarze, podsumowania wyników). |
+| Czy udostępniasz dane z platformy podmiotom przetwarzającym (data processors / service providers)? | **Tak.** Vercel (hosting i pliki), Supabase (baza danych), Anthropic (AI: propozycje opisów i odpowiedzi na komentarze, podsumowania wyników), Sentry (raporty błędów), Resend (e-maile do użytkownika). |
 | W jakim celu? | *Only to provide Postfly's features to the same user: hosting and storage, and AI suggestions (captions, comment replies, performance tips) that the user reviews and approves. Platform data is never sold, used for advertising or used to train AI models.* |
 | Czy podmioty przetwarzające mają umowę ograniczającą użycie danych? | **Tak**: warunki przetwarzania danych (DPA) Vercela, Supabase i Anthropic. Anthropic nie trenuje modeli na danych przesyłanych przez API. |
 | Czy przekazujesz dane organom publicznym? | **Nie** (poza obowiązkiem prawnym; nie otrzymaliśmy takich żądań). |

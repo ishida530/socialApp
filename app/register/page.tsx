@@ -201,6 +201,23 @@ export default function RegisterPage() {
           <p className="text-xs text-muted-foreground">Hasło musi mieć co najmniej 8 znaków.</p>
         </div>
 
+        {/* Required acceptance (2026-10-03, founder review): art. 8 UŚUDE / art. 13 RODO - the terms
+            and the privacy policy must be available and accepted before the account is created. */}
+        <label className="flex items-start gap-2 text-xs text-muted-foreground">
+          <input type="checkbox" required className="mt-0.5 h-4 w-4 shrink-0 accent-primary" />
+          <span>
+            Akceptuję{' '}
+            <Link href="/terms" target="_blank" className="text-primary hover:underline">
+              Regulamin
+            </Link>{' '}
+            i potwierdzam zapoznanie się z{' '}
+            <Link href="/privacy" target="_blank" className="text-primary hover:underline">
+              Polityką prywatności
+            </Link>
+            .
+          </span>
+        </label>
+
         <button
           type="submit"
           disabled={isSubmitting}
