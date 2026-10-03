@@ -17,6 +17,9 @@ export const CLAUDE_MODELS = {
   // Creative writing quality matters here (actual post copy shown to real audiences). Compare
   // candidates with `npm run eval:captions` before changing it (evals/README.md).
   contentGeneration: process.env.ANTHROPIC_CONTENT_MODEL ?? 'claude-sonnet-5',
+  // Short, low-stakes texts (comment reply suggestions, content ideas, style suggestion) - about a
+  // third of the Sonnet price; post copy and the assistant stay on contentGeneration (2026-10-03).
+  lightweight: process.env.ANTHROPIC_LIGHT_MODEL ?? 'claude-haiku-4-5-20251001',
 };
 
 function getAnthropicConfig() {
@@ -39,6 +42,16 @@ function isRetryableStatus(status: number) {
   return status === 408 || status === 409 || status === 429 || status >= 500;
 }
 
+// Some models reject a forced tool call ("tool_choice: type "tool" and "any" are not supported for
+// this model" - seen with claude-sonnet-5-5 on 2026-10-03). Those models get tool_choice "auto"
+// plus an explicit instruction to answer through the tool; remembered per model for the lifetime
+// of the server instance, so only the very first call pays for the extra round trip.
+const modelsWithoutForcedToolChoice = new Set<string>();
+
+function rejectsForcedToolChoice(status: number, message: string) {
+  return status === 400 && /tool_choice/i.test(message) && /not supported/i.test(message);
+}
+
 function retryDelayMs(response: Response | null, attempt: number) {
   const retryAfter = Number(response?.headers?.get?.('retry-after'));
   if (Number.isFinite(retryAfter) && retryAfter > 0) {
@@ -51,16 +64,23 @@ function retryDelayMs(response: Response | null, attempt: number) {
 // only as template captions ("Krótka aktualizacja: ..."). Logged as an error (Vercel logs, and
 // Sentry once configured) with Anthropic's own error type and message - never the request or key.
 // Account-level problems (credits, key) also email the admin - see lib/server/ai-alerts.ts.
-async function logAnthropicFailure(scope: string, model: string, response: Response) {
-  let type = '';
-  let message = '';
+async function readAnthropicError(response: Response) {
   try {
     const body = (await response.json()) as { error?: { type?: string; message?: string } };
-    type = body.error?.type ?? '';
-    message = body.error?.message ?? '';
+    return { type: body.error?.type ?? '', message: body.error?.message ?? '' };
   } catch {
     // Non-JSON error body - the status code alone is still useful.
+    return { type: '', message: '' };
   }
+}
+
+async function logAnthropicFailure(
+  scope: string,
+  model: string,
+  response: Response,
+  error?: { type: string; message: string },
+) {
+  const { type, message } = error ?? (await readAnthropicError(response));
   const detail = [type, message].filter(Boolean).join(': ').slice(0, 300);
   console.error('[anthropic] request failed', { scope, model, status: response.status, detail });
   await reportAiProviderProblem({ status: response.status, type, message });
@@ -201,9 +221,12 @@ export async function callClaudeTool<T>(params: {
   const timeoutMs = params.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const maxRetries = params.maxRetries ?? DEFAULT_MAX_RETRIES;
 
+  let forcedToolChoiceRejected = false;
+
   for (let attempt = 1; attempt <= maxRetries + 1; attempt += 1) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const forceTool = !modelsWithoutForcedToolChoice.has(params.model);
 
     try {
       const response = await fetch(config.endpoint, {
@@ -216,7 +239,9 @@ export async function callClaudeTool<T>(params: {
         body: JSON.stringify({
           model: params.model,
           max_tokens: params.maxTokens ?? 1024,
-          system: params.system,
+          system: forceTool
+            ? params.system
+            : `${params.system}\n\nOdpowiedz WYŁĄCZNIE wywołaniem narzędzia "${params.tool.name}", bez żadnego tekstu poza nim.`,
           messages: [{ role: 'user', content: params.userContent }],
           tools: [
             {
@@ -225,18 +250,29 @@ export async function callClaudeTool<T>(params: {
               input_schema: params.tool.input_schema,
             },
           ],
-          tool_choice: { type: 'tool', name: params.tool.name },
+          tool_choice: forceTool ? { type: 'tool', name: params.tool.name } : { type: 'auto' },
         }),
         signal: controller.signal,
       });
 
       if (!response.ok) {
+        const error = await readAnthropicError(response);
+
+        // Model without forced tool use: switch to "auto" once and retry right away (doesn't
+        // count as one of the transient-error retries).
+        if (forceTool && !forcedToolChoiceRejected && rejectsForcedToolChoice(response.status, error.message)) {
+          modelsWithoutForcedToolChoice.add(params.model);
+          forcedToolChoiceRejected = true;
+          attempt -= 1;
+          continue;
+        }
+
         if (attempt <= maxRetries && isRetryableStatus(response.status)) {
           await new Promise((resolve) => setTimeout(resolve, retryDelayMs(response, attempt)));
           continue;
         }
 
-        await logAnthropicFailure(params.scope, params.model, response);
+        await logAnthropicFailure(params.scope, params.model, response, error);
         return null;
       }
 

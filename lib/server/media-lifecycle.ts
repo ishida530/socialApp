@@ -54,6 +54,8 @@ export async function cleanupMediaAfterFullPublish(videoId: string) {
     await Promise.all([
       safeDeleteLocalFile(video.localPath),
       safeDeleteBlob(video.sourceUrl),
+      // The AI-preview thumbnail (2026-10-03) lives in Blob too.
+      video.thumbnailUrl ? safeDeleteBlob(video.thumbnailUrl) : Promise.resolve(),
       prisma.video.update({
         where: { id: video.id },
         data: {

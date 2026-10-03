@@ -262,7 +262,8 @@ export function usePostComposerState() {
       });
 
       if (response.data.orchestrationWarning) {
-        toast.warning('AI nie wygenerowało treści automatycznie — uzupełnij caption ręcznie.');
+        // The server says why (AI unavailable vs. the plan's monthly AI quota used up).
+        toast.warning(response.data.orchestrationWarning);
       }
     } catch {
       toast.error('Nie udało się przygotować posta. Spróbuj ponownie.');

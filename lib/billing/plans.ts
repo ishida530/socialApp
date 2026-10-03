@@ -1,6 +1,10 @@
 import { PlanTier } from '@prisma/client';
 
 export const NEW_USER_PRO_TRIAL_DAYS = 7;
+// AI texts during the free PRO trial (2026-10-03): enough to try the product (~10-15 posts on a
+// few platforms), not the full PRO allowance - signing up again with a new address must not be a
+// cheap way to 600 AI texts.
+export const TRIAL_AI_GENERATIONS = 50;
 export const FREE_MAX_SCHEDULE_AHEAD_HOURS = 72;
 
 export type BillingInterval = 'MONTHLY' | 'YEARLY';

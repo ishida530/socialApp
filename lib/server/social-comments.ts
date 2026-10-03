@@ -14,6 +14,8 @@
 // TASK-11.2.7: comment text is DATA, never an instruction - to this code (never eval'd/executed)
 // or to Claude (system prompt below states this explicitly, matching the same pattern already
 // used in telegram-mentor-agent.ts for tool results).
+import { hasAiGenerationQuota, recordAiGeneration } from './subscription';
+import { createContactMasker } from './smart-autopilot/safety';
 import { prisma } from './prisma';
 import { COMMENTS_IN_REVIEW_MESSAGE, commentsFeatureEnabledFor } from './platform-availability';
 import { decryptToken, refreshSocialAccessToken } from './social-oauth';
@@ -97,21 +99,32 @@ const SUGGEST_REPLY_SYSTEM_PROMPT = [
 type SuggestReplyToolResult = { reply?: string; canSuggest?: boolean };
 
 async function suggestReply(
+  userId: string,
   commentText: string,
   authorName: string | null,
   businessDescription: string | null,
   communicationStyle: string | null,
 ): Promise<string | null> {
+  // 2026-10-03 (AI gaps): one suggestion per new comment had no cap - a busy post could run up any
+  // bill. It now uses the account's monthly AI quota; without quota the comment still lands in the
+  // panel, just without a suggested reply.
+  if (!(await hasAiGenerationQuota(userId))) {
+    return null;
+  }
+
+  // A commenter's phone number or email is third-party personal data - masked before it reaches
+  // the AI provider, restored if the suggested reply refers to it.
+  const masker = createContactMasker();
   const userContent = JSON.stringify({
-    accountContext: (businessDescription || '').trim(),
-    communicationStyle: (communicationStyle || '').trim(),
+    accountContext: masker.mask((businessDescription || '').trim()),
+    communicationStyle: masker.mask((communicationStyle || '').trim()),
     commentAuthor: authorName,
-    commentText,
+    commentText: masker.mask(commentText),
   });
 
   const result = await callClaudeTool<SuggestReplyToolResult>({
     scope: 'social-comments',
-    model: CLAUDE_MODELS.contentGeneration,
+    model: CLAUDE_MODELS.lightweight,
     system: SUGGEST_REPLY_SYSTEM_PROMPT,
     userContent,
     tool: {
@@ -134,7 +147,8 @@ async function suggestReply(
     return null;
   }
 
-  return result.reply.trim();
+  await recordAiGeneration(userId);
+  return masker.restore(result.reply.trim());
 }
 
 function formatCommentAlert(platform: string, authorName: string | null, text: string, suggestedReply: string | null): string {
@@ -213,6 +227,7 @@ export async function detectAndNotifyNewComments(
 
       for (const comment of newComments) {
         const suggestedReply = await suggestReply(
+          job.video.userId,
           comment.text,
           comment.authorName,
           job.video.user.businessDescription,

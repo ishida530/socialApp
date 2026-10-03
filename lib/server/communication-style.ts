@@ -41,7 +41,7 @@ export async function suggestCommunicationStyle(
 
   const result = await callClaudeTool<StyleToolResult>({
     scope: 'communication-style',
-    model: CLAUDE_MODELS.contentGeneration,
+    model: CLAUDE_MODELS.lightweight,
     system: REFINE_STYLE_SYSTEM_PROMPT,
     userContent,
     tool: {

@@ -2,6 +2,7 @@ import { Platform } from '@prisma/client';
 import { orchestrateContent } from './smart-autopilot/orchestrator';
 import type { ScheduleSlot } from './smart-autopilot/types';
 import { AI_QUOTA_EXHAUSTED_MESSAGE, hasAiGenerationQuota, recordAiGeneration } from './subscription';
+import { logError } from './observability';
 
 type PlatformBundle = {
   platform: 'TIKTOK' | 'INSTAGRAM' | 'YOUTUBE' | 'FACEBOOK' | 'LINKEDIN';
@@ -66,10 +67,12 @@ export async function generatePlatformBundles(
       hasCriticalSafety: result.analysis?.safetyFlags.some((flag) => flag.severity === 'critical') ?? false,
     };
   } catch (error) {
+    // Internal orchestration errors (duplicate payload, idempotency, validation) are logged, not
+    // shown - the composer toasts orchestrationWarning to the user as-is (2026-10-03).
+    logError('composer-drafts', 'generate-bundles-failed', error, { userId });
     return {
       bundlesByPlatform: new Map<string, PlatformBundle>(),
-      orchestrationWarning:
-        error instanceof Error ? error.message : 'Nie udało się automatycznie wygenerować treści.',
+      orchestrationWarning: 'Nie udało się przygotować opisu automatycznie - uzupełnij go ręcznie albo spróbuj ponownie.',
       aiGenerated: false,
       aiUnavailableReason: 'provider' as 'provider' | 'quota' | null,
       schedule: [] as ScheduleSlot[],

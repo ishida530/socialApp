@@ -32,6 +32,6 @@ export const LANDING_FAQ_ITEMS: LandingFaqItem[] = [
   {
     question: 'Jak działa generowanie opisów przez AI?',
     answer:
-      'AI przygotowuje propozycję opisu i hashtagów na podstawie Twojej notatki i zdjęcia (albo miniatury filmu), osobno dla każdej platformy. To zawsze tylko propozycja: edytujesz ją i sam klikasz „Opublikuj”. Miesięczny limit tekstów AI zależy od planu: Free 20, Starter 200, Pro 600, Business 1500.',
+      'AI przygotowuje propozycję opisu i hashtagów na podstawie Twojej notatki i zdjęcia (albo miniatury filmu), osobno dla każdej platformy. To zawsze tylko propozycja: edytujesz ją i sam klikasz „Opublikuj”. Miesięczny limit tekstów AI zależy od planu: Free 20, Starter 200, Pro 600, Business 1500 (w 7-dniowym okresie próbnym 50).',
   },
 ];

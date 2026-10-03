@@ -5,6 +5,7 @@ import { resolveAppMode } from './app-mode';
 import { isReviewerEmail } from './admin';
 import {
   NEW_USER_PRO_TRIAL_DAYS,
+  TRIAL_AI_GENERATIONS,
   PLAN_CATALOG,
   PLAN_FEATURES,
 } from '@/lib/billing/plans';
@@ -347,10 +348,14 @@ export async function getSubscriptionSnapshot(userId: string) {
       },
       ai_generations: {
         count: aiGenerationsUsage.count,
-        limit: resolvePlanLimits(effective.effectivePlan).ai_generations,
+        limit: resolveAiGenerationsLimit(effective),
       },
     },
   };
+}
+
+function resolveAiGenerationsLimit(effective: ReturnType<typeof resolveEffectivePlan>) {
+  return effective.trial?.isActive ? TRIAL_AI_GENERATIONS : resolvePlanLimits(effective.effectivePlan).ai_generations;
 }
 
 // AI generation quota (2026-10-02, AI review): post-copy generation, "Wygeneruj ponownie" and the
@@ -363,8 +368,8 @@ export async function hasAiGenerationQuota(userId: string) {
   }
 
   try {
-    const effectivePlan = await getEffectivePlan(userId);
-    const limit = resolvePlanLimits(effectivePlan).ai_generations;
+    const { subscription, user } = await resolveSubscriptionContext(userId);
+    const limit = resolveAiGenerationsLimit(resolveEffectivePlan(subscription.plan, user));
     if (limit === null) {
       return true;
     }

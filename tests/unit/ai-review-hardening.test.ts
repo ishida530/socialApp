@@ -303,3 +303,112 @@ describe('13. quality metric', () => {
     expect(captionSimilarity('a b c d', 'a b x y')).toBeCloseTo(2 / 6);
   });
 });
+
+describe('AI gaps (2026-10-03)', () => {
+  const TOOL = { name: 't', description: 't', input_schema: { type: 'object', properties: {} } };
+
+  it('falls back to tool_choice "auto" for a model that rejects forced tool use, and remembers it', async () => {
+    const bodies: Array<{ tool_choice: { type: string }; system: string }> = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init?: RequestInit) => {
+        const body = JSON.parse(init!.body as string);
+        bodies.push(body);
+        if (body.tool_choice.type === 'tool') {
+          return errorResponse(400, 'invalid_request_error', 'tool_choice: type "tool" and "any" are not supported for this model.');
+        }
+        return { ok: true, status: 200, json: async () => ({ content: [{ type: 'tool_use', name: 't', input: { ok: true } }] }) };
+      }),
+    );
+
+    expect(await callClaudeTool({ scope: 'x', model: 'model-without-forced-tools', system: 's', userContent: 'u', tool: TOOL })).toEqual({ ok: true });
+    expect(bodies.map((b) => b.tool_choice.type)).toEqual(['tool', 'auto']);
+    expect(bodies[1].system).toContain('"t"');
+
+    await callClaudeTool({ scope: 'x', model: 'model-without-forced-tools', system: 's', userContent: 'u', tool: TOOL });
+    expect(bodies[2].tool_choice.type).toBe('auto');
+  });
+
+  it('comment reply suggestions: commenter contact details are masked for the AI and the quota is used', async () => {
+    const { detectAndNotifyNewComments } = await import('@/lib/server/social-comments');
+    const { encrypt } = await import('@/lib/server/crypto');
+    const { createSocialAccount, createVideo } = await import('../helpers/fixtures');
+    const { user } = await createTestUser();
+    cleanup.push(user.id);
+    const account = await createSocialAccount(user.id, 'INSTAGRAM', { accessToken: encrypt('token') });
+    const video = await createVideo(user.id);
+    await prisma.publishJob.create({
+      data: {
+        status: 'SUCCESS',
+        postGroupId: `group-${video.id}`,
+        caption: 'x',
+        scheduledFor: new Date(),
+        publishedAt: new Date(),
+        remotePostId: `remote-${video.id}`,
+        videoId: video.id,
+        socialAccountId: account.id,
+      },
+    });
+
+    let sentToAi = '';
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        const href = url.toString();
+        if (href.includes('graph.facebook.com')) {
+          return { ok: true, json: async () => ({ data: [{ id: 'c-1', text: 'Oddzwońcie na 600 100 200', username: 'jan' }] }) };
+        }
+        if (href.includes('api.anthropic.com')) {
+          sentToAi = init!.body as string;
+          return { ok: true, status: 200, json: async () => ({ content: [{ type: 'tool_use', name: 'suggest_comment_reply', input: { canSuggest: true, reply: 'Oddzwonimy na [[TEL_1]]!' } }] }) };
+        }
+        return { ok: true, json: async () => ({ result: { message_id: 1 } }) };
+      }),
+    );
+
+    await detectAndNotifyNewComments({ userId: user.id });
+
+    expect(sentToAi).not.toContain('600 100 200');
+    const stored = await prisma.socialComment.findFirst({ where: { userId: user.id } });
+    expect(stored?.suggestedReply).toBe('Oddzwonimy na 600 100 200!');
+    if (resolveAppMode() !== 'personal') {
+      const usage = await prisma.usageCounter.findFirst({ where: { userId: user.id, metric: 'ai_generations' } });
+      expect(usage?.count).toBe(1);
+    }
+  });
+
+  it('thumbnail endpoint accepts a JPEG frame for a video and rejects non-images', async () => {
+    const { POST } = await import('@/app/api/videos/[id]/thumbnail/route');
+    const { createVideo, authHeaders } = await import('../helpers/fixtures');
+    const { NextRequest } = await import('next/server');
+    const { user, token } = await createTestUser();
+    cleanup.push(user.id);
+    const video = await createVideo(user.id, { mediaType: 'VIDEO' });
+
+    const send = (bytes: Uint8Array<ArrayBuffer>) => {
+      const form = new FormData();
+      form.append('file', new Blob([bytes], { type: 'image/jpeg' }), 'thumbnail.jpg');
+      return POST(new NextRequest(`http://localhost:3000/api/videos/${video.id}/thumbnail`, { method: 'POST', body: form, headers: authHeaders(token) }), {
+        params: Promise.resolve({ id: video.id }),
+      });
+    };
+
+    expect((await send(new Uint8Array([0x00, 0x01, 0x02, 0x03]))).status).toBe(400);
+    const ok = await send(new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]));
+    expect(ok.status).toBe(200);
+  });
+});
+
+describe('trial AI quota (2026-10-03)', () => {
+  it('a trial account gets 50 AI texts, not the full PRO allowance (commercial mode)', async () => {
+    const { hasAiGenerationQuota } = await import('@/lib/server/subscription');
+    const { user } = await createTestUser();
+    cleanup.push(user.id);
+    const periodStart = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1));
+    await prisma.usageCounter.create({ data: { userId: user.id, metric: 'ai_generations', periodStart, count: 49 } });
+    expect(await hasAiGenerationQuota(user.id)).toBe(true);
+
+    await prisma.usageCounter.updateMany({ where: { userId: user.id, metric: 'ai_generations' }, data: { count: 50 } });
+    expect(await hasAiGenerationQuota(user.id)).toBe(resolveAppMode() === 'personal');
+  });
+});

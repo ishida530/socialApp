@@ -130,6 +130,14 @@ export function PlatformCaptionTab({
           placeholder="Caption dla tej platformy..."
           className="w-full h-32 px-4 py-3 bg-secondary/30 border border-border rounded-xl text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary/50"
         />
+        {/* 2026-10-03: say plainly that the text is an AI suggestion the user controls - users
+            and platform reviewers (TikTok, Google, Meta) both look for this. */}
+        {job.aiCaption && (
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            Propozycja AI na podstawie Twojej notatki i materiału - sprawdź i popraw przed publikacją.{' '}
+            <span lang="en">(AI suggestion - review and edit before publishing.)</span>
+          </p>
+        )}
       </div>
 
       {(job.socialAccount.platform === 'YOUTUBE' || isTikTokPhoto) && (
