@@ -283,6 +283,19 @@ export default function LoginPage() {
           <GoogleGLogo className="h-5 w-5" />
           {isGoogleSubmitting ? 'Przekierowanie do Google...' : 'Zaloguj się przez Google'}
         </button>
+        {/* Google sign-in can create an account (2026-10-03, founder review): the terms must be
+            accepted there too, not only in the email registration form. */}
+        <p className="-mt-2 text-xs text-muted-foreground text-center">
+          Kontynuując przez Google, akceptujesz{' '}
+          <Link href="/terms" target="_blank" className="text-primary hover:underline">
+            Regulamin
+          </Link>{' '}
+          i potwierdzasz zapoznanie się z{' '}
+          <Link href="/privacy" target="_blank" className="text-primary hover:underline">
+            Polityką prywatności
+          </Link>
+          .
+        </p>
 
         <p className="text-sm text-muted-foreground text-center">
           Nie masz konta?{' '}

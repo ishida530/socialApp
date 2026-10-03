@@ -509,7 +509,7 @@ async function publishToYouTube(job: PublishInputJob, accessToken: string): Prom
   }
   // YouTube counts the description limit in bytes (Polish diacritics take 2).
   if (title.length > 100 || Buffer.byteLength(description, 'utf8') > 5000) {
-    throw new Error('[youtube-settings-missing] Tytuł (max 100 znaków) lub opis (max 5000 znaków) jest za długi.');
+    throw new Error('[youtube-settings-missing] Tytuł (max 100 znaków) lub opis (max 5000 bajtów, polskie litery liczą się podwójnie) jest za długi.');
   }
   if (!job.youtubePrivacyStatus || !['public', 'unlisted', 'private'].includes(job.youtubePrivacyStatus)) {
     throw new Error('[youtube-settings-missing] Brak wybranej widoczności filmu - wybierz ją w kreatorze posta.');

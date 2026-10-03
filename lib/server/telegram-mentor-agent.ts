@@ -273,7 +273,7 @@ async function executeTool(userId: string, name: string, input: unknown): Promis
         return JSON.stringify({ error: 'Brak nazwy kampanii i brak aktywnej kampanii do pokazania.' });
       }
 
-      return JSON.stringify(await getCampaignReport(userId, target));
+      return JSON.stringify(await getCampaignReport(userId, target, { excludeYouTube: true }));
     }
 
     if (name === 'list_campaigns') {

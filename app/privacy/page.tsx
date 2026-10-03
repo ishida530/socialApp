@@ -252,7 +252,7 @@ export default function PrivacyPage() {
               https://security.google.com/settings/security/permissions
             </a>{' '}
             (dane usuwamy wtedy najpóźniej w ciągu 30 dni). Usunięcia danych możesz też zażądać mailowo (punkt
-            15); realizujemy je w ciągu 7 dni.
+            15); realizujemy je niezwłocznie, nie później niż w ciągu 30 dni.
           </p>
           <p>
             <strong className="text-foreground">Google.</strong> Wykorzystanie i przekazywanie przez Postfly
@@ -306,7 +306,7 @@ export default function PrivacyPage() {
             >
               https://security.google.com/settings/security/permissions
             </a>{' '}
-            (data deleted within 30 days); deletion requests by email are completed within 7 days. Postfly&apos;s
+            (data deleted within 30 days); deletion requests by email are completed within 30 days. Postfly&apos;s
             use and transfer of information received from Google APIs adheres to the{' '}
             <a
               href="https://developers.google.com/terms/api-services-user-data-policy"
