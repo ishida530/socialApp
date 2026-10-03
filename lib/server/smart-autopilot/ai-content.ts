@@ -32,6 +32,13 @@ export const CONTENT_SYSTEM_PROMPT = [
   'Jesli dolaczono obraz, to jest to zdjecie lub kadr z publikowanego materialu: opisz to, co faktycznie na nim widac, i polacz to z opisem tresci. Nie zgaduj marek, nazwisk ani miejsc, ktorych nie da sie jednoznacznie rozpoznac.',
   // 2026-10-02: contact details are masked before they leave our servers.
   'Tokeny w podwojnych nawiasach kwadratowych, np. [[TEL_1]] albo [[EMAIL_1]], to zamaskowane dane kontaktowe wlasciciela konta. Jesli dana informacja pasuje do posta, przepisz token DOKLADNIE w tej postaci (zostanie podmieniony na prawdziwe dane). Nigdy nie wymyslaj wlasnych numerow, adresow ani tokenow.',
+  // 2026-10-03 (caption eval, faithfulness 3.85/5): the model kept adding plausible but unstated
+  // details ("liczba miejsc ograniczona", "chrupiaca skorka", invented legal specifics) and left
+  // empty contact placeholders when the note had no phone number.
+  'FAKTY: uzywaj tylko faktow z opisu tresci, accountContext i obrazu. Nie dopisuj cech produktu, liczb, terminow, cen, gwarancji, ograniczen ("liczba miejsc ograniczona", "tylko dzis"), szczegolow technicznych ani prawnych, ktorych tam nie ma. Mozesz pisac o emocjach i korzysciach ogolnie, ale bez nowych faktow.',
+  'Nigdy nie zostawiaj miejsc do uzupelnienia ani placeholderow typu [telefon], [link], [adres], XXX. Jesli brak danych kontaktowych, napisz wezwanie do dzialania bez nich (np. "napisz do nas w wiadomosci").',
+  'Jesli opis tresci to porada, lista bledow, instrukcja albo cwiczenie - przekaz jej konkretna tresc (punkty, kroki), a nie tylko zapowiedz, ze porada istnieje.',
+  'Gdy opis tresci jest bardzo krotki, pisz zwiezle i konkretnie zamiast wypelniac tekst ogolnikami.',
   'Jesli podano previousVersion, uzytkownik poprosil o NOWA wersje: napisz tekst wyraznie inny (inny hook, inna struktura i dobor slow), zachowujac te same fakty.',
   'hashtags: 3-6 trafnych slow kluczowych, bez spacji, bez znaku #.',
   'title: wypelnij TYLKO dla platformy YOUTUBE, max 80 znakow.',

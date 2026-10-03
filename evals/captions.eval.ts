@@ -128,6 +128,9 @@ describe.skipIf(!enabled)('caption generation eval', () => {
           if (!bundle.caption.trim()) failures.push(`${bundle.platform}: empty caption`);
           if (bundle.caption.length > LIMITS[bundle.platform]) failures.push(`${bundle.platform}: over the caption limit`);
           if (/\[\[|redacted/i.test(bundle.caption)) failures.push(`${bundle.platform}: leaked mask token`);
+          if (/\[(?:numer|telefon|tel|link|adres|e-?mail|kontakt)[^\]]*\]|\bX{3,}\b/i.test(bundle.caption)) {
+            failures.push(`${bundle.platform}: unfilled placeholder`);
+          }
           if (bundle.hashtags.length < 1 || bundle.hashtags.length > 8) failures.push(`${bundle.platform}: ${bundle.hashtags.length} hashtags`);
           if (bundle.platform === 'YOUTUBE' && !bundle.title) failures.push('YOUTUBE: missing title');
           for (const phrase of BANNED_PHRASES) if (text.includes(normalize(phrase))) failures.push(`${bundle.platform}: banned phrase "${phrase}"`);

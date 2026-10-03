@@ -51,7 +51,7 @@ export async function generateContentIdeas(
 
   const result = await callClaudeTool<IdeasToolResult>({
     scope: 'content-ideas',
-    model: CLAUDE_MODELS.contentGeneration,
+    model: CLAUDE_MODELS.lightweight,
     system: IDEAS_SYSTEM_PROMPT,
     userContent,
     tool: {

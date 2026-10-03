@@ -16,6 +16,8 @@ export type DraftJob = {
   mentions: string[];
   isExplicit: boolean | null;
   contentWarnings: string[];
+  // Caption exactly as the AI wrote it; null when the AI didn't write this draft (2026-10-02).
+  aiCaption?: string | null;
   tiktokPrivacyLevel: string | null;
   tiktokAllowComment: boolean | null;
   tiktokAllowDuet: boolean | null;

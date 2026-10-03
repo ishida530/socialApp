@@ -87,10 +87,10 @@ Opcjonalnie (czytelniejsze ślady błędów): `SENTRY_ORG`, `SENTRY_PROJECT` i `
 
 - [ ] https://console.anthropic.com → **Plans & Billing** → **Buy credits** (np. 20–50 USD na start).
 - [ ] Tamże włącz **Auto-reload** (np. doładowanie 20 USD, gdy saldo spadnie poniżej 5 USD).
-- [ ] **Limits** → ustaw miesięczny limit wydatków (np. 100 USD), żeby błąd albo nadużycie nie wygenerowały dowolnego rachunku.
+- [ ] **Limits** → ustaw miesięczny limit wydatków (np. 30 USD na start, podnoś razem z liczbą klientów), żeby błąd albo nadużycie nie wygenerowały dowolnego rachunku.
 - [ ] Sprawdź w aplikacji: nowy post ze zdjęciem → opis powinien dotyczyć tego, co jest na zdjęciu.
 - [ ] Alerty: gdy AI przestanie działać z powodu środków albo klucza, aplikacja wyśle e-mail (najwyżej raz na godzinę) na adresy z `ADMIN_EMAILS`. Inny adres ustawisz zmienną `AI_ALERT_EMAILS` w Vercelu. Alert działa po skonfigurowaniu Resend (A4).
-- [ ] Miesięczne limity AI na plan (FREE 20, STARTER 200, PRO 600, BUSINESS 1500 tekstów) są w `lib/billing/plans.ts` → `ai_generations`. Zmień je, jeśli chcesz, a ja zaktualizuję też opis planów w cenniku.
+- [ ] Miesięczne limity AI na plan (FREE 20, STARTER 200, PRO 600, BUSINESS 1500 tekstów, w 7-dniowym okresie próbnym 50) są w `lib/billing/plans.ts` → `ai_generations`. Zmień je, jeśli chcesz, a ja zaktualizuję też opis planów w cenniku.
 - [ ] Przed zmianą modelu albo promptu uruchom ewaluację: `npm run eval:captions` (opis w `evals/README.md`, ok. 1 USD za przebieg).
 
 ---

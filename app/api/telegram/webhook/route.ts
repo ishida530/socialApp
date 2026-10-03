@@ -30,6 +30,7 @@ import { completeGoal, getActiveGoals, setGoal } from '@/lib/server/coaching';
 import { endActiveCampaign, getActiveCampaign, getCampaignReport, listRecentCampaigns, startCampaign, type CampaignReport } from '@/lib/server/campaigns';
 import { getFollowerGrowth, type FollowerGrowthEntry } from '@/lib/server/account-growth';
 import { acceptSuggestedReply, ignoreComment, sendCustomReply } from '@/lib/server/social-comments';
+import { AI_QUOTA_EXHAUSTED_MESSAGE, hasAiGenerationQuota, recordAiGeneration } from '@/lib/server/subscription';
 import { getAiQualitySummary, getClaudeCostSummary } from '@/lib/server/claude-usage';
 import { isAdminEmail } from '@/lib/server/admin';
 import { prisma } from '@/lib/server/prisma';
@@ -827,11 +828,22 @@ async function handleTextCommand(chatIdStr: string, userId: string, text: string
       return true;
     }
 
+    // 2026-10-03: same monthly AI quota as post copy and the assistant.
+    if (!(await hasAiGenerationQuota(userId))) {
+      await sendTelegramMessage(chatIdStr, AI_QUOTA_EXHAUSTED_MESSAGE).catch((error) =>
+        logError('telegram', 'send-pomysl-quota-failed', error, { chatId: chatIdStr }),
+      );
+      return true;
+    }
+
     await sendTelegramMessage(chatIdStr, '💡 Analizuję Twoje ostatnie posty...').catch((error) =>
       logError('telegram', 'send-pomysl-ack-failed', error, { chatId: chatIdStr }),
     );
 
     const ideas = await generateContentIdeas(dbUser?.businessDescription ?? null, recentPosts, dbUser?.communicationStyle ?? null);
+    if (ideas) {
+      await recordAiGeneration(userId);
+    }
 
     await sendTelegramMessage(
       chatIdStr,

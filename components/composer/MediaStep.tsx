@@ -44,6 +44,72 @@ function measureVideoDuration(file: File): Promise<number | null> {
   });
 }
 
+// One frame of the video as a JPEG (2026-10-03): sent as the video's thumbnail so the AI caption
+// generator can see what the video shows. Taken ~1s in (or a third of a short clip) to skip black
+// intro frames, scaled to max 768px - plenty for the model, small to upload.
+function captureVideoFrame(file: File): Promise<Blob | null> {
+  return new Promise((resolve) => {
+    if (!file.type.startsWith('video/')) {
+      resolve(null);
+      return;
+    }
+
+    const videoEl = document.createElement('video');
+    const url = URL.createObjectURL(file);
+    const finish = (result: Blob | null) => {
+      URL.revokeObjectURL(url);
+      resolve(result);
+    };
+    const timeout = setTimeout(() => finish(null), 8000);
+
+    videoEl.muted = true;
+    videoEl.playsInline = true;
+    videoEl.preload = 'auto';
+    videoEl.onloadedmetadata = () => {
+      const duration = Number.isFinite(videoEl.duration) ? videoEl.duration : 0;
+      videoEl.currentTime = Math.min(1, duration / 3);
+    };
+    videoEl.onseeked = () => {
+      try {
+        const scale = Math.min(1, 768 / Math.max(videoEl.videoWidth, videoEl.videoHeight, 1));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(videoEl.videoWidth * scale));
+        canvas.height = Math.max(1, Math.round(videoEl.videoHeight * scale));
+        canvas.getContext('2d')?.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob(
+          (blob) => {
+            clearTimeout(timeout);
+            finish(blob);
+          },
+          'image/jpeg',
+          0.8,
+        );
+      } catch {
+        clearTimeout(timeout);
+        finish(null);
+      }
+    };
+    videoEl.onerror = () => {
+      clearTimeout(timeout);
+      finish(null);
+    };
+    videoEl.src = url;
+  });
+}
+
+async function uploadVideoThumbnail(videoId: string, file: File) {
+  const frame = await captureVideoFrame(file);
+  if (!frame) {
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('file', frame, 'thumbnail.jpg');
+  // Plain fetch, not apiClient: its interceptor toasts every 400, and a missing thumbnail is not
+  // something the user needs to hear about (the caption just won't use the image).
+  await fetch(`/api/videos/${videoId}/thumbnail`, { method: 'POST', body: formData, credentials: 'include' });
+}
+
 const POLL_INTERVAL_MS = 700;
 
 // The client-side upload() promise resolves once bytes finish transferring, but the Video
@@ -155,6 +221,12 @@ export function MediaStep({
         }
 
         void checkTiktokDurationLimit(durationSec);
+      }
+
+      if (resolvedVideo.mediaType === 'VIDEO') {
+        // Awaited so the thumbnail exists before "Dalej" asks the AI for captions; a failure only
+        // means a text-only caption, never a blocked upload.
+        await uploadVideoThumbnail(resolvedVideo.id, info.file).catch(() => {});
       }
 
       onVideoResolved({
