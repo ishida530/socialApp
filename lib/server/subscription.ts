@@ -353,7 +353,7 @@ export async function getSubscriptionSnapshot(userId: string) {
   };
 }
 
-// AI generation quota (2026-10-02, AI review): post-copy generation, "Generuj ponownie" and the
+// AI generation quota (2026-10-02, AI review): post-copy generation, "Wygeneruj ponownie" and the
 // Telegram assistant used to have no cap at all, so one account could run up any Anthropic bill.
 // Checked before the call, counted only after the AI actually produced the text (a provider
 // outage doesn't eat the user's quota).

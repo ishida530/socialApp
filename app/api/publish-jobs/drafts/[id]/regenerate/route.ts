@@ -54,7 +54,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       return badRequest(orchestrationWarning || 'Nie udało się wygenerować nowej treści.');
     }
 
-    // 2026-10-02: "Generuj ponownie" asks for a NEW text from the AI. When Claude is unavailable
+    // 2026-10-02: "Wygeneruj ponownie" asks for a NEW text from the AI. When Claude is unavailable
     // the template fallback would just prefix the current caption again ("Krótka aktualizacja:
     // Krótka aktualizacja: ..."), so keep the draft unchanged and say what happened instead.
     if (!aiGenerated && aiUnavailableReason === 'quota') {

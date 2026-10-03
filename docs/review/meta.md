@@ -7,6 +7,10 @@ W skrócie:
 - bez dźwięku, 1080p;
 - pokazać logowanie, udzielanie uprawnień i użycie **każdego** zgłoszonego uprawnienia.
 
+## 0. Najpierw etap 1 z [README](README.md)
+
+Środki w Anthropic, domena w Resend, konto recenzenta (`REVIEWER_EMAILS`) i test generalny. Konto recenzenta dostaje uprawnienia do komentarzy automatycznie, potrzebne do nagrania B.
+
 ## 1. Najpierw sprawdź, może nic nie trzeba nagrywać
 
 Produkcja prosi wyłącznie o uprawnienia, które według dokumentacji projektu (13.09.2026) masz już zatwierdzone:
@@ -39,12 +43,12 @@ Jedno nagranie możesz wgrać przy kilku uprawnieniach, które pokazuje.
 
 | # | Co robisz na ekranie | Napis (EN) |
 |---|---|---|
-| 1 | Zaczynasz wylogowany: `https://postfly.pl` → **„Zaloguj się”** → e-mail i hasło konta testowego. | The user logs in to Postfly. |
+| 1 | Zaczynasz wylogowany: `https://postfly.pl` → **„Zaloguj się”** → e-mail i hasło konta recenzenta z [README](README.md). | The user logs in to Postfly. |
 | 2 | Menu **„Połączone konta”** → karta Facebook → **„Kontynuuj z Facebookiem”**. | The user connects their Facebook Page with Facebook Login. |
 | 3 | Okno Facebooka: **„Edytuj ustawienia”** → **zaznacz Stronę** → pokaż listę uprawnień → zaakceptuj. Powrót: Strona widoczna jako połączona. | pages_show_list: the user chooses which Page Postfly may access and grants the permissions. |
 | 4 | Karta Instagram → **„Kontynuuj z Facebookiem”** → zaznacz Stronę **i konto Instagram** → zaakceptuj. | business_management, instagram_basic: the user connects the Instagram professional account linked to the Page. |
-| 5 | **„Nowy post”** → **„Wgraj materiał”** (zdjęcie lub film) → **„Dalej”**. | The user uploads their own photo or video. |
-| 6 | Zakładki **Facebook** i **Instagram**: edytuj opis, dodaj hashtag. | The user writes the caption and hashtags for each platform. |
+| 5 | **„Nowy post”** → **„Wgraj materiał”** (zdjęcie lub film) → w polu **„O czym jest ten post?”** wpisz jedno zdanie → **„Dalej”**. | The user uploads their own photo or video and adds a short note. |
+| 6 | Zakładki **Facebook** i **Instagram**: pokaż opis zaproponowany przez AI, potem go edytuj i dodaj hashtag. | The caption is an AI suggestion; the user edits the caption and hashtags for each platform. |
 | 7 | **„Dalej”** → pokaż przyciski platform z **nazwą Strony i konta IG** → **„Opublikuj teraz”**. | The user sees exactly which Page and Instagram account the post goes to, and explicitly publishes (pages_manage_posts, instagram_content_publish). |
 | 8 | Ekran statusu → **„Zobacz post”** przy Facebooku i Instagramie → post widoczny na Stronie i w profilu IG. | The post is live on the Facebook Page and the Instagram profile. |
 | 9 | Menu **„Rozwój”** (obserwujący) i **„Analityka”** (statystyki postów). | pages_read_engagement, instagram_basic: the user sees follower counts and statistics of their own posts. |

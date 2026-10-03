@@ -83,7 +83,7 @@ Opcjonalnie (czytelniejsze ślady błędów): `SENTRY_ORG`, `SENTRY_PROJECT` i `
 
 ### A5. Konto Anthropic (AI) — 10 minut
 
-**Dlaczego:** 2.10.2026 skończyły się środki na koncie Anthropic. Bez nich opisy postów, „Generuj ponownie” i asystent Telegram nie działają (aplikacja wstawia wtedy samą notatkę użytkownika i pokazuje komunikat o niedostępnym AI).
+**Dlaczego:** 2.10.2026 skończyły się środki na koncie Anthropic. Bez nich opisy postów, „Wygeneruj ponownie” i asystent Telegram nie działają (aplikacja wstawia wtedy samą notatkę użytkownika i pokazuje komunikat o niedostępnym AI).
 
 - [ ] https://console.anthropic.com → **Plans & Billing** → **Buy credits** (np. 20–50 USD na start).
 - [ ] Tamże włącz **Auto-reload** (np. doładowanie 20 USD, gdy saldo spadnie poniżej 5 USD).
