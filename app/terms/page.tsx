@@ -35,8 +35,8 @@ export default function TermsPage() {
             z TikTokiem i YouTube zostaną udostępnione po ich zatwierdzeniu przez te platformy.
           </p>
           <p>
-            Usługodawcą jest: <strong className="text-foreground">Paweł Sawczuk</strong>, osoba fizyczna, adres: 126B,
-            11-010 Barczewko, e-mail: <strong className="text-foreground">hello@postfly.pl</strong>.
+            Usługodawcą jest: <strong className="text-foreground">Paweł Sawczuk</strong>, osoba fizyczna, adres: Barczewko
+            126B, 11-010 Barczewo, e-mail: <strong className="text-foreground">hello@postfly.pl</strong>.
           </p>
           {isFreeBeta() ? (
             <p>
@@ -58,12 +58,19 @@ export default function TermsPage() {
           <p>
             Z usługi może korzystać osoba pełnoletnia, posiadająca pełną zdolność do czynności prawnych. 
             Użytkownik zobowiązuje się do korzystania z serwisu w sposób zgodny z prawem, dobrymi obyczajami 
-            oraz regulaminami platform zewnętrznych (TikTok, Google/YouTube), które integruje z Postfly.
+            oraz regulaminami platform zewnętrznych (Meta - Facebook i Instagram, LinkedIn, TikTok, Google/YouTube),
+            które integruje z Postfly.
+          </p>
+          <p>
+            Umowa o świadczenie Usługi zostaje zawarta z chwilą założenia Konta, po akceptacji Regulaminu. Do
+            korzystania z Usługi potrzebne są: urządzenie z dostępem do Internetu, aktualna wersja przeglądarki
+            (Chrome, Edge, Firefox lub Safari) z włączoną obsługą JavaScript i plików cookie, aktywny adres e-mail
+            oraz - do publikacji - konto w wybranym serwisie społecznościowym.
           </p>
 
           <h2 className="text-base font-semibold text-foreground">4. Integracje OAuth i API</h2>
           <p>
-            Postfly łączy się z kontami społecznościowymi (TikTok, YouTube, Meta - Facebook i Instagram) wyłącznie
+            Postfly łączy się z kontami społecznościowymi (Meta - Facebook i Instagram, LinkedIn, TikTok, YouTube) wyłącznie
             za zgodą Użytkownika poprzez protokół OAuth. Aplikacja nie gromadzi haseł do serwisów zewnętrznych.
             Użytkownik może w każdej chwili cofnąć uprawnienia dla Postfly bezpośrednio w ustawieniach swojego
             konta danej platformy. Użytkownik może opcjonalnie połączyć konto z botem Postfly w serwisie
@@ -127,7 +134,7 @@ export default function TermsPage() {
             <p>
               W okresie beta (punkt 1) Usługa jest nieodpłatna, a płatne subskrypcje nie są oferowane. Postanowienia
               dotyczące płatności i subskrypcji zostaną określone w zmienionym Regulaminie, udostępnionym przed
-              wprowadzeniem płatnych planów zgodnie z punktem 10.
+              wprowadzeniem płatnych planów zgodnie z punktem 11.
             </p>
           ) : (
             <p>
@@ -139,21 +146,41 @@ export default function TermsPage() {
           )}
 
           <h2 className="text-base font-semibold text-foreground">7. Odstąpienie od umowy i zwroty</h2>
-          <p>
-            Użytkownik będący konsumentem ma prawo odstąpić od umowy w terminie 14 dni bez podania przyczyny, 
-            chyba że wyraził zgodę na rozpoczęcie świadczenia usługi (dostarczenie treści cyfrowych) przed 
-            upływem tego terminu, co skutkuje utratą prawa do odstąpienia. W Postfly dostęp do płatnych 
-            funkcji jest przyznawany natychmiast po transakcji.
-          </p>
+          {isFreeBeta() ? (
+            <p>
+              Użytkownik będący konsumentem ma prawo odstąpić od umowy w terminie 14 dni bez podania przyczyny. W
+              okresie beta Usługa jest nieodpłatna, więc odstąpienie nie wiąże się z żadnymi rozliczeniami - wystarczy
+              usunąć Konto w ustawieniach aplikacji lub napisać na adres z punktu 10.
+            </p>
+          ) : (
+            <p>
+              Użytkownik będący konsumentem ma prawo odstąpić od umowy w terminie 14 dni bez podania przyczyny,
+              chyba że wyraził zgodę na rozpoczęcie świadczenia usługi (dostarczenie treści cyfrowych) przed
+              upływem tego terminu, co skutkuje utratą prawa do odstąpienia. W Postfly dostęp do płatnych
+              funkcji jest przyznawany natychmiast po transakcji.
+            </p>
+          )}
 
           <h2 className="text-base font-semibold text-foreground">8. Ograniczenie odpowiedzialności</h2>
           <p>
-            Usługodawca nie odpowiada za blokady kont społecznościowych, ograniczenia zasięgów lub usunięcie treści 
-            przez platformy takie jak TikTok czy YouTube. Usługodawca nie gwarantuje, że API podmiotów trzecich 
-            będzie dostępne bez przerw i zmian funkcjonalnych.
+            Usługodawca nie odpowiada za blokady kont społecznościowych, ograniczenia zasięgów lub usunięcie treści
+            przez platformy takie jak Facebook, Instagram, LinkedIn, TikTok czy YouTube. Usługodawca nie gwarantuje,
+            że API podmiotów trzecich będzie dostępne bez przerw i zmian funkcjonalnych.
+            {isFreeBeta()
+              ? ' W okresie beta Usługa jest udostępniana w wersji testowej: mogą występować przerwy techniczne i zmiany funkcji, a dostępność Usługi nie jest gwarantowana.'
+              : ''}
           </p>
 
-          <h2 className="text-base font-semibold text-foreground">9. Reklamacje i kontakt</h2>
+          <h2 className="text-base font-semibold text-foreground">9. Rozwiązanie umowy</h2>
+          <p>
+            Użytkownik może w każdej chwili rozwiązać umowę, usuwając Konto w ustawieniach aplikacji (Ustawienia
+            konta → Usuń konto). Usługodawca może rozwiązać umowę z zachowaniem 14-dniowego okresu wypowiedzenia,
+            przesłanego e-mailem, a ze skutkiem natychmiastowym - w razie rażącego naruszenia Regulaminu przez
+            Użytkownika (np. publikowania treści bezprawnych lub prób naruszenia bezpieczeństwa Usługi), po
+            uprzednim wezwaniu do zaprzestania naruszeń, chyba że wezwanie byłoby bezcelowe.
+          </p>
+
+          <h2 className="text-base font-semibold text-foreground">10. Reklamacje i kontakt</h2>
           <p>
             Wszelkie reklamacje dotyczące działania Usługi należy kierować na adres e-mail: 
             <strong className="text-foreground"> hello@postfly.pl</strong>.
@@ -161,14 +188,15 @@ export default function TermsPage() {
             Odpowiedź zostanie udzielona w terminie 14 dni.
           </p>
 
-          <h2 className="text-base font-semibold text-foreground">10. Zmiany regulaminu</h2>
+          <h2 className="text-base font-semibold text-foreground">11. Zmiany regulaminu</h2>
           <p>
-            Usługodawca zastrzega sobie prawo do zmiany Regulaminu. O istotnych zmianach (np. zmiana cennika) 
-            Użytkownicy zostaną powiadomieni drogą mailową lub poprzez komunikat w aplikacji z co najmniej 
-            7-dniowym wyprzedzeniem.
+            Usługodawca zastrzega sobie prawo do zmiany Regulaminu z ważnych przyczyn (np. zmiana przepisów,
+            zmiana zasad platform zewnętrznych, wprowadzenie płatnych planów). O zmianach Użytkownicy zostaną
+            powiadomieni e-mailem z co najmniej 14-dniowym wyprzedzeniem. Użytkownik, który nie akceptuje zmian,
+            może przed ich wejściem w życie rozwiązać umowę, usuwając Konto.
           </p>
 
-          <h2 className="text-base font-semibold text-foreground">11. Postanowienia końcowe</h2>
+          <h2 className="text-base font-semibold text-foreground">12. Postanowienia końcowe</h2>
           <p>
             W sprawach nieuregulowanych mają zastosowanie przepisy Kodeksu Cywilnego oraz ustawy o 
             świadczeniu usług drogą elektroniczną. Sądem właściwym dla sporów z konsumentami jest sąd 

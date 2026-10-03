@@ -128,7 +128,7 @@ Szczegóły: [review/youtube.md](review/youtube.md).
   - **Clients** → klient Web → redirect URI `https://postfly.pl/api/auth/callback/youtube`;
   - **Data Access**: tylko `youtube.upload` i `youtube.readonly` (+ `openid`, `email`, `profile`), inne usuń;
   - **Audience** → **Publish app** → status **In production**.
-- [ ] Nagraj film według `youtube.md` (z widocznym `client_id` w pasku adresu na ekranie zgody), wgraj na YouTube jako **Niepubliczny** (Unlisted).
+- [ ] Nagraj film według `youtube.md` (z widocznym `client_id` w pasku adresu na ekranie zgody, **ekran zgody Google po angielsku**: selektor języka na dole ekranu albo język konta Google ustawiony na English), wgraj na YouTube jako **Niepubliczny** (Unlisted).
 - [ ] **Verification Center** → **Prepare for verification** → wklej uzasadnienia scope'ów i link do filmu → wyślij.
 - [ ] Odpowiadaj na maile od zespołu weryfikacji Google (przychodzą na e-mail kontaktowy z Brandingu, często w ciągu 3–5 dni roboczych). Prośby o poprawki przekaż mi.
 - [ ] **Po** zatwierdzeniu weryfikacji: wypełnij formularz audytu YouTube API (link i kroki w `youtube.md`) — bez niego limit to 10 000 jednostek dziennie, czyli ok. 6 wgrań filmów na dzień dla całej aplikacji.
@@ -141,7 +141,8 @@ Szczegóły: [review/meta.md](review/meta.md).
 - [ ] **App Review** → **Permissions and Features**: `pages_show_list`, `pages_manage_posts`, `pages_read_engagement`, `instagram_basic`, `instagram_content_publish`, `business_management` mają **Advanced access**. Jeśli któreś ma tylko Standard — nagranie A z `meta.md`.
 - [ ] **Facebook Login** → **Settings** → **Valid OAuth Redirect URIs**: `https://postfly.pl/api/auth/callback/facebook` i `https://postfly.pl/api/auth/callback/instagram`.
 - [ ] **Business Verification** (Ustawienia firmy → Centrum zabezpieczeń) zakończona — wymagana dla Advanced access.
-- [ ] Opcjonalnie, jeśli chcesz odpowiadanie na komentarze: nagraj film B z `meta.md` na koncie recenzenta z B2 (uprawnienia do komentarzy są o nie proszone automatycznie), wyślij jedną odpowiedź na komentarz (Meta wymaga udanego testowego wywołania API), potem wniosek o `pages_manage_engagement` i `instagram_manage_comments`.
+- [ ] Opcjonalnie, jeśli chcesz odpowiadanie na komentarze: nagraj film B z `meta.md` na koncie recenzenta z B2 (uprawnienia do komentarzy są o nie proszone automatycznie), wyślij jedną odpowiedź na komentarz (Meta wymaga udanego testowego wywołania API), potem wniosek o `pages_manage_engagement`, `pages_read_user_content` (od 3.10.2026 Postfly o nie prosi, bo Meta wymaga go do odczytu autorów komentarzy) i `instagram_manage_comments`.
+- [ ] Uprawnienie `email` **nie** powinno być zgłoszone (Postfly już o nie nie prosi). Jeśli w Vercelu jest zmienna `FACEBOOK_OAUTH_SCOPES`, usuń z niej `email`.
 
 ### B6. Ponowne połączenie kont FB/IG — 2 minuty
 

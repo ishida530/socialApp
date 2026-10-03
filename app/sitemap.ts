@@ -28,5 +28,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: 'monthly',
       priority: 0.4,
     },
+    {
+      url: `${siteUrl}/data-deletion`,
+      lastModified: LAST_MODIFIED.legal,
+      changeFrequency: 'monthly',
+      priority: 0.3,
+    },
   ];
 }

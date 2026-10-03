@@ -52,7 +52,7 @@ export async function createVideo(
     data: {
       userId,
       title: overrides.title ?? 'test-video',
-      sourceUrl: overrides.sourceUrl ?? 'https://example.com/fake.mp4',
+      sourceUrl: overrides.sourceUrl ?? 'https://test.public.blob.vercel-storage.com/fake.mp4',
       status: 'READY',
       mediaType: overrides.mediaType ?? 'VIDEO',
       durationSec: overrides.durationSec ?? null,

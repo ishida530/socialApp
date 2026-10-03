@@ -32,14 +32,16 @@ Interfejs jest już poprawiony. Ten plik opisuje, co nagrać i jak wysłać wnio
 
 ## 2. Scenariusz filmu (jedno ciągłe nagranie)
 
+Przez całe nagranie **pasek adresu przeglądarki ma być widoczny** (TikTok sprawdza domenę). Okno logowania TikToka nagrywaj **po angielsku**: przed nagraniem ustaw w nim język English (selektor języka na stronie logowania TikToka albo język przeglądarki).
+
 | # | Co robisz na ekranie | Napis (EN) |
 |---|---|---|
 | 1 | Otwórz `https://postfly.pl`, przewiń do sekcji **„Integracje”** (karta TikTok), potem do stopki z linkami „Regulamin” i „Polityka Prywatności”. | Postfly is a web app for independent creators and small businesses to publish their own content to their own social accounts. The TikTok integration is described on the home page. Terms and Privacy Policy are linked on every page. |
 | 2 | Pokaż stronę `/register` (bez wysyłania formularza), potem **„Zaloguj się”** na konto testowe z [README](README.md) (adres z `REVIEWER_EMAILS`, potwierdzony e-mail). Nie zakładaj nowego konta na nagraniu: zobaczyłoby TikToka jako „Wkrótce”. | Any creator can sign up for their own account. For this demo we log in to a prepared account. |
 | 3 | Menu **„Połączone konta”** → karta TikTok → **„Kontynuuj z TikTok”**. | The creator connects their own TikTok account with TikTok Login Kit. |
-| 4 | Okno TikToka: zaloguj się, pokaż listę uprawnień, zaakceptuj. Po powrocie konto jest widoczne jako połączone. | Requested scopes: user.info.basic (account name), video.publish (Direct Post), user.info.stats (follower growth screen), video.list (post statistics). |
+| 4 | Okno TikToka (po angielsku): zaloguj się, pokaż listę uprawnień, zaakceptuj. Po powrocie konto jest widoczne jako połączone. | Requested scopes: user.info.basic (account name), video.publish (Direct Post), user.info.stats (follower growth screen), video.list (post statistics). |
 | 5 | Przycisk **„Nowy post”** → **„Wgraj materiał”** → wybierz swój film z dysku → w polu **„O czym jest ten post?”** wpisz jedno zdanie (np. „efekt remontu elewacji po 2 dniach”) → **„Dalej”**. | The creator uploads their own original video and adds a short note about it. |
-| 6 | Krok przeglądu, zakładka **TikTok**: pokaż opis zaproponowany przez AI, potem ręcznie zmień pole **„Tytuł (Title)”**, dodaj albo usuń hashtag. | The caption is an AI suggestion based on the creator's own note and photo. The title and hashtags are fully editable before posting. |
+| 6 | Krok przeglądu, zakładka **TikTok**: pokaż opis zaproponowany przez AI, potem ręcznie zmień pole **„Tytuł (Title)”**, dodaj albo usuń hashtag. Hashtagi mają być wyraźnie widoczne, a zmiana czytelna (zatrzymaj się na sekundę). | The caption is an AI suggestion based on the creator's own note and photo. The title and hashtags are fully editable before posting. |
 | 7 | **„Dalej”** → ekran publikacji. Pokaż podgląd filmu i treści (prawa kolumna). | Final "Post to TikTok" page: a preview of exactly what will be posted. |
 | 8 | Najedź na **„Publikujesz na koncie TikTok (posting to): …”**. Pokaż też nazwę konta na przycisku TikTok. | The creator's TikTok nickname is shown, fetched live from creator_info. |
 | 9 | Rozwiń listę **„Kto może zobaczyć ten post (Who can view this post)”**. Nic nie jest wybrane. | Privacy options come from creator_info. There is no default value, and the user must choose manually. |
@@ -99,6 +101,9 @@ Limity: maksymalnie 5 plików po 50 MB. Jeśli film wyjdzie większy, wyeksportu
 > email: <E-MAIL KONTA RECENZENTA>, password: <HASŁO>. While this review is pending, the TikTok connection
 > is enabled only for this test account; other accounts see TikTok as "Wkrótce" (coming soon) until the
 > app is approved.
+>
+> The UI is in Polish; the demo video shows English labels in brackets next to every TikTok-required
+> element (e.g. "Kto może zobaczyć ten post (Who can view this post)") and has English captions.
 
 ## 5. Gdzie to jest w kodzie (na wypadek pytań TikToka)
 

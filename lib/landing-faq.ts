@@ -64,7 +64,7 @@ export const LANDING_FAQ_ITEMS: LandingFaqItem[] = [
     question: 'Ile tekstów AI mam w planie?',
     answer:
       BETA
-      ? 'W czasie bety masz limit planu PRO: 600 tekstów AI miesięcznie. Po becie: Free 20, Starter 200, Pro 600, Business 1500. Limit obejmuje opisy postów i odpowiedzi asystenta. Gdy się wyczerpie, nadal publikujesz - opis piszesz wtedy sam.'
+      ? 'W czasie bety masz 50 tekstów AI miesięcznie (limit odnawia się 1. dnia miesiąca). Po becie: Free 20, Starter 200, Pro 600, Business 1500. Limit obejmuje opisy postów i odpowiedzi asystenta. Gdy się wyczerpie, nadal publikujesz - opis piszesz wtedy sam.'
       : 'Miesięcznie: Free 20, Starter 200, Pro 600, Business 1500; w okresie próbnym 50. Limit obejmuje opisy postów i odpowiedzi asystenta. Gdy się wyczerpie, nadal publikujesz - opis piszesz wtedy sam.',
   },
   {

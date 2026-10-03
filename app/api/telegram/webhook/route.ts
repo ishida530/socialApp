@@ -30,7 +30,7 @@ import { completeGoal, getActiveGoals, setGoal } from '@/lib/server/coaching';
 import { endActiveCampaign, getActiveCampaign, getCampaignReport, listRecentCampaigns, startCampaign, type CampaignReport } from '@/lib/server/campaigns';
 import { getFollowerGrowth, type FollowerGrowthEntry } from '@/lib/server/account-growth';
 import { acceptSuggestedReply, ignoreComment, sendCustomReply } from '@/lib/server/social-comments';
-import { AI_QUOTA_EXHAUSTED_MESSAGE, hasAiGenerationQuota, recordAiGeneration } from '@/lib/server/subscription';
+import { aiQuotaDeniedMessage, hasAiGenerationQuota, recordAiGeneration } from '@/lib/server/subscription';
 import { getAiQualitySummary, getClaudeCostSummary } from '@/lib/server/claude-usage';
 import { isAdminEmail } from '@/lib/server/admin';
 import { prisma } from '@/lib/server/prisma';
@@ -95,10 +95,29 @@ const VALID_TOGGLE_PLATFORMS = ['YOUTUBE', 'TIKTOK', 'INSTAGRAM', 'FACEBOOK', 'L
 const TIKTOK_WEB_ONLY_NOTE =
   'ℹ️ TikTok nie jest publikowany z Telegrama - dokończ go w panelu Postfly (Nowy post → wznów szkic), gdzie wybierzesz prywatność i potwierdzisz zgodę TikToka.';
 
-function telegramTargetPlatforms(jobs: Array<{ excludedFromPublish: boolean; socialAccount: { platform: string } }>) {
+type TelegramDraftJob = {
+  excludedFromPublish: boolean;
+  title: string | null;
+  youtubePrivacyStatus: string | null;
+  socialAccount: { platform: string };
+};
+
+// YouTube needs a visibility (and title) the user chose in the web composer (2026-10-03, YouTube
+// API policy) - without them the job stays a draft, like TikTok, instead of failing at publish time.
+function isTelegramPublishable(job: TelegramDraftJob) {
+  if (job.socialAccount.platform === 'TIKTOK') return false;
+  if (job.socialAccount.platform === 'YOUTUBE') return Boolean(job.youtubePrivacyStatus && job.title?.trim());
+  return true;
+}
+
+function telegramTargetPlatforms(jobs: TelegramDraftJob[]) {
   return jobs
-    .filter((job) => !job.excludedFromPublish && job.socialAccount.platform !== 'TIKTOK')
+    .filter((job) => !job.excludedFromPublish && isTelegramPublishable(job))
     .map((job) => job.socialAccount.platform);
+}
+
+function telegramDraftOnlyPlatforms(jobs: TelegramDraftJob[]) {
+  return Array.from(new Set(['TIKTOK', ...jobs.filter((job) => !isTelegramPublishable(job)).map((job) => job.socialAccount.platform)]));
 }
 
 type PreviewJob = {
@@ -204,8 +223,11 @@ function describePlatformFormat(job: PreviewJob) {
 
   if (platform === 'YOUTUBE') {
     // YouTube Developer Policies: the visibility that will be set must be stated clearly before
-    // the user approves - Telegram publishes with the one chosen in the web composer, else public.
-    const visibility = `widoczność: ${YOUTUBE_VISIBILITY_LABEL[job.youtubePrivacyStatus ?? 'public'] ?? 'publiczny'}`;
+    // the user approves. No silent default (2026-10-03): without a choice made in the web composer
+    // the job is refused at publish time, so say so here.
+    const visibility = job.youtubePrivacyStatus
+      ? `widoczność: ${YOUTUBE_VISIBILITY_LABEL[job.youtubePrivacyStatus] ?? job.youtubePrivacyStatus}`
+      : 'widoczność nie wybrana - dokończ ten film w panelu Postfly (Nowy post)';
     const duration = job.video.durationSec;
     if (typeof duration === 'number' && duration > 0) {
       return `${duration <= YOUTUBE_SHORTS_MAX_SEC ? 'prawdopodobnie Shorts (≤3 min)' : 'zwykłe wideo (>3 min)'}, ${visibility}`;
@@ -591,7 +613,7 @@ async function handleScheduleReply(chatIdStr: string, userId: string, postGroupI
     publishNow: false,
     scheduledDate: parsedDate.toISOString(),
     targetPlatforms,
-    preserveAsDraftPlatforms: ['TIKTOK'],
+    preserveAsDraftPlatforms: telegramDraftOnlyPlatforms(draftJobs),
   });
 
   if (!result.ok) {
@@ -830,7 +852,7 @@ async function handleTextCommand(chatIdStr: string, userId: string, text: string
 
     // 2026-10-03: same monthly AI quota as post copy and the assistant.
     if (!(await hasAiGenerationQuota(userId))) {
-      await sendTelegramMessage(chatIdStr, AI_QUOTA_EXHAUSTED_MESSAGE).catch((error) =>
+      await sendTelegramMessage(chatIdStr, await aiQuotaDeniedMessage(userId)).catch((error) =>
         logError('telegram', 'send-pomysl-quota-failed', error, { chatId: chatIdStr }),
       );
       return true;
@@ -1455,7 +1477,7 @@ async function handleCallbackQuery(update: NonNullable<TelegramUpdate['callback_
       postGroupId,
       publishNow: true,
       targetPlatforms,
-      preserveAsDraftPlatforms: ['TIKTOK'],
+      preserveAsDraftPlatforms: telegramDraftOnlyPlatforms(draftJobs),
     });
 
     if (!result.ok) {

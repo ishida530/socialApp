@@ -124,9 +124,13 @@ export function ScheduleStep({
     ? null
     : !youtubeTitle
       ? 'Uzupełnij tytuł filmu YouTube w kroku przeglądu.'
-      : !youtubeJob?.youtubePrivacyStatus
-        ? 'Wybierz widoczność filmu na YouTube.'
-        : null;
+      : youtubeTitle.length > 100
+        ? 'Tytuł filmu YouTube może mieć najwyżej 100 znaków - skróć go w kroku przeglądu.'
+        : new TextEncoder().encode(youtubeDescription).length > 5000
+          ? 'Opis filmu YouTube (z hashtagami) jest za długi dla YouTube (limit 5000 bajtów, polskie litery liczą się podwójnie) - skróć go w kroku przeglądu.'
+          : !youtubeJob?.youtubePrivacyStatus
+            ? 'Wybierz widoczność filmu na YouTube.'
+            : null;
   const [isSavingYoutube, setIsSavingYoutube] = useState(false);
 
   const handleYoutubePrivacyChange = async (value: string) => {

@@ -124,7 +124,8 @@ function resolveFacebookScope() {
   // get a token that actually carries the new scope.
   return (
     process.env.FACEBOOK_OAUTH_SCOPES ||
-    'public_profile,email,pages_show_list,pages_read_engagement,pages_manage_engagement,pages_manage_posts,business_management'
+    // No 'email' (2026-10-03, Meta review audit): nothing reads it, and Meta rejects unused permissions.
+    'public_profile,pages_show_list,pages_read_engagement,pages_manage_engagement,pages_manage_posts,business_management'
   );
 }
 
@@ -259,10 +260,12 @@ function toPrismaPlatform(provider: OAuthProvider): PrismaPlatform {
 // records the review demo and the reviewers' test accounts need it (Meta also requires a
 // successful test API call with it before "Request advanced access" unlocks). The caller passes
 // commentsFeatureEnabledFor(email), so the scope list follows the same switch as the UI.
-const META_COMMENT_SCOPES = ['pages_manage_engagement', 'instagram_manage_comments'];
+// pages_read_user_content (2026-10-03): Meta's comments guide requires it next to
+// pages_manage_engagement to read other people's comments (author name) on Page posts.
+const META_COMMENT_SCOPES = ['pages_manage_engagement', 'pages_read_user_content', 'instagram_manage_comments'];
 const META_COMMENT_SCOPE_BY_PROVIDER = {
-  facebook: 'pages_manage_engagement',
-  instagram: 'instagram_manage_comments',
+  facebook: ['pages_manage_engagement', 'pages_read_user_content'],
+  instagram: ['instagram_manage_comments'],
 } as const;
 
 export function applyCommentScopes(
@@ -276,7 +279,7 @@ export function applyCommentScopes(
     .filter((entry) => entry && !META_COMMENT_SCOPES.includes(entry));
 
   if (includeCommentScopes) {
-    scopes.push(META_COMMENT_SCOPE_BY_PROVIDER[provider]);
+    scopes.push(...META_COMMENT_SCOPE_BY_PROVIDER[provider]);
   }
 
   return scopes.join(',');

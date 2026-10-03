@@ -51,7 +51,15 @@ export type WeeklyCoachingData = {
 
 async function getEngagementRateForWindow(userId: string, start: Date, end: Date): Promise<number | null> {
   const metrics = await prisma.postMetric.findMany({
-    where: { publishJob: { video: { userId }, publishedAt: { gte: start, lt: end } } },
+    // YouTube API data never goes to the AI (2026-10-03, Google Limited Use review): it is used only
+    // on the Growth/Analytics screens the user sees directly.
+    where: {
+      publishJob: {
+        video: { userId },
+        publishedAt: { gte: start, lt: end },
+        socialAccount: { platform: { not: 'YOUTUBE' } },
+      },
+    },
     select: { views: true, likes: true, comments: true, shares: true },
   });
 
@@ -92,7 +100,7 @@ export async function getWeeklyCoachingData(userId: string): Promise<WeeklyCoach
     engagementRateLastWeek,
     newFansThisWeek,
     salesThisWeekCents: salesThisWeek._sum.amountCents ?? 0,
-    followerGrowth,
+    followerGrowth: followerGrowth.filter((entry) => entry.platform !== 'YOUTUBE'),
     activeGoals: activeGoals.map((goal) => goal.description),
   };
 }

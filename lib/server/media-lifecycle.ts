@@ -31,6 +31,36 @@ async function safeDeleteBlob(sourceUrl: string) {
   }
 }
 
+// Account/media deletion (2026-10-03): the privacy policy promises uploaded files are erased, not
+// just the database rows that point at them.
+export async function deleteVideoFiles(video: { sourceUrl: string; thumbnailUrl: string | null; localPath: string | null }) {
+  await Promise.all([
+    safeDeleteLocalFile(video.localPath),
+    safeDeleteBlob(video.sourceUrl),
+    video.thumbnailUrl ? safeDeleteBlob(video.thumbnailUrl) : Promise.resolve(),
+  ]);
+}
+
+export async function deleteAllUserMediaFiles(userId: string) {
+  const videos = await prisma.video.findMany({
+    where: { userId },
+    select: { sourceUrl: true, thumbnailUrl: true, localPath: true },
+  });
+  // One batched Blob call instead of one per file - a large library must not hit the function
+  // time limit mid-deletion (2026-10-03, review).
+  const blobUrls = videos
+    .flatMap((video) => [video.sourceUrl, video.thumbnailUrl])
+    .filter((url): url is string => Boolean(url && canDeleteBlobByUrl(url)));
+  await Promise.all(videos.map((video) => safeDeleteLocalFile(video.localPath)));
+  for (let index = 0; index < blobUrls.length; index += 100) {
+    try {
+      await del(blobUrls.slice(index, index + 100));
+    } catch {
+      // ignore: blobs may already be removed or the token missing in local mode
+    }
+  }
+}
+
 export async function cleanupMediaAfterFullPublish(videoId: string) {
   try {
     const video = await prisma.video.findUnique({

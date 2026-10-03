@@ -7,6 +7,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const mockPut = vi.fn().mockResolvedValue({ url: 'https://blob.example.com/external-content/fake.jpg' });
 vi.mock('@vercel/blob', () => ({ put: mockPut }));
 
+// The image itself is downloaded through url-safety's guarded https client - stubbed here (no network).
+const mockFetchPublicBytes = vi.fn();
+vi.mock('@/lib/server/url-safety', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/server/url-safety')>()),
+  fetchPublicBytes: mockFetchPublicBytes,
+}));
+
 const mockSendTelegramMessage = vi.fn().mockResolvedValue(undefined);
 const mockSendTelegramMessageWithButtons = vi.fn().mockResolvedValue({ messageId: 1 });
 vi.mock('@/lib/server/telegram', () => ({
@@ -27,11 +34,7 @@ function claudeToolResponse(input: unknown) {
 }
 
 function fakeImageResponse() {
-  return {
-    ok: true,
-    headers: { get: () => 'image/jpeg' },
-    arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer,
-  };
+  return new Response(new Uint8Array([1, 2, 3]), { status: 200, headers: { 'content-type': 'image/jpeg' } });
 }
 
 function intakeRequest(body: unknown, headers: Record<string, string> = {}) {
@@ -63,6 +66,8 @@ beforeEach(() => {
   process.env.EXTERNAL_CONTENT_SECRET = 'test-intake-secret';
   process.env.ANTHROPIC_API_KEY = 'test-key';
   mockPut.mockClear();
+  mockFetchPublicBytes.mockReset();
+  mockFetchPublicBytes.mockResolvedValue({ bytes: Buffer.from([1, 2, 3]), contentType: 'image/jpeg' });
   mockSendTelegramMessage.mockClear();
   mockSendTelegramMessageWithButtons.mockClear();
 });
@@ -197,13 +202,10 @@ describe('POST /api/external/content-intake', () => {
         if (typeof url === 'string' && url.includes('anthropic.com')) {
           return claudeToolResponse({ caption: 'x', hashtags: [] });
         }
-        return {
-          ok: true,
-          headers: { get: () => 'image/png' },
-          arrayBuffer: async () => png.buffer.slice(png.byteOffset, png.byteOffset + png.byteLength),
-        };
+        return fakeImageResponse();
       }),
     );
+    mockFetchPublicBytes.mockResolvedValue({ bytes: png, contentType: 'image/png' });
 
     const response = await POST(intakeRequest({ ...validListingBody, sourceRef: 'blog:png-test' }, authHeader()));
     expect(response.status).toBe(200);

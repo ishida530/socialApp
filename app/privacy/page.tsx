@@ -1,5 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { isFreeBeta } from '@/lib/beta';
+
+const BETA = isFreeBeta();
 
 export const metadata: Metadata = {
   title: 'Polityka Prywatności | Postfly',
@@ -29,7 +32,7 @@ export default function PrivacyPage() {
           <h2 className="text-base font-semibold text-foreground">1. Administrator danych</h2>
           <p>
             Administratorem danych osobowych jest <strong className="text-foreground">Paweł Sawczuk</strong>, osoba
-            fizyczna, adres: 126B, 11-010 Barczewko, e-mail: <strong className="text-foreground">hello@postfly.pl</strong>.
+            fizyczna, adres: Barczewko 126B, 11-010 Barczewo, e-mail: <strong className="text-foreground">hello@postfly.pl</strong>.
           </p>
 
           <h2 className="text-base font-semibold text-foreground">2. Zakres zbieranych danych</h2>
@@ -39,8 +42,15 @@ export default function PrivacyPage() {
           <ul className="list-disc space-y-1 pl-5">
             <li>dane konta użytkownika (np. adres e-mail, identyfikator użytkownika),</li>
             <li>
-              dane kont społecznościowych z OAuth (np. TikTok/YouTube/Meta (Facebook, Instagram) user ID,
+              dane kont społecznościowych z OAuth (np. Meta (Facebook, Instagram)/LinkedIn/TikTok/YouTube user ID,
               username, tokeny dostępowe i odświeżające),
+            </li>
+            <li>
+              przesłane przez Użytkownika materiały (zdjęcia, filmy) oraz przygotowane opisy publikacji,
+            </li>
+            <li>
+              jeśli Użytkownik korzysta z obsługi komentarzy: treść publicznych komentarzy pod jego postami
+              i nazwę ich autorów, pobrane z platformy w celu przygotowania odpowiedzi,
             </li>
             <li>
               opcjonalny identyfikator czatu Telegram, jeśli Użytkownik połączy bota Postfly ze swoim
@@ -50,7 +60,7 @@ export default function PrivacyPage() {
             <li>
               opcjonalne dane wprowadzone samodzielnie przez Użytkownika w ramach funkcji społeczności/
               monetyzacji (np. adresy e-mail i imiona jego fanów/klientów zapisane przez funkcję &quot;Fani&quot;,
-              zapisy sprzedaży) - patrz punkt 14 poniżej,
+              zapisy sprzedaży) - patrz punkt 13 poniżej,
             </li>
             <li>
               metadane korzystania z usługi (np. limity użycia, historia zadań publikacji,
@@ -68,33 +78,55 @@ export default function PrivacyPage() {
             <li>
               świadczenie usługi i realizacja umowy (art. 6 ust. 1 lit. b RODO),
             </li>
-            <li>
-              obsługa płatności i subskrypcji (art. 6 ust. 1 lit. b RODO),
-            </li>
+            {BETA ? null : (
+              <li>
+                obsługa płatności i subskrypcji (art. 6 ust. 1 lit. b RODO),
+              </li>
+            )}
             <li>
               bezpieczeństwo, zapobieganie nadużyciom i utrzymanie stabilności systemu (art. 6 ust.
               1 lit. f RODO – prawnie uzasadniony interes administratora),
             </li>
             <li>
-              realizacja obowiązków prawnych, w tym prowadzenie uproszczonej ewidencji sprzedaży (art. 6 ust. 1 lit.
-              c RODO).
+              wysyłka wiadomości e-mail związanych z kontem (potwierdzenie adresu, reset hasła, powiadomienia o
+              usłudze) (art. 6 ust. 1 lit. b RODO),
             </li>
+            {BETA ? null : (
+              <li>
+                realizacja obowiązków prawnych, w tym prowadzenie ewidencji sprzedaży (art. 6 ust. 1 lit. c RODO).
+              </li>
+            )}
           </ul>
 
           <h2 className="text-base font-semibold text-foreground">4. Płatności i Stripe</h2>
-          <p>
-            Płatności realizuje Stripe jako odrębny dostawca usług płatniczych. Postfly nie
-            przechowuje pełnych danych kart płatniczych. Przechowujemy informacje o statusie
-            subskrypcji i identyfikatorach powiązanych z rozliczeniami w celach weryfikacji dostępu i realizacji usług.
-          </p>
+          {BETA ? (
+            <p>
+              W okresie beta Postfly jest bezpłatny i nie przetwarza żadnych danych płatniczych. Przed wprowadzeniem
+              płatnych planów ten punkt zostanie zaktualizowany.
+            </p>
+          ) : (
+            <p>
+              Płatności realizuje Stripe jako odrębny dostawca usług płatniczych. Postfly nie
+              przechowuje pełnych danych kart płatniczych. Przechowujemy informacje o statusie
+              subskrypcji i identyfikatorach powiązanych z rozliczeniami w celach weryfikacji dostępu i realizacji usług.
+            </p>
+          )}
 
           <h2 className="text-base font-semibold text-foreground">5. Odbiorcy danych i podmioty przetwarzające</h2>
           <p>Dane mogą być powierzane zaufanym dostawcom infrastruktury i usług:</p>
           <ul className="list-disc space-y-1 pl-5">
-            <li>Stripe – obsługa płatności,</li>
-            <li>Vercel – hosting i infrastruktura aplikacji,</li>
+            {BETA ? null : <li>Stripe – obsługa płatności,</li>}
+            <li>Vercel – hosting i infrastruktura aplikacji oraz przechowywanie przesłanych plików (Vercel Blob),</li>
             <li>Supabase (PostgreSQL) – bezpieczne przechowywanie danych aplikacji,</li>
-            <li>TikTok / YouTube / Meta (Facebook, Instagram) – publikacja treści i autoryzacja OAuth,</li>
+            <li>Resend – wysyłka wiadomości e-mail (potwierdzenie adresu, reset hasła, powiadomienia),</li>
+            <li>
+              Sentry – monitorowanie błędów aplikacji (dane techniczne błędu; hasła, tokeny i dane logowania są
+              usuwane z raportów przed wysłaniem),
+            </li>
+            <li>Upstash – ochrona przed nadużyciami (liczniki limitów zapytań powiązane z adresem IP lub kontem),</li>
+            <li>
+              Meta (Facebook, Instagram) / LinkedIn / TikTok / YouTube – publikacja treści i autoryzacja OAuth,
+            </li>
             <li>
               Telegram – wyłącznie dla Użytkowników, którzy sami połączą bota Postfly ze swoim kontem
               Telegram; przekazywane są wtedy treść wiadomości wysyłanych do bota oraz identyfikator czatu,
@@ -113,7 +145,7 @@ export default function PrivacyPage() {
             Użytkownika. W tym celu do Anthropic mogą być przekazywane: treść wprowadzona przez Użytkownika
             (np. notatka do posta, krótki opis jego działalności), zdjęcie dodane do publikacji albo miniatura
             filmu (żeby opis dotyczył tego, co faktycznie widać na materiale), zagregowane dane o wynikach
-            publikacji, oraz - wyłącznie w module moderacji komentarzy - treść komentarza osoby trzeciej
+            publikacji (z wyłączeniem danych otrzymanych z YouTube, które nie są przekazywane do AI), oraz - wyłącznie w module moderacji komentarzy - treść komentarza osoby trzeciej
             widoczna publicznie pod postem Użytkownika. Numery telefonów i adresy e-mail z notatek do postów są przed
             wysłaniem zastępowane znacznikami i uzupełniane z powrotem dopiero w gotowym tekście, więc nie trafiają
             do Anthropic. Anthropic przetwarza te dane jako podmiot przetwarzający, wyłącznie w celu wygenerowania
@@ -150,9 +182,12 @@ export default function PrivacyPage() {
           <h2 className="text-base font-semibold text-foreground">10. Usunięcie konta i tokenów OAuth</h2>
           <p>
             Użytkownik może samodzielnie i w każdej chwili usunąć konto w ustawieniach aplikacji
-            (Ustawienia konta → Usuń konto), po potwierdzeniu hasłem. Usunięcie konta jest natychmiastowe
-            i trwale kasuje dane konta, połączone konta social media wraz z tokenami dostępowymi, przesłane
-            media oraz historię zadań publikacji; aktywna płatna subskrypcja jest przy tym anulowana.
+            (Ustawienia konta → Usuń konto), po potwierdzeniu hasłem (a przy koncie zakładanym przez Google -
+            adresem e-mail konta). Usunięcie konta jest natychmiastowe i trwale kasuje dane konta, połączone konta
+            social media (tokeny dostępowe TikTok i YouTube są przy tym odwoływane u platformy), przesłane pliki
+            oraz historię zadań publikacji{BETA ? '' : '; aktywna płatna subskrypcja jest przy tym anulowana'}.
+            Usunięcie pojedynczego materiału w bibliotece kasuje też jego plik. Kopie zapasowe bazy danych są
+            nadpisywane cyklicznie, więc usunięte dane znikają z nich najpóźniej po 30 dniach.
             Alternatywnie można zażądać usunięcia konta, kontaktując się z administratorem pod adresem
             e-mail wskazanym w punkcie 15 — takie żądanie realizujemy niezwłocznie, nie później niż w ciągu 30 dni.
           </p>
@@ -165,7 +200,7 @@ export default function PrivacyPage() {
 
           <h2 className="text-base font-semibold text-foreground">12. Transfer danych poza EOG</h2>
           <p>
-            W związku z wykorzystaniem globalnych dostawców (Stripe, Vercel, Supabase, Anthropic), dane mogą być
+            W związku z wykorzystaniem globalnych dostawców (m.in. Vercel, Supabase, Anthropic, Resend, Sentry), dane mogą być
             przekazywane poza Europejski Obszar Gospodarczy na podstawie standardowych klauzul umownych
             zapewniających ochronę danych.
           </p>
@@ -179,7 +214,8 @@ export default function PrivacyPage() {
             i na jego własną odpowiedzialność. W tym zakresie to Użytkownik jest Administratorem danych swoich
             fanów/klientów, a Postfly pełni wyłącznie rolę podmiotu przetwarzającego (Procesora) - przechowuje
             te dane w jego imieniu i nie wykorzystuje ich do żadnych własnych celów (w tym: nie przekazuje ich
-            do modelu AI opisanego w punkcie 6, nie wysyła do nich żadnej komunikacji marketingowej). Użytkownik
+            z własnej inicjatywy do modelu AI opisanego w punkcie 6 - trafiają tam tylko wtedy, gdy Użytkownik sam
+            wpisze je w wiadomości do asystenta - i nie wysyła do nich żadnej komunikacji marketingowej). Użytkownik
             korzystający z tych funkcji odpowiada za posiadanie własnej podstawy prawnej do przetwarzania danych
             swoich fanów/klientów (np. ich zgoda) oraz za realizację ich praw wynikających z RODO. Postfly
             udostępnia zapisane dane wyłącznie samemu Użytkownikowi i usuwa je trwale wraz z usunięciem jego
@@ -233,12 +269,14 @@ export default function PrivacyPage() {
             nazwisko oraz identyfikator konta Google w celu utworzenia konta i zalogowania.
           </p>
           <p>
-            <strong className="text-foreground">TikTok i Meta (Facebook, Instagram).</strong> Po połączeniu konta
-            przechowujemy zaszyfrowane tokeny OAuth, identyfikator i nazwę konta/Strony, statystyki konta
-            (liczba obserwujących) oraz statystyki opublikowanych przez Postfly postów. Treści publikujemy
-            wyłącznie po Twoim zatwierdzeniu, z ustawieniami, które wybierzesz. Rozłączenie konta w Postfly
-            usuwa jego tokeny i powiązane dane; TikTok odwołuje też dostęp aplikacji. Instrukcja usunięcia
-            danych dla Meta:{' '}
+            <strong className="text-foreground">TikTok, Meta (Facebook, Instagram) i LinkedIn.</strong> Po połączeniu
+            konta przechowujemy zaszyfrowane tokeny OAuth, identyfikator i nazwę konta/Strony, statystyki konta
+            (liczba obserwujących) oraz statystyki opublikowanych przez Postfly postów. Jeśli korzystasz z obsługi
+            komentarzy (Facebook, Instagram), pobieramy też treść komentarzy pod postami opublikowanymi przez Postfly
+            i nazwę ich autorów - wyłącznie po to, by pokazać je Tobie i przygotować propozycję odpowiedzi, którą
+            wysyłasz sam. Treści publikujemy wyłącznie po Twoim zatwierdzeniu, z ustawieniami, które wybierzesz.
+            Rozłączenie konta w Postfly usuwa jego tokeny i powiązane dane; TikTok odwołuje też dostęp aplikacji.
+            Instrukcja usunięcia danych:{' '}
             <a href="/data-deletion" className="text-primary underline">
               postfly.pl/data-deletion
             </a>
@@ -281,7 +319,8 @@ export default function PrivacyPage() {
             , including the Limited Use requirements. TikTok and Meta data (tokens, account name, follower and post
             statistics) is used only to publish content you approve and show you its results, and is deleted when
             you disconnect the account. AI features (Anthropic Claude) receive the user's own notes, the photo or video
-            thumbnail of the post being prepared and aggregated post statistics, only to generate suggestions the user
+            thumbnail of the post being prepared and aggregated post statistics (never data received from YouTube API
+            Services), only to generate suggestions the user
             reviews and approves; phone numbers and email addresses in post notes are masked before sending, and no platform data is
             used to train AI models. Contact: hello@postfly.pl.
           </p>

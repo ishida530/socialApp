@@ -9,6 +9,7 @@ import {
 import { scheduleQStashPublish } from './qstash';
 import { readFile } from 'fs/promises';
 import { buildSignedVideoSourceUrl } from './video-source-signature';
+import { isOwnMediaSourceUrl } from './url-safety';
 import { cleanupMediaAfterFullPublish } from './media-lifecycle';
 import { checkAndApplyFailureCircuitBreaker, notifyJobFailedImmediately } from './telegram-notifications';
 
@@ -57,7 +58,12 @@ function isPermanentOAuthScopeError(message: string) {
 // have it silently retried 3 more times), or the job reached the processor without the manually
 // chosen privacy level (e.g. created outside the web composer).
 function isPermanentTikTokPublishBlock(message: string) {
-  return message.includes('[tiktok-cannot-post:') || message.includes('[tiktok-settings-missing]');
+  return (
+    message.includes('[tiktok-cannot-post:') ||
+    message.includes('[tiktok-settings-missing]') ||
+    // YouTube job without a title/visibility chosen by the user (2026-10-03) - retrying can't fix it.
+    message.includes('[youtube-settings-missing]')
+  );
 }
 
 function isPermanentTikTokConfigurationError(message: string) {
@@ -378,8 +384,13 @@ async function resolveVideoBytes(job: {
     return readFile(job.video.localPath);
   }
 
+  // Only media Postfly stored itself (2026-10-03, SSRF review).
+  if (!isOwnMediaSourceUrl(job.video.sourceUrl)) {
+    throw new Error('Plik źródłowy nie pochodzi z magazynu Postfly.');
+  }
+
   const sourceUrl = resolvePublicVideoUrl(job.video.sourceUrl);
-  const response = await fetch(sourceUrl, { cache: 'no-store' });
+  const response = await fetch(sourceUrl, { cache: 'no-store', redirect: 'error' });
 
   if (!response.ok) {
     throw new Error(`Nie udało się pobrać pliku źródłowego (${response.status})`);
@@ -489,20 +500,32 @@ type PublishInputJob = {
 };
 
 async function publishToYouTube(job: PublishInputJob, accessToken: string): Promise<PublishTransportResult> {
+  // YouTube Developer Policies (2026-10-03 audit): user-provided values are never truncated or
+  // replaced, and visibility is only ever what the user explicitly chose - no silent defaults.
+  const title = job.title?.trim() ?? '';
+  const description = composeCaption(job.caption, job.hashtags);
+  if (!title) {
+    throw new Error('[youtube-settings-missing] Brak tytułu filmu - uzupełnij go w kreatorze posta.');
+  }
+  // YouTube counts the description limit in bytes (Polish diacritics take 2).
+  if (title.length > 100 || Buffer.byteLength(description, 'utf8') > 5000) {
+    throw new Error('[youtube-settings-missing] Tytuł (max 100 znaków) lub opis (max 5000 znaków) jest za długi.');
+  }
+  if (!job.youtubePrivacyStatus || !['public', 'unlisted', 'private'].includes(job.youtubePrivacyStatus)) {
+    throw new Error('[youtube-settings-missing] Brak wybranej widoczności filmu - wybierz ją w kreatorze posta.');
+  }
+
   const fileBytes = await resolveVideoBytes(job);
   const boundary = `postfly-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
   const metadata = {
     snippet: {
-      title: (job.title?.trim() || job.video.title).slice(0, 100),
-      description: composeCaption(job.caption, job.hashtags).slice(0, 5000),
+      title,
+      description,
       categoryId: '22',
     },
     status: {
-      // The visibility the user picked in the composer (YouTube Developer Policies: identify and
-      // never silently change visibility). 'public' only for jobs approved outside the web
-      // composer (Telegram preview states it explicitly; autopilot is the user's own opt-in).
-      privacyStatus: job.youtubePrivacyStatus ?? 'public',
+      privacyStatus: job.youtubePrivacyStatus,
     },
   };
 
@@ -645,6 +668,10 @@ async function publishToTikTok(job: PublishInputJob, accessToken: string): Promi
 }
 
 async function publishToTikTokPhoto(job: PublishInputJob, accessToken: string): Promise<PublishTransportResult> {
+  // TikTok photo posts accept JPEG and WEBP only (2026-10-03 audit) - say so instead of a vague API error.
+  if (job.video.sourceUrl.split('?')[0].toLowerCase().endsWith('.png')) {
+    throw new Error('[tiktok-settings-missing] TikTok przyjmuje zdjęcia tylko w formacie JPG lub WEBP - wgraj zdjęcie w jednym z tych formatów.');
+  }
   const sourceUrl = buildTikTokPullSourceUrl(job.video.id);
   const caption = composeCaption(job.caption, job.hashtags);
 

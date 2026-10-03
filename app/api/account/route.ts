@@ -7,6 +7,7 @@ import { consumeRateLimit } from '@/lib/server/rate-limit';
 import { resolveBillingMode } from '@/lib/server/billing-mode';
 import { getStripeClient } from '@/lib/server/stripe';
 import { recordAuditLog } from '@/lib/server/audit-log';
+import { deleteUserCompletely } from '@/lib/server/account-deletion';
 
 export async function DELETE(request: NextRequest) {
   try {
@@ -22,17 +23,26 @@ export async function DELETE(request: NextRequest) {
       return tooManyRequests('Too many account deletion attempts. Try again later.', rateLimit.retryAfterSec);
     }
 
-    const body = (await request.json().catch(() => ({}))) as { password?: string };
-    if (!body.password) {
-      return badRequest('Validation failed', ['password: Hasło jest wymagane do potwierdzenia usunięcia konta']);
-    }
+    const body = (await request.json().catch(() => ({}))) as { password?: string; confirmEmail?: string };
 
     const user = await prisma.user.findUnique({
       where: { id: authUser.userId },
-      select: { id: true, passwordHash: true },
+      select: { id: true, email: true, passwordHash: true },
     });
 
-    if (!user?.passwordHash || !verifyPassword(body.password, user.passwordHash)) {
+    if (!user) {
+      return unauthorized();
+    }
+
+    // Accounts created with Google have no password (2026-10-03): they confirm with their own email
+    // address instead - self-service deletion is required by Meta, Google and GDPR.
+    if (!user.passwordHash) {
+      if (body.confirmEmail?.trim().toLowerCase() !== user.email.toLowerCase()) {
+        return badRequest('Wpisz adres e-mail swojego konta, aby potwierdzić.');
+      }
+    } else if (!body.password) {
+      return badRequest('Validation failed', ['password: Hasło jest wymagane do potwierdzenia usunięcia konta']);
+    } else if (!verifyPassword(body.password, user.passwordHash)) {
       // 400, not 401: a 401 here would be misread by the client's global axios
       // interceptor as "your session expired" (it hard-redirects to /login on any
       // non-/auth/me 401 outside /login|/register) — this is a wrong confirmation
@@ -61,7 +71,8 @@ export async function DELETE(request: NextRequest) {
     }
 
     await recordAuditLog({ userId: authUser.userId, actor: 'user', action: 'account.deleted' });
-    await prisma.user.delete({ where: { id: authUser.userId } });
+    // Revokes platform grants and erases uploaded files first (best-effort, time-bounded).
+    await deleteUserCompletely(authUser.userId);
 
     const response = NextResponse.json({ success: true });
     response.cookies.set(TOKEN_COOKIE_NAME, '', {

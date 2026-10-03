@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
 
     if (
       error instanceof Error &&
-      error.message.startsWith('Przekroczono limit planu FREE')
+      (error.message.startsWith('Przekroczono limit planu') || error.message === 'Subskrypcja jest nieaktywna.')
     ) {
       return badRequest(error.message);
     }

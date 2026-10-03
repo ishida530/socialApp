@@ -120,11 +120,11 @@ describe("platform reviewers' test accounts (REVIEWER_EMAILS)", () => {
 });
 
 describe('Meta comment permissions in the OAuth request', () => {
-  const base = 'public_profile,email,pages_show_list,pages_manage_posts,business_management';
+  const base = 'public_profile,pages_show_list,pages_manage_posts,business_management';
 
   it('are requested only when comments are enabled for the user', () => {
     expect(applyCommentScopes(base, 'facebook', false)).toBe(base);
-    expect(applyCommentScopes(base, 'facebook', true)).toBe(`${base},pages_manage_engagement`);
+    expect(applyCommentScopes(base, 'facebook', true)).toBe(`${base},pages_manage_engagement,pages_read_user_content`);
     expect(applyCommentScopes('instagram_basic,instagram_content_publish', 'instagram', true)).toBe(
       'instagram_basic,instagram_content_publish,instagram_manage_comments',
     );
@@ -133,7 +133,7 @@ describe('Meta comment permissions in the OAuth request', () => {
   it('are stripped from a configured scope list while comments wait for review', () => {
     expect(applyCommentScopes(`${base},pages_manage_engagement`, 'facebook', false)).toBe(base);
     expect(applyCommentScopes(`${base},pages_manage_engagement`, 'facebook', true)).toBe(
-      `${base},pages_manage_engagement`,
+      `${base},pages_manage_engagement,pages_read_user_content`,
     );
   });
 });

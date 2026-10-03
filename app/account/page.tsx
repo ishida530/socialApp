@@ -100,6 +100,7 @@ export default function AccountPage() {
 
   // EPIC 9 TASK-9.3 (2FA, 2026-09-15).
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [hasPassword, setHasPassword] = useState(true);
   const [twoFactorSetup, setTwoFactorSetup] = useState<{ secret: string; otpauthUrl: string } | null>(null);
   const [twoFactorQrCodeDataUrl, setTwoFactorQrCodeDataUrl] = useState<string | null>(null);
   const [twoFactorEnableCode, setTwoFactorEnableCode] = useState('');
@@ -145,6 +146,7 @@ export default function AccountPage() {
         brandHashtag: string | null;
         autopilotEnabled: boolean;
         twoFactorEnabled: boolean;
+        hasPassword?: boolean;
       }>('/auth/me')
       .then((response) => {
         setBusinessDescription(response.data.businessDescription ?? '');
@@ -153,6 +155,7 @@ export default function AccountPage() {
         setBrandHashtag(response.data.brandHashtag ?? '');
         setAutopilotEnabled(response.data.autopilotEnabled ?? false);
         setTwoFactorEnabled(response.data.twoFactorEnabled ?? false);
+        setHasPassword(response.data.hasPassword ?? true);
       })
       .catch(() => {});
   }, [isAuthenticated]);
@@ -371,7 +374,7 @@ export default function AccountPage() {
     }
   };
 
-  const canDelete = password.length > 0 && confirmText.trim().toLowerCase() === CONFIRM_PHRASE;
+  const canDelete = password.trim().length > 0 && confirmText.trim().toLowerCase() === CONFIRM_PHRASE;
 
   const handleDelete = async () => {
     if (!canDelete || isSubmitting) {
@@ -380,7 +383,7 @@ export default function AccountPage() {
 
     try {
       setIsSubmitting(true);
-      await apiClient.delete('/account', { data: { password } });
+      await apiClient.delete('/account', { data: hasPassword ? { password } : { confirmEmail: password.trim() } });
       toast.success('Konto zostało usunięte.');
       logout();
       router.replace('/login');
@@ -870,14 +873,16 @@ export default function AccountPage() {
         ) : (
           <div className="space-y-3">
             <div>
-              <label className="block text-xs text-muted-foreground mb-1">Hasło</label>
+              <label className="block text-xs text-muted-foreground mb-1">
+                {hasPassword ? 'Hasło' : 'Adres e-mail konta (logujesz się przez Google)'}
+              </label>
               <input
-                type="password"
+                type={hasPassword ? 'password' : 'email'}
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                autoComplete="current-password"
+                autoComplete={hasPassword ? 'current-password' : 'off'}
                 className="w-full rounded-lg border border-border bg-secondary/30 px-3 py-2 text-sm text-foreground"
-                placeholder="Podaj hasło, aby potwierdzić"
+                placeholder={hasPassword ? 'Podaj hasło, aby potwierdzić' : 'Wpisz swój adres e-mail'}
               />
             </div>
 

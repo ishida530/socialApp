@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUserFromRequest } from '@/lib/server/auth';
 import { prisma } from '@/lib/server/prisma';
 import { badRequest, serverError, unauthorized } from '@/lib/server/http';
+import { deleteVideoFiles } from '@/lib/server/media-lifecycle';
 
 const MAX_TAGS_PER_VIDEO = 8;
 const MAX_TAG_LENGTH = 32;
@@ -105,7 +106,7 @@ export async function DELETE(
         id: params.id,
         userId: user.userId,
       },
-      select: { id: true },
+      select: { id: true, sourceUrl: true, thumbnailUrl: true, localPath: true },
     });
 
     if (!video) {
@@ -113,6 +114,8 @@ export async function DELETE(
     }
 
     await prisma.video.delete({ where: { id: video.id } });
+    // The stored file goes too (2026-10-03, privacy policy: deleted media is erased).
+    await deleteVideoFiles(video);
 
     return NextResponse.json({ success: true, id: video.id });
   } catch (error) {

@@ -28,6 +28,8 @@ export async function getRealPerformanceData(userId: string, timezone: string): 
       publishJob: {
         video: { userId },
         publishedAt: { gte: since },
+        // YouTube API data stays out of the AI pipeline (2026-10-03, Google Limited Use review).
+        socialAccount: { platform: { not: 'YOUTUBE' } },
       },
     },
     select: {

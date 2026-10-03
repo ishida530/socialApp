@@ -27,27 +27,10 @@ function escapeHtml(value: string) {
     .replaceAll("'", '&#39;');
 }
 
-export async function sendWelcomeEmail(userEmail: string, userName: string) {
-  const from = process.env.EMAIL_FROM ?? 'PostFly <hello@postfly.pl>';
-  const safeName = escapeHtml(userName?.trim() || 'Twórco');
-
-  const result = await getResendClient().emails.send({
-    from,
-    to: userEmail,
-    subject: 'Witamy w PostFly — 7 dni pełnego pakietu PRO',
-    text: `Cześć ${userName || 'Twórco'}!\n\nWitamy w PostFly.\nMasz 7 dni pełnego pakietu PRO.\n\nPozdrawiamy,\nZespół PostFly`,
-    html: `<div style="font-family:Inter,Arial,sans-serif;line-height:1.6;color:#111827"><p>Cześć ${safeName}!</p><p>Witamy w <strong>PostFly</strong>.</p><p>Masz <strong>7 dni pełnego pakietu PRO</strong>.</p><p>Pozdrawiamy,<br/>Zespół PostFly</p></div>`,
-  });
-
-  if (result.error) {
-    throw new Error(`[mail] Resend error ${result.error.statusCode}: ${result.error.message}`);
-  }
-}
-
 // Sent right after registration (2026-10-02) - replaces the old welcome email: the PRO trial now
 // starts only once the address is confirmed.
 export async function sendEmailVerificationEmail(userEmail: string, userName: string, verifyLink: string) {
-  const from = process.env.EMAIL_FROM ?? 'PostFly <hello@postfly.pl>';
+  const from = process.env.EMAIL_FROM ?? 'Postfly <hello@postfly.pl>';
   const safeName = escapeHtml(userName?.trim() || 'Twórco');
   const safeLink = escapeHtml(verifyLink);
 
@@ -57,16 +40,16 @@ export async function sendEmailVerificationEmail(userEmail: string, userName: st
   const result = await getResendClient().emails.send({
     from,
     to: userEmail,
-    subject: isFreeBeta() ? 'PostFly - potwierdź adres e-mail i odblokuj darmowy plan PRO' : 'PostFly - potwierdź adres e-mail i odblokuj 7 dni PRO',
+    subject: isFreeBeta() ? 'Postfly - potwierdź adres e-mail i odblokuj darmowy plan PRO' : 'Postfly - potwierdź adres e-mail i odblokuj 7 dni PRO',
     text:
-      `Cześć ${userName || 'Twórco'}!\n\nWitamy w PostFly. Potwierdź adres e-mail, aby odblokować ${unlock}:\n` +
-      `${verifyLink}\n\nLink jest ważny 3 dni. Jeśli to nie Ty zakładałeś konto, zignoruj tę wiadomość.\n\nPozdrawiamy,\nZespół PostFly`,
+      `Cześć ${userName || 'Twórco'}!\n\nWitamy w Postfly. Potwierdź adres e-mail, aby odblokować ${unlock}:\n` +
+      `${verifyLink}\n\nLink jest ważny 3 dni. Jeśli to nie Ty zakładałeś konto, zignoruj tę wiadomość.\n\nPozdrawiamy,\nZespół Postfly`,
     html:
       '<div style="font-family:Inter,Arial,sans-serif;line-height:1.6;color:#111827">' +
-      `<p>Cześć ${safeName}!</p><p>Witamy w <strong>PostFly</strong>. Potwierdź adres e-mail, aby odblokować <strong>${unlock}</strong>.</p>` +
+      `<p>Cześć ${safeName}!</p><p>Witamy w <strong>Postfly</strong>. Potwierdź adres e-mail, aby odblokować <strong>${unlock}</strong>.</p>` +
       `<p><a href="${safeLink}" style="display:inline-block;padding:10px 18px;border-radius:8px;background:#f97316;color:#ffffff;text-decoration:none;font-weight:600">Potwierdź adres e-mail</a></p>` +
       `<p style="font-size:13px;color:#6b7280">Link jest ważny 3 dni. Jeśli to nie Ty zakładałeś konto, zignoruj tę wiadomość.</p>` +
-      '<p>Pozdrawiamy,<br/>Zespół PostFly</p></div>',
+      '<p>Pozdrawiamy,<br/>Zespół Postfly</p></div>',
   });
 
   if (result.error) {
@@ -75,13 +58,13 @@ export async function sendEmailVerificationEmail(userEmail: string, userName: st
 }
 
 export async function sendPasswordResetEmail(userEmail: string, resetLink: string) {
-  const from = process.env.EMAIL_FROM ?? 'PostFly <hello@postfly.pl>';
+  const from = process.env.EMAIL_FROM ?? 'Postfly <hello@postfly.pl>';
   const safeResetLink = escapeHtml(resetLink);
 
   const result = await getResendClient().emails.send({
     from,
     to: userEmail,
-    subject: 'PostFly - reset hasła',
+    subject: 'Postfly - reset hasła',
     text:
       `Otrzymaliśmy prośbę o reset hasła do Twojego konta.\n\n` +
       `Kliknij w link, aby ustawić nowe hasło:\n${resetLink}\n\n` +
@@ -103,23 +86,23 @@ export async function sendPasswordResetEmail(userEmail: string, resetLink: strin
 // Account created by an admin (2026-09-25): the new user sets their own password through this
 // link - the admin never knows it. Same PasswordResetToken mechanism as the reset flow, longer TTL.
 export async function sendAccountInviteEmail(userEmail: string, userName: string, setPasswordLink: string, ttlHours: number) {
-  const from = process.env.EMAIL_FROM ?? 'PostFly <hello@postfly.pl>';
+  const from = process.env.EMAIL_FROM ?? 'Postfly <hello@postfly.pl>';
   const safeLink = escapeHtml(setPasswordLink);
   const safeName = escapeHtml(userName);
 
   const result = await getResendClient().emails.send({
     from,
     to: userEmail,
-    subject: 'PostFly - Twoje konto jest gotowe',
+    subject: 'Postfly - Twoje konto jest gotowe',
     text:
       `Cześć ${userName},\n\n` +
-      'Utworzyliśmy dla Ciebie konto w PostFly. Ustaw hasło, żeby się zalogować:\n' +
+      'Utworzyliśmy dla Ciebie konto w Postfly. Ustaw hasło, żeby się zalogować:\n' +
       `${setPasswordLink}\n\n` +
       `Link jest ważny przez ${ttlHours} godzin. Jeśli wygaśnie, poproś administratora o nowe zaproszenie.`,
     html:
       '<div style="font-family:Inter,Arial,sans-serif;line-height:1.6;color:#111827">' +
       `<p>Cześć ${safeName},</p>` +
-      '<p>Utworzyliśmy dla Ciebie konto w PostFly. Ustaw hasło, żeby się zalogować:</p>' +
+      '<p>Utworzyliśmy dla Ciebie konto w Postfly. Ustaw hasło, żeby się zalogować:</p>' +
       `<p><a href="${safeLink}" target="_blank" rel="noopener noreferrer">Ustaw hasło</a></p>` +
       `<p>Link jest ważny przez <strong>${ttlHours} godzin</strong>. Jeśli wygaśnie, poproś administratora o nowe zaproszenie.</p>` +
       '</div>',
@@ -131,7 +114,7 @@ export async function sendAccountInviteEmail(userEmail: string, userName: string
 }
 
 export async function sendPaymentFailedEmail(userEmail: string, userName: string) {
-  const from = process.env.EMAIL_FROM ?? 'PostFly <hello@postfly.pl>';
+  const from = process.env.EMAIL_FROM ?? 'Postfly <hello@postfly.pl>';
   const safeName = escapeHtml(userName?.trim() || 'Twórco');
   const billingUrl = `${process.env.FRONTEND_URL ?? 'https://postfly.pl'}/billing`;
   const safeBillingUrl = escapeHtml(billingUrl);
@@ -139,18 +122,18 @@ export async function sendPaymentFailedEmail(userEmail: string, userName: string
   const result = await getResendClient().emails.send({
     from,
     to: userEmail,
-    subject: 'PostFly — nie udało się pobrać płatności za subskrypcję',
+    subject: 'Postfly — nie udało się pobrać płatności za subskrypcję',
     text:
       `Cześć ${userName || 'Twórco'}!\n\n` +
-      'Nie udało się pobrać płatności za Twoją subskrypcję PostFly. Sprawdź dane karty w ustawieniach ' +
+      'Nie udało się pobrać płatności za Twoją subskrypcję Postfly. Sprawdź dane karty w ustawieniach ' +
       `płatności, aby uniknąć przerwy w dostępie:\n${billingUrl}\n\n` +
-      'Pozdrawiamy,\nZespół PostFly',
+      'Pozdrawiamy,\nZespół Postfly',
     html:
       '<div style="font-family:Inter,Arial,sans-serif;line-height:1.6;color:#111827">' +
       `<p>Cześć ${safeName}!</p>` +
-      '<p>Nie udało się pobrać płatności za Twoją subskrypcję PostFly.</p>' +
+      '<p>Nie udało się pobrać płatności za Twoją subskrypcję Postfly.</p>' +
       `<p><a href="${safeBillingUrl}" target="_blank" rel="noopener noreferrer">Sprawdź dane płatności</a>, aby uniknąć przerwy w dostępie.</p>` +
-      '<p>Pozdrawiamy,<br/>Zespół PostFly</p>' +
+      '<p>Pozdrawiamy,<br/>Zespół Postfly</p>' +
       '</div>',
   });
 
@@ -188,7 +171,7 @@ function resolveCategoryLabel(category: ContactCategory) {
 }
 
 export async function sendContactMessageEmail(input: ContactMessageInput) {
-  const from = process.env.EMAIL_FROM ?? 'PostFly <hello@postfly.pl>';
+  const from = process.env.EMAIL_FROM ?? 'Postfly <hello@postfly.pl>';
   const configuredRecipients = process.env.CONTACT_EMAIL_TO;
   const to = configuredRecipients
     ?.split(',')
@@ -245,7 +228,7 @@ export async function sendContactMessageEmail(input: ContactMessageInput) {
 // proactive reminder in this app (inactivity, coaching, campaigns) goes over Telegram and
 // requires telegramChatId, so a web-only user otherwise gets zero proactive contact after signup.
 export async function sendTelegramLinkReminderEmail(userEmail: string, userName: string) {
-  const from = process.env.EMAIL_FROM ?? 'PostFly <hello@postfly.pl>';
+  const from = process.env.EMAIL_FROM ?? 'Postfly <hello@postfly.pl>';
   const safeName = escapeHtml(userName?.trim() || 'Twórco');
   const accountUrl = `${process.env.FRONTEND_URL ?? 'https://postfly.pl'}/account`;
   const safeAccountUrl = escapeHtml(accountUrl);
@@ -253,22 +236,22 @@ export async function sendTelegramLinkReminderEmail(userEmail: string, userName:
   const result = await getResendClient().emails.send({
     from,
     to: userEmail,
-    subject: 'PostFly — połącz Telegram, żeby zatwierdzać publikacje z telefonu',
+    subject: 'Postfly — połącz Telegram, żeby zatwierdzać publikacje z telefonu',
     text:
       `Cześć ${userName || 'Twórco'}!\n\n` +
-      'Zauważyliśmy, że Twoje konto PostFly nie jest jeszcze połączone z botem Telegram. ' +
+      'Zauważyliśmy, że Twoje konto Postfly nie jest jeszcze połączone z botem Telegram. ' +
       'Po połączeniu dostaniesz powiadomienia o publikacjach, będziesz mógł zatwierdzać/edytować ' +
       'posty z telefonu i korzystać z asystenta AI na czacie.\n\n' +
       `Wygeneruj kod połączenia w ustawieniach konta:\n${accountUrl}\n\n` +
-      'Pozdrawiamy,\nZespół PostFly',
+      'Pozdrawiamy,\nZespół Postfly',
     html:
       '<div style="font-family:Inter,Arial,sans-serif;line-height:1.6;color:#111827">' +
       `<p>Cześć ${safeName}!</p>` +
-      '<p>Zauważyliśmy, że Twoje konto PostFly nie jest jeszcze połączone z botem Telegram. ' +
+      '<p>Zauważyliśmy, że Twoje konto Postfly nie jest jeszcze połączone z botem Telegram. ' +
       'Po połączeniu dostaniesz powiadomienia o publikacjach, będziesz mógł zatwierdzać/edytować ' +
       'posty z telefonu i korzystać z asystenta AI na czacie.</p>' +
       `<p><a href="${safeAccountUrl}" target="_blank" rel="noopener noreferrer">Połącz Telegram w ustawieniach konta</a></p>` +
-      '<p>Pozdrawiamy,<br/>Zespół PostFly</p>' +
+      '<p>Pozdrawiamy,<br/>Zespół Postfly</p>' +
       '</div>',
   });
 
@@ -280,12 +263,12 @@ export async function sendTelegramLinkReminderEmail(userEmail: string, userName:
 // Operational alert to the app owner (2026-10-02) - plain text, e.g. "the AI provider rejects
 // requests because the credit balance is exhausted" (lib/server/ai-alerts.ts).
 export async function sendAdminAlertEmail(to: string[], subject: string, text: string) {
-  const from = process.env.EMAIL_FROM ?? 'PostFly <hello@postfly.pl>';
+  const from = process.env.EMAIL_FROM ?? 'Postfly <hello@postfly.pl>';
 
   const result = await getResendClient().emails.send({
     from,
     to,
-    subject: `[PostFly alert] ${subject}`,
+    subject: `[Postfly alert] ${subject}`,
     text,
     html: `<div style="font-family:Inter,Arial,sans-serif;line-height:1.6;color:#111827;white-space:pre-line">${escapeHtml(text)}</div>`,
   });

@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
         brandHashtag: true,
         autopilotEnabled: true,
         twoFactorEnabled: true,
+        passwordHash: true,
       },
     });
     const response = NextResponse.json({
@@ -41,6 +42,8 @@ export async function GET(request: NextRequest) {
       brandHashtag: profile?.brandHashtag ?? null,
       autopilotEnabled: profile?.autopilotEnabled ?? false,
       twoFactorEnabled: profile?.twoFactorEnabled ?? false,
+      // Google-only accounts confirm account deletion with their email instead of a password.
+      hasPassword: Boolean(profile?.passwordHash),
     });
 
     // Sliding session (2026-10-02): every app load calls this; a token older than a day is

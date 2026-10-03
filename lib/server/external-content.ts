@@ -19,6 +19,11 @@ import { readPlatformStyleGuides } from './platform-style-guides';
 import { sendTelegramMessageWithButtons } from './telegram';
 import { logError, logEvent } from './observability';
 import { PUBLIC_SOCIAL_ACCOUNT_SELECT } from './public-fields';
+import { fetchPublicBytes } from './url-safety';
+import { deleteVideoFiles } from './media-lifecycle';
+import { aiQuotaDeniedMessage, hasAiGenerationQuota, recordAiGeneration } from './subscription';
+
+const MAX_EXTERNAL_IMAGE_BYTES = 15 * 1024 * 1024;
 
 export type ExternalContentKind = 'BLOG_POST' | 'LISTING';
 
@@ -74,13 +79,15 @@ function isSourceRefConflict(error: unknown): boolean {
 }
 
 async function reuploadImage(sourceUrl: string): Promise<{ blobUrl: string }> {
-  const response = await fetch(sourceUrl);
-  if (!response.ok) {
-    throw new Error(`Failed to download source image (${response.status}): ${sourceUrl}`);
+  // The URL comes from an integration client - https + public host only, bounded size and time
+  // (2026-10-03, SSRF review).
+  const downloaded = await fetchPublicBytes(sourceUrl, MAX_EXTERNAL_IMAGE_BYTES);
+  if (!(downloaded.contentType ?? '').startsWith('image/')) {
+    throw new Error(`Source is not an image: ${sourceUrl}`);
   }
 
-  let contentType = response.headers.get('content-type') || 'image/jpeg';
-  let bytes: Buffer = Buffer.from(await response.arrayBuffer());
+  let contentType = downloaded.contentType || 'image/jpeg';
+  let bytes: Buffer = downloaded.bytes;
 
   // Instagram's content publishing API officially accepts JPEG only - a PNG (e.g. the blog's
   // Next.js opengraph-image) can be rejected at publish time, long after the draft looked fine.
@@ -344,8 +351,23 @@ export async function ingestExternalContent(userId: string, input: ExternalConte
     };
   }
 
-  // Captions first: if none can be written (AI unavailable / keeps inventing numbers) nothing is
-  // stored, so the caller's retry later starts clean instead of hitting "already ingested".
+  // AI cost guard (2026-10-03, security review): every intake spends up to one Claude call per
+  // platform, so it counts against the same monthly quota as the composer.
+  if (!(await hasAiGenerationQuota(owner.id))) {
+    return { ok: false, error: await aiQuotaDeniedMessage(owner.id) };
+  }
+
+  // The image is checked before any AI call, so a bad imageUrl never costs a generation.
+  let blobUrl: string;
+  try {
+    ({ blobUrl } = await reuploadImage(payload.imageUrl));
+  } catch (error) {
+    logError('external-content', 'image-reupload-failed', error, { sourceRef: payload.sourceRef });
+    return { ok: false, error: 'Nie udało się pobrać/przenieść obrazka źródłowego.' };
+  }
+
+  // Captions next: if none can be written (AI unavailable / keeps inventing numbers) nothing is
+  // stored in the database, so the caller's retry later starts clean instead of hitting "already ingested".
   const captions = (
     await Promise.all(
       platforms.map(async (platform) => ({
@@ -356,15 +378,11 @@ export async function ingestExternalContent(userId: string, input: ExternalConte
   ).filter((entry): entry is { platform: Platform; post: { caption: string; hashtags: string[] } } => entry.post !== null);
 
   if (captions.length === 0) {
+    await deleteVideoFiles({ sourceUrl: blobUrl, thumbnailUrl: null, localPath: null });
     return { ok: false, retryable: true, error: 'Nie udało się teraz przygotować treści posta (AI niedostępne) — spróbuj ponownie później.' };
   }
-
-  let blobUrl: string;
-  try {
-    ({ blobUrl } = await reuploadImage(payload.imageUrl));
-  } catch (error) {
-    logError('external-content', 'image-reupload-failed', error, { sourceRef: payload.sourceRef });
-    return { ok: false, error: 'Nie udało się pobrać/przenieść obrazka źródłowego.' };
+  for (let index = 0; index < captions.length; index += 1) {
+    await recordAiGeneration(owner.id);
   }
 
   let video;
@@ -385,6 +403,7 @@ export async function ingestExternalContent(userId: string, input: ExternalConte
     // findUnique check above before either commits - the DB unique constraint is the real guard,
     // this just turns the resulting P2002 into the same "already ingested" outcome as the check.
     if (isSourceRefConflict(error)) {
+      await deleteVideoFiles({ sourceUrl: blobUrl, thumbnailUrl: null, localPath: null });
       return { ok: true, skipped: true, reason: 'sourceRef already ingested (concurrent request)' };
     }
     throw error;

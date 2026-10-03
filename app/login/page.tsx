@@ -42,6 +42,16 @@ export default function LoginPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     setSource(params.get('source') ?? '');
+
+    // Google sign-in for an account with 2FA (2026-10-03, security review): the callback sends the
+    // short-lived pending token in the URL fragment (never reaches server logs) - continue with the
+    // code step here, exactly like after a correct password.
+    const hash = new URLSearchParams(window.location.hash.slice(1));
+    const googlePending = hash.get('2fa');
+    if (googlePending) {
+      setPendingToken(googlePending);
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
   }, []);
 
   useEffect(() => {

@@ -6,7 +6,7 @@ import Link from 'next/link';
 // purpose: Meta's App Review team reads the English part. Kept consistent with /privacy section 10.
 export const metadata: Metadata = {
   title: 'Usuwanie danych | Postfly',
-  description: 'Jak usunąć swoje dane z Postfly, w tym dane z Facebooka i Instagrama. How to delete your data from Postfly.',
+  description: 'Jak usunąć swoje dane z Postfly, w tym dane z Facebooka, Instagrama, LinkedIn, TikToka i YouTube. How to delete your data from Postfly.',
 };
 
 const CONTACT_EMAIL = 'hello@postfly.pl';
@@ -29,22 +29,25 @@ export default function DataDeletionPage() {
 
         <section className="mt-8 space-y-4 text-sm leading-6 text-muted-foreground">
           <p>
-            Postfly przechowuje dane kont społecznościowych (np. Facebook, Instagram, LinkedIn), które połączysz: identyfikator
-            strony lub konta, jego nazwę oraz tokeny dostępu potrzebne do publikacji. Możesz je usunąć w każdej chwili
-            jednym z poniższych sposobów.
+            Postfly przechowuje dane kont społecznościowych, które połączysz (Facebook, Instagram, LinkedIn, TikTok,
+            YouTube): identyfikator strony, konta lub kanału, jego nazwę, tokeny dostępu potrzebne do publikacji, statystyki
+            konta i opublikowanych przez Postfly postów, a przy obsłudze komentarzy - treść komentarzy i nazwę ich autorów.
+            Możesz je usunąć w każdej chwili jednym z poniższych sposobów.
           </p>
 
           <h2 className="text-base font-semibold text-foreground">1. Odłączenie jednego konta społecznościowego</h2>
           <p>
             Zaloguj się do Postfly, przejdź do listy połączonych kont i wybierz <strong className="text-foreground">Rozłącz</strong>{' '}
-            przy danym koncie. Tokeny dostępu i dane tego konta zostaną natychmiast usunięte.
+            przy danym koncie. Tokeny dostępu i dane tego konta (w tym statystyki i komentarze) zostaną natychmiast usunięte;
+            dostęp do TikToka i YouTube odwołujemy też po stronie platformy.
           </p>
 
           <h2 className="text-base font-semibold text-foreground">2. Usunięcie całego konta Postfly</h2>
           <p>
-            W <strong className="text-foreground">Ustawieniach konta → Usuń konto</strong> potwierdź operację hasłem. Usuwamy
-            natychmiast konto, wszystkie połączone konta społecznościowe z ich tokenami oraz zaplanowane i szkicowe posty.
-            Pliki multimediów pozostałe w magazynie usuwamy na prośbę e-mailem (sposób 4).
+            W <strong className="text-foreground">Ustawieniach konta → Usuń konto</strong> potwierdź operację hasłem (przy koncie
+            zakładanym przez Google - adresem e-mail konta). Usuwamy natychmiast konto, wszystkie połączone konta społecznościowe
+            z ich tokenami (dostęp do TikToka i YouTube odwołujemy u platformy), przesłane pliki multimediów oraz zaplanowane
+            i szkicowe posty.
           </p>
 
           <h2 className="text-base font-semibold text-foreground">3. Cofnięcie dostępu po stronie Facebooka</h2>
@@ -52,6 +55,15 @@ export default function DataDeletionPage() {
             Na Facebooku wejdź w <strong className="text-foreground">Ustawienia i prywatność → Ustawienia → Aplikacje i
             witryny</strong>, znajdź Postfly i wybierz <strong className="text-foreground">Usuń</strong>. Postfly traci wtedy
             dostęp do Twoich stron i konta Instagram; dane zapisane w Postfly usuniesz sposobem 1 lub 2.
+          </p>
+          <p>
+            <strong className="text-foreground">YouTube / Google:</strong> dostęp cofniesz na stronie{' '}
+            <a href="https://security.google.com/settings/security/permissions" target="_blank" rel="noopener noreferrer" className="text-foreground underline">
+              https://security.google.com/settings/security/permissions
+            </a>
+            ; dane z YouTube usuwamy wtedy najpóźniej w ciągu 30 dni. <strong className="text-foreground">TikTok:</strong>{' '}
+            w aplikacji TikTok: Ustawienia i prywatność → Bezpieczeństwo → Aplikacje i usługi → Postfly → Usuń dostęp.
+            <strong className="text-foreground"> LinkedIn:</strong> Ustawienia → Prywatność danych → Uprawnione usługi.
           </p>
 
           <h2 className="text-base font-semibold text-foreground">4. Prośba e-mailem</h2>
@@ -71,21 +83,33 @@ export default function DataDeletionPage() {
         <section className="mt-6 space-y-4 text-sm leading-6 text-muted-foreground">
           <p>
             Postfly stores data of the social accounts you connect (e.g. Facebook, Instagram, LinkedIn): the page or account
-            ID, its name and the access tokens needed to publish. You can delete it at any time:
+            ID, its name, the access tokens needed to publish, account and post statistics and, if you use comment replies,
+            comment texts and their authors' names. This covers Facebook, Instagram, LinkedIn, TikTok and YouTube. You can delete
+            it at any time:
           </p>
           <ol className="list-decimal space-y-2 pl-5">
             <li>
               <strong className="text-foreground">Disconnect one social account:</strong> log in to Postfly, open your
-              connected accounts and choose <em>Rozłącz</em> (Disconnect). Its access tokens and data are deleted immediately.
+              connected accounts and choose <em>Rozłącz</em> (Disconnect). Its access tokens and data are deleted immediately;
+              TikTok and YouTube access is also revoked on the platform side.
             </li>
             <li>
               <strong className="text-foreground">Delete your whole Postfly account:</strong> Account settings → Delete
-              account, confirmed with your password. The account, all connected social accounts with their tokens, and scheduled
-              and draft posts are deleted immediately; remaining media files in storage are deleted on request by email.
+              account, confirmed with your password (or your account email for accounts created with Google). The account, all
+              connected social accounts with their tokens (TikTok and YouTube grants are revoked), uploaded media files, and
+              scheduled and draft posts are deleted immediately.
             </li>
             <li>
               <strong className="text-foreground">Revoke access on Facebook:</strong> Settings &amp; privacy → Settings →
               Apps and websites → Postfly → Remove.
+            </li>
+            <li>
+              <strong className="text-foreground">Revoke access on Google / YouTube:</strong>{' '}
+              <a href="https://security.google.com/settings/security/permissions" target="_blank" rel="noopener noreferrer" className="text-foreground underline">
+                https://security.google.com/settings/security/permissions
+              </a>{' '}
+              (YouTube data is deleted within 30 days). TikTok: Settings and privacy → Security → Apps and services → Postfly →
+              Remove access.
             </li>
             <li>
               <strong className="text-foreground">By email:</strong> write to{' '}
