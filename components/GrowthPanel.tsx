@@ -44,6 +44,20 @@ export function GrowthPanel({
   const [newGoal, setNewGoal] = useState('');
   const [isAddingGoal, setIsAddingGoal] = useState(false);
   const [completingGoalId, setCompletingGoalId] = useState<string | null>(null);
+  const [isRefreshingGrowth, setIsRefreshingGrowth] = useState(false);
+
+  const refreshGrowth = async () => {
+    try {
+      setIsRefreshingGrowth(true);
+      const response = await apiClient.post<{ growth: FollowerGrowthEntry[] }>('/growth');
+      setGrowth(response.data.growth);
+      toast.success('Liczba obserwujących odświeżona.');
+    } catch {
+      toast.error('Nie udało się odświeżyć danych. Spróbuj za kilka minut.');
+    } finally {
+      setIsRefreshingGrowth(false);
+    }
+  };
 
   const load = async () => {
     try {
@@ -155,16 +169,27 @@ export function GrowthPanel({
       </section>
 
       <section className="bg-card border border-border rounded-xl p-6 space-y-4 max-w-2xl">
-        <div>
-          <h2 className="text-lg font-semibold text-foreground">Wzrost obserwujących</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Zbierane raz dziennie per platforma - trend pojawia się po tygodniu/miesiącu zebranych danych.
-          </p>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">Wzrost obserwujących</h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Liczba obserwujących Twoich kont, pobierana przy podłączeniu konta i codziennie. Trend tygodniowy i
+              miesięczny pojawi się, gdy zbierzemy dane z tego okresu.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={refreshGrowth}
+            disabled={isRefreshingGrowth}
+            className="px-3 py-1.5 rounded-lg border border-border text-xs text-foreground hover:bg-secondary/40 transition-colors disabled:opacity-50 whitespace-nowrap"
+          >
+            {isRefreshingGrowth ? 'Odświeżanie...' : 'Odśwież teraz'}
+          </button>
         </div>
 
         {growth.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            Brak jeszcze danych - podłącz konto social i poczekaj na pierwsze zebranie (codziennie).
+            Brak jeszcze danych - podłącz konto social albo kliknij „Odśwież teraz”.
           </p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
