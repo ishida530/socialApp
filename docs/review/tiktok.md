@@ -30,7 +30,7 @@ Stan sprawdzony w portalu **4.10.2026** (`[x]` = zrobione, `[ ]` = do zrobienia)
   - [x] `user.info.basic`
   - [x] `video.publish`
   - [x] `user.info.stats` (**nie usuwaj**: ekran „Rozwój”)
-  - [x] `video.list` (**nie usuwaj**: ekran „Analityka”)
+  - [ ] **`video.list`: usuń go też przyciskiem „—”** (zmiana 4.10.2026). TikTok udostępnia przez niego tylko **publiczne** filmy, a przed audytem możesz publikować wyłącznie „Tylko ja” na prywatnym koncie, więc tego scope'u nie da się pokazać na filmie. Postfly już o niego nie prosi. Wrócimy do niego po audycie (statystyki postów TikToka).
   - `video.upload` **zostaje**: nie ma przycisku „—”, TikTok dołącza go na stałe do Content Posting API. Postfly go nie używa (publikuje tylko przez Direct Post), co wyjaśnia ostatni akapit tekstu z punktu 4.
 - [ ] **App review → opis produktów i scope'ów**: obecny tekst („performance dashboard… user.info.profile…”) jest nieaktualny. Zastąp go tekstem z punktu 4.
 - [ ] **Demo video**: obecne (`2026-03-04_21h12_51.mp4`) jest stare. Usuń je i wgraj nowe nagranie według punktu 2.
@@ -45,7 +45,7 @@ Przez całe nagranie **pasek adresu przeglądarki ma być widoczny** (TikTok spr
 | 1 | Otwórz `https://postfly.pl`, przewiń do sekcji **„Integracje”** (karta TikTok), potem do stopki z linkami „Regulamin” i „Polityka Prywatności”. | Postfly is a web app for independent creators and small businesses to publish their own content to their own social accounts. The TikTok integration is described on the home page. Terms and Privacy Policy are linked on every page. |
 | 2 | Pokaż stronę `/register` (bez wysyłania formularza), potem **„Zaloguj się”** na konto testowe z [README](README.md) (adres z `REVIEWER_EMAILS`, potwierdzony e-mail). Nie zakładaj nowego konta na nagraniu: zobaczyłoby TikToka jako „Wkrótce”. | Any creator can sign up for their own account. For this demo we log in to a prepared account. |
 | 3 | Menu **„Połączone konta”** → karta TikTok → **„Kontynuuj z TikTok”**. | The creator connects their own TikTok account with TikTok Login Kit. |
-| 4 | Okno TikToka (po angielsku): zaloguj się, pokaż listę uprawnień, zaakceptuj. Po powrocie konto jest widoczne jako połączone. | Requested scopes: user.info.basic (account name), video.publish (Direct Post), user.info.stats (follower growth screen), video.list (post statistics). |
+| 4 | Okno TikToka (po angielsku): zaloguj się, pokaż listę uprawnień, zaakceptuj. Po powrocie konto jest widoczne jako połączone. | Requested scopes: user.info.basic (account name), video.publish (Direct Post), user.info.stats (follower count on the Growth screen). |
 | 5 | Przycisk **„Nowy post”** → **„Wgraj materiał”** → wybierz swój film z dysku → w polu **„O czym jest ten post?”** wpisz jedno zdanie (np. „efekt remontu elewacji po 2 dniach”) → **„Dalej”**. | The creator uploads their own original video and adds a short note about it. |
 | 6 | Krok przeglądu, zakładka **TikTok**: pokaż opis zaproponowany przez AI, potem ręcznie zmień pole **„Tytuł (Title)”**, dodaj albo usuń hashtag. Hashtagi mają być wyraźnie widoczne, a zmiana czytelna (zatrzymaj się na sekundę). | The caption is an AI suggestion based on the creator's own note and photo. The title and hashtags are fully editable before posting. |
 | 7 | **„Dalej”** → ekran publikacji. Pokaż podgląd filmu i treści (prawa kolumna). | Final "Post to TikTok" page: a preview of exactly what will be posted. |
@@ -60,7 +60,7 @@ Przez całe nagranie **pasek adresu przeglądarki ma być widoczny** (TikTok spr
 | 16 | Pokaż informację pod przyciskiem, potem kliknij **„Opublikuj teraz”**. | Content is sent to TikTok only after this explicit action. Processing on TikTok may take a few minutes. |
 | 17 | Ekran statusu: „TikTok przetwarza publikację…” zmienia się samo na „Opublikowano”. | The post status is polled from TikTok (publish/status/fetch) and shown to the creator. |
 | 18 | Otwórz TikToka (aplikację albo tiktok.com) → profil → opublikowany film. | The video is on the creator's profile, unchanged, with no watermark or branding added by Postfly. |
-| 19 | W Postfly: menu **„Rozwój”** (liczba obserwujących na TikToku) i **„Analityka”** (statystyki postów). | user.info.stats and video.list power the follower growth and post statistics screens. |
+| 19 | W Postfly: menu **„Rozwój”** → sekcja **„Wzrost obserwujących”**: karta TIKTOK z liczbą obserwujących. Jeśli karty nie ma, kliknij **„Odśwież teraz”** i zatrzymaj się na liczbie. | user.info.stats: the creator sees the follower count of their own TikTok account on the Growth screen. |
 
 Limity: maksymalnie 5 plików po 50 MB. Jeśli film wyjdzie większy, wyeksportuj go w 720p albo podziel na 2–3 części (np. sceny 1–8, 9–16 i 17–19).
 
@@ -82,9 +82,9 @@ Wklej poniższy tekst w całości, wpisując dane konta recenzenta w miejsce `<E
 > Postfly (https://postfly.pl) lets creators and small businesses publish their own videos and photos to their own TikTok profile.
 > Login Kit, user.info.basic: shows the connected account name.
 > Content Posting API, video.publish: Direct Post after explicit confirmation. video.upload is bundled with the product; we do not use draft upload.
-> user.info.stats: follower growth screen. video.list: statistics of posts published via Postfly.
+> user.info.stats: follower count on the Growth screen.
 > Before posting, the creator sees their nickname (creator_info), picks the privacy level (no default), opts in to comments/duet/stitch (off by default), can disclose commercial content, edits the caption (AI text is only a draft) and accepts the Music Usage Confirmation. Nothing is posted automatically; no watermarks.
-> Changes in this revision: removed user.info.profile; posting UI updated to the Content Sharing Guidelines.
+> Changes in this revision: removed user.info.profile and video.list; posting UI updated to the Content Sharing Guidelines.
 > Polish UI, English captions in the video. Test account: https://postfly.pl, <E-MAIL>, <HASŁO>
 
 ## 5. Gdzie to jest w kodzie (na wypadek pytań TikToka)

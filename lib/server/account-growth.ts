@@ -109,44 +109,80 @@ async function fetchFollowerCount(
 // Called once daily from the same cron sweep as collectMetricsForRecentJobs
 // (app/api/cron/telegram-digest) - no new cron slot, same free-tier constraint already applied
 // throughout this session.
+const GROWTH_ACCOUNT_SELECT = { id: true, platform: true, externalId: true, accessToken: true, expiresAt: true } as const;
+
+type GrowthAccount = {
+  id: string;
+  platform: string;
+  externalId: string | null;
+  accessToken: string | null;
+  expiresAt: Date | null;
+};
+
+async function snapshotAccountGrowth(account: GrowthAccount): Promise<boolean> {
+  try {
+    let accessToken = decryptToken(account.accessToken);
+    if (!accessToken || (account.expiresAt && account.expiresAt.getTime() <= Date.now() + 30_000)) {
+      const refreshed = await refreshSocialAccessToken(account.id);
+      accessToken = refreshed.accessToken;
+    }
+
+    if (!accessToken) {
+      return false;
+    }
+
+    const followerCount = await fetchFollowerCount(
+      account.platform as 'YOUTUBE' | 'TIKTOK' | 'FACEBOOK' | 'INSTAGRAM',
+      account.externalId,
+      accessToken,
+    );
+
+    if (followerCount === null) {
+      return false;
+    }
+
+    await prisma.accountGrowthSnapshot.create({ data: { socialAccountId: account.id, followerCount } });
+    return true;
+  } catch (error) {
+    logError('account-growth', 'snapshot-error', error, { socialAccountId: account.id, platform: account.platform });
+    return false;
+  }
+}
+
 export async function collectAccountGrowth(): Promise<{ attempted: number; updated: number }> {
-  const accounts = await prisma.socialAccount.findMany({
-    select: { id: true, platform: true, externalId: true, accessToken: true, expiresAt: true },
-  });
+  const accounts = await prisma.socialAccount.findMany({ select: GROWTH_ACCOUNT_SELECT });
 
   let updated = 0;
-
   for (const account of accounts) {
-    try {
-      let accessToken = decryptToken(account.accessToken);
-      if (!accessToken || (account.expiresAt && account.expiresAt.getTime() <= Date.now() + 30_000)) {
-        const refreshed = await refreshSocialAccessToken(account.id);
-        accessToken = refreshed.accessToken;
-      }
-
-      if (!accessToken) {
-        continue;
-      }
-
-      const followerCount = await fetchFollowerCount(
-        account.platform as 'YOUTUBE' | 'TIKTOK' | 'FACEBOOK' | 'INSTAGRAM',
-        account.externalId,
-        accessToken,
-      );
-
-      if (followerCount === null) {
-        continue;
-      }
-
-      await prisma.accountGrowthSnapshot.create({ data: { socialAccountId: account.id, followerCount } });
+    if (await snapshotAccountGrowth(account)) {
       updated += 1;
-    } catch (error) {
-      logError('account-growth', 'snapshot-error', error, { socialAccountId: account.id, platform: account.platform });
     }
   }
 
   logEvent('account-growth', 'sweep-complete', { attempted: accounts.length, updated });
 
+  return { attempted: accounts.length, updated };
+}
+
+export async function snapshotSocialAccountGrowth(socialAccountId: string) {
+  const account = await prisma.socialAccount.findUnique({ where: { id: socialAccountId }, select: GROWTH_ACCOUNT_SELECT });
+  return account ? snapshotAccountGrowth(account) : false;
+}
+
+// First data point right away (2026-10-04): right after connecting an account, or when the user
+// clicks "Odśwież teraz", instead of an empty Growth screen until the next daily sweep.
+export async function collectAccountGrowthForUser(userId: string, socialAccountId?: string) {
+  const accounts = await prisma.socialAccount.findMany({
+    where: { userId, ...(socialAccountId ? { id: socialAccountId } : {}) },
+    select: GROWTH_ACCOUNT_SELECT,
+  });
+
+  let updated = 0;
+  for (const account of accounts) {
+    if (await snapshotAccountGrowth(account)) {
+      updated += 1;
+    }
+  }
   return { attempted: accounts.length, updated };
 }
 

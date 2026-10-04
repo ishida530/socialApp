@@ -84,10 +84,11 @@ function requireAnyConfig(keys: string[]) {
 //   user.info.basic - open_id + display_name on connect (fetchTikTokProfile)
 //   video.publish   - Direct Post (publish-processor)
 //   user.info.stats - follower_count (account-growth)
-//   video.list      - post metrics (post-metrics)
-// Not requested anymore: user.info.profile (no profile field is read) and video.upload (inbox
-// upload - Postfly only uses Direct Post).
-const DEFAULT_TIKTOK_SCOPES = 'user.info.basic,video.publish,user.info.stats,video.list';
+// Not requested anymore: user.info.profile (no profile field is read), video.upload (inbox
+// upload - Postfly only uses Direct Post) and video.list (2026-10-04: it only returns PUBLIC
+// videos, while an unaudited app can post only "Only me" to a private account - it could not be
+// demonstrated for review; add it back after the audit together with TikTok post statistics).
+const DEFAULT_TIKTOK_SCOPES = 'user.info.basic,video.publish,user.info.stats';
 
 function resolveTikTokScope() {
   const rawScope = process.env.TIKTOK_OAUTH_SCOPES || DEFAULT_TIKTOK_SCOPES;

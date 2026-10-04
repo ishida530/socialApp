@@ -244,8 +244,7 @@ export function LandingIntegrationsSection() {
             professional account, LinkedIn profile, TikTok account and YouTube channel via official OAuth, then
             publish their own content only after reviewing it and clicking Publish. TikTok: Direct Post of the
             creator&apos;s own videos and photos with the privacy level and interaction settings chosen by the
-            creator, plus follower and post statistics (user.info.basic, video.publish, user.info.stats,
-            video.list). YouTube: uploading the user&apos;s own videos with the title, description and visibility they
+            creator, plus the follower count (user.info.basic, video.publish, user.info.stats). YouTube: uploading the user&apos;s own videos with the title, description and visibility they
             set (youtube.upload), and showing them the subscriber count and statistics of their own videos
             (youtube.readonly). Platform data is not shared with third parties or used for advertising, and is
             deleted when the account is disconnected. See the{' '}

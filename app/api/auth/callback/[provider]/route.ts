@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { after, NextRequest, NextResponse } from 'next/server';
+import { snapshotSocialAccountGrowth } from '@/lib/server/account-growth';
 import {
   decodePkcePayload,
   getFrontendUrl,
@@ -60,6 +61,13 @@ export async function GET(
       provider: normalizedProvider,
       accountId: result.accountId,
     });
+
+    // First follower-count data point right after connecting (2026-10-04), after the redirect is
+    // sent - the Growth screen is not empty until the next daily sweep. Best-effort.
+    if (result.accountId) {
+      const accountId = result.accountId;
+      after(() => snapshotSocialAccountGrowth(accountId).catch(() => false));
+    }
 
     redirectUrl.searchParams.set('status', 'success');
     redirectUrl.searchParams.set(

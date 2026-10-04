@@ -217,6 +217,8 @@ export async function collectMetricsForRecentJobs(): Promise<{ attempted: number
       remotePostId: { not: null },
       publishedAt: { gte: lookbackCutoff },
       OR: [{ postMetric: null }, { postMetric: { fetchedAt: { lte: staleCutoff } } }],
+      // TikTok post metrics need video.list, not requested since 2026-10-04 (see social-oauth.ts).
+      socialAccount: { platform: { not: 'TIKTOK' } },
     },
     take: MAX_JOBS_PER_SWEEP,
     orderBy: { publishedAt: 'desc' },
