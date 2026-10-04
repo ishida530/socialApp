@@ -361,13 +361,17 @@ function resolvePublicVideoUrl(sourceUrl: string) {
 // PULL_FROM_URL must point at a domain verified in the TikTok developer portal (Manage URL
 // properties) - that's FRONTEND_URL. Falling back to the raw storage URL (2026-09-30: removed)
 // sent TikTok to an unverified host, which it rejects.
-function buildTikTokPullSourceUrl(videoId: string) {
+function buildTikTokPullSourceUrl(videoId: string, options: { tiktokPhoto?: boolean } = {}) {
   const frontendUrl = process.env.FRONTEND_URL;
   if (!frontendUrl) {
     throw new Error('[tiktok-settings-missing] Brak FRONTEND_URL - TikTok może pobierać media tylko ze zweryfikowanej domeny.');
   }
 
-  return buildSignedVideoSourceUrl(frontendUrl, videoId, 60 * 60);
+  const url = new URL(buildSignedVideoSourceUrl(frontendUrl, videoId, 60 * 60));
+  if (options.tiktokPhoto) {
+    url.searchParams.set('variant', 'tiktok-photo');
+  }
+  return url.toString();
 }
 
 function resolveMetaApiVersion() {
@@ -668,11 +672,9 @@ async function publishToTikTok(job: PublishInputJob, accessToken: string): Promi
 }
 
 async function publishToTikTokPhoto(job: PublishInputJob, accessToken: string): Promise<PublishTransportResult> {
-  // TikTok photo posts accept JPEG and WEBP only (2026-10-03 audit) - say so instead of a vague API error.
-  if (job.video.sourceUrl.split('?')[0].toLowerCase().endsWith('.png')) {
-    throw new Error('[tiktok-settings-missing] TikTok przyjmuje zdjęcia tylko w formacie JPG lub WEBP - wgraj zdjęcie w jednym z tych formatów.');
-  }
-  const sourceUrl = buildTikTokPullSourceUrl(job.video.id);
+  // TikTok photos: max 1080p, JPEG/WEBP only (picture_size_check_failed, 2026-10-04). The source
+  // route serves a resized JPEG copy for this variant, so any uploaded photo size or format works.
+  const sourceUrl = buildTikTokPullSourceUrl(job.video.id, { tiktokPhoto: true });
   const caption = composeCaption(job.caption, job.hashtags);
 
   const response = await fetch('https://open.tiktokapis.com/v2/post/publish/content/init/', {

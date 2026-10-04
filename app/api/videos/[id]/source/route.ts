@@ -36,7 +36,39 @@ function unauthorizedSourceResponse() {
   return NextResponse.json({ message: 'Unauthorized video source access' }, { status: 401 });
 }
 
-async function resolveSourceResponse(videoId: string) {
+// TikTok photo posts accept at most 1080p (picture_size_check_failed otherwise, 2026-10-04) and
+// JPEG/WEBP only. Phone photos are ~4000x3000, so the copy TikTok pulls is resized, auto-rotated from
+// EXIF and re-encoded as JPEG here. The stored original is untouched (other platforms keep it).
+const TIKTOK_PHOTO_VARIANT = 'tiktok-photo';
+
+async function tiktokPhotoResponse(original: Buffer) {
+  const { default: sharp } = await import('sharp');
+  const image = sharp(original).rotate();
+  const meta = await image.metadata();
+  const landscape = (meta.width ?? 0) >= (meta.height ?? 0);
+  const bytes = await image
+    .resize({
+      width: landscape ? 1920 : 1080,
+      height: landscape ? 1080 : 1920,
+      fit: 'inside',
+      withoutEnlargement: true,
+    })
+    .flatten({ background: '#ffffff' })
+    .jpeg({ quality: 90 })
+    .toBuffer();
+
+  return new NextResponse(new Uint8Array(bytes), {
+    status: 200,
+    headers: {
+      'Content-Type': 'image/jpeg',
+      'Content-Length': String(bytes.length),
+      'Cache-Control': 'public, max-age=300',
+      'X-Content-Type-Options': 'nosniff',
+    },
+  });
+}
+
+async function resolveSourceResponse(videoId: string, variant: string | null = null) {
   const video = await prisma.video.findUnique({
     where: { id: videoId },
     select: {
@@ -54,9 +86,13 @@ async function resolveSourceResponse(videoId: string) {
   // Only media Postfly stored itself is proxied (2026-10-03, SSRF review), and the response type is
   // forced from our own record - never the upstream Content-Type.
   const contentType = mediaContentType(video.mediaType, video.sourceUrl);
+  const tiktokPhoto = variant === TIKTOK_PHOTO_VARIANT && video.mediaType === 'IMAGE';
 
   if (video.localPath) {
     const fileBuffer = await readFile(video.localPath);
+    if (tiktokPhoto) {
+      return tiktokPhotoResponse(fileBuffer);
+    }
     return new NextResponse(fileBuffer, {
       status: 200,
       headers: {
@@ -81,6 +117,10 @@ async function resolveSourceResponse(videoId: string) {
     return null;
   }
 
+  if (tiktokPhoto) {
+    return tiktokPhotoResponse(Buffer.from(await upstream.arrayBuffer()));
+  }
+
   const contentLength = upstream.headers.get('content-length');
 
   return new NextResponse(upstream.body, {
@@ -90,7 +130,7 @@ async function resolveSourceResponse(videoId: string) {
       'Accept-Ranges': upstream.headers.get('accept-ranges') ?? 'bytes',
       'Cache-Control': 'public, max-age=300',
       'X-Content-Type-Options': 'nosniff',
-      ...(contentLength ? { 'Content-Length': contentLength } : {}),
+      ...(contentLength && !tiktokPhoto ? { 'Content-Length': contentLength } : {}),
     },
   });
 }
@@ -126,7 +166,7 @@ export async function GET(
     }
   }
 
-  const response = await resolveSourceResponse(params.id);
+  const response = await resolveSourceResponse(params.id, request.nextUrl.searchParams.get('variant'));
 
   if (!response) {
     return NextResponse.json({ message: 'Video source unavailable' }, { status: 404 });
@@ -153,7 +193,9 @@ export async function HEAD(
   if (!video || video.status !== 'READY' || !isOwnMediaSourceUrl(video.sourceUrl)) {
     return new NextResponse(null, { status: 404 });
   }
-  const contentType = mediaContentType(video.mediaType, video.sourceUrl);
+  // The resized TikTok copy is a JPEG of a different size than the stored original.
+  const tiktokPhoto = request.nextUrl.searchParams.get('variant') === TIKTOK_PHOTO_VARIANT && video.mediaType === 'IMAGE';
+  const contentType = tiktokPhoto ? 'image/jpeg' : mediaContentType(video.mediaType, video.sourceUrl);
 
   const signedAccess = hasValidSourceSignature(request, params.id);
   if (!signedAccess) {
@@ -186,7 +228,7 @@ export async function HEAD(
       'Accept-Ranges': upstream.headers.get('accept-ranges') ?? 'bytes',
       'Cache-Control': 'public, max-age=300',
       'X-Content-Type-Options': 'nosniff',
-      ...(contentLength ? { 'Content-Length': contentLength } : {}),
+      ...(contentLength && !tiktokPhoto ? { 'Content-Length': contentLength } : {}),
     },
   });
 }
