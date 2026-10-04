@@ -44,6 +44,6 @@ describe('free beta', () => {
       }),
     );
     expect(response.status).toBe(403);
-    expect((await response.json()).message).toMatch(/darmowej becie/);
+    expect((await response.json()).message).toMatch(/teraz bezpłatny/);
   });
 });

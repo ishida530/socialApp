@@ -12,22 +12,28 @@ Interfejs jest już poprawiony. Ten plik opisuje, co nagrać i jak wysłać wnio
 
 [developers.tiktok.com](https://developers.tiktok.com) → **Manage apps** → aplikacja Postfly:
 
+Stan sprawdzony w portalu **4.10.2026** (`[x]` = zrobione, `[ ]` = do zrobienia):
+
 - [ ] **App details**:
-  - nazwa „Postfly” (bez słów TikTok czy innych serwisów społecznościowych);
-  - ikona Postfly;
-  - kategoria;
-  - opis jak w punkcie 4;
-  - **Website URL** `https://postfly.pl`;
-  - **Terms of Service** `https://postfly.pl/terms`;
-  - **Privacy Policy** `https://postfly.pl/privacy`.
-- [ ] **Login Kit → Redirect URI**: `https://postfly.pl/api/auth/callback/tiktok`.
-- [ ] **Content Posting API**: włączony, z włączonym **Direct Post**.
-- [ ] **URL properties** (*Manage URL properties*): zweryfikuj `https://postfly.pl/` jako URL prefix albo domenę przez rekord DNS TXT. Z tej domeny TikTok pobiera filmy (`PULL_FROM_URL`). Jeśli portal da plik weryfikacyjny, przekaż mi go, a wgram go do `public/` i wdrożę.
-- [ ] **Scopes**: zostaw tylko te 4. Usuń `video.upload` i `user.info.profile`, jeśli są dodane:
-  - `user.info.basic`
-  - `video.publish`
-  - `user.info.stats`
-  - `video.list`
+  - [ ] nazwa: jest `PostFly`, zmień na **`Postfly`** (tak jak na stronie i w regulaminie; bez słów TikTok czy innych serwisów);
+  - [ ] ikona Postfly 1024×1024 (sprawdź, czy jest wgrana);
+  - [x] kategoria: Social Networking;
+  - [ ] **opis (max 120 znaków)**: obecny („comprehensive dashboard for music creators…”) nie zgadza się z aplikacją. Wklej:
+    `Postfly lets creators and small businesses plan and publish their own photos and videos to TikTok and other socials.`
+  - [x] **Website URL** `https://postfly.pl`;
+  - [x] **Terms of Service** `https://postfly.pl/terms`;
+  - [x] **Privacy Policy** `https://postfly.pl/privacy`.
+- [x] **Login Kit → Redirect URI**: `https://postfly.pl/api/auth/callback/tiktok`.
+- [x] **Content Posting API**: włączony, **Direct Post** włączony (przycisk „Reapply” = wniosek o audyt składasz ponownie, punkt 3).
+- [x] **Verify domains** (Content Posting API → **Verify**): `postfly.pl` jest w **Verified properties** jako Domain (sprawdzone 4.10.2026). Z tej domeny TikTok pobiera filmy (`PULL_FROM_URL`). Nie klikaj czerwonego „—” przy niej: to usuwa weryfikację.
+- [x] **Scopes** (zrobione 4.10.2026): w rewizji (**Create Revision**) usunięty przyciskiem **„—”** tylko **`user.info.profile`** (Postfly go nie używa, a TikTok odrzuca wnioski z nieużywanymi scope'ami). Zostają:
+  - [x] `user.info.basic`
+  - [x] `video.publish`
+  - [x] `user.info.stats` (**nie usuwaj**: ekran „Rozwój”)
+  - [x] `video.list` (**nie usuwaj**: ekran „Analityka”)
+  - `video.upload` **zostaje**: nie ma przycisku „—”, TikTok dołącza go na stałe do Content Posting API. Postfly go nie używa (publikuje tylko przez Direct Post), co wyjaśnia ostatni akapit tekstu z punktu 4.
+- [ ] **App review → opis produktów i scope'ów**: obecny tekst („performance dashboard… user.info.profile…”) jest nieaktualny. Zastąp go tekstem z punktu 4.
+- [ ] **Demo video**: obecne (`2026-03-04_21h12_51.mp4`) jest stare. Usuń je i wgraj nowe nagranie według punktu 2.
 - [ ] Konto TikTok do nagrania jest **prywatne**. Przed audytem TikTok pozwala publikować tylko jako „Tylko ja”, a publikować może maksymalnie 5 użytkowników na dobę.
 
 ## 2. Scenariusz filmu (jedno ciągłe nagranie)
@@ -69,41 +75,17 @@ Limity: maksymalnie 5 plików po 50 MB. Jeśli film wyjdzie większy, wyeksportu
 7. **Save** → **Submit for review**.
 8. Decyzja zwykle przychodzi w 1–2 tygodnie (TikTok podaje 2–4). Jeśli wniosek zostanie odrzucony, przekaż mi treść odpowiedzi, a poprawię to, co wskażą.
 
-## 4. Tekst do formularza (wklej, dostosuj liczby)
+## 4. Tekst do formularza (pole „App review”, limit 1000 znaków)
 
-> Postfly (https://postfly.pl) is a web-based social media publishing tool for independent creators and small
-> businesses. Any creator can sign up, connect their own TikTok account with Login Kit and publish their own
-> original videos and photos to their own profile.
->
-> Products and scopes:
-> - Login Kit, user.info.basic: shows the connected account name.
-> - Content Posting API (Direct Post), video.publish: publishes the creator's own video or photo after they
->   confirm it in Postfly.
-> - user.info.stats: shows the creator their follower growth.
-> - video.list: shows statistics of the posts they published through Postfly.
->
-> Before every TikTok post, the creator:
-> - sees their TikTok nickname, fetched from creator_info;
-> - manually selects the privacy level, with options from creator_info and no default;
-> - manually opts in to comments, duet and stitch (all off by default, greyed out when disabled by the creator);
-> - can disclose commercial content (Your brand / Branded content), with TikTok's labels and rules;
-> - reviews a preview and can edit the title and hashtags (the caption may be pre-filled with an AI suggestion based on the creator's own note and photo; it is only a draft the creator edits and approves);
-> - explicitly agrees to TikTok's Music Usage Confirmation (and Branded Content Policy when applicable),
->   right before the Publish button.
->
-> Content is sent with Direct Post using PULL_FROM_URL from our verified domain. We poll publish/status/fetch
-> and show the post status to the creator. Postfly never adds watermarks or branding to creators' content and
-> never republishes content from other platforms. Every TikTok post is initiated and confirmed by the creator
-> in the web app; TikTok posts are never published automatically. TikTok user data (account name, follower and
-> post statistics) is used only to show the creator their own results and is never used to train AI models.
->
-> Test account (if you want to try it yourself): https://postfly.pl → "Zaloguj się" (Log in),
-> email: <E-MAIL KONTA RECENZENTA>, password: <HASŁO>. While this review is pending, the TikTok connection
-> is enabled only for this test account; other accounts see TikTok as "Wkrótce" (coming soon) until the
-> app is approved.
->
-> The UI is in Polish; the demo video shows English labels in brackets next to every TikTok-required
-> element (e.g. "Kto może zobaczyć ten post (Who can view this post)") and has English captions.
+Wklej poniższy tekst w całości, wpisując dane konta recenzenta w miejsce `<E-MAIL>` i `<HASŁO>`. Z e-mailem `pawel.sawczuk.email+review@gmail.com` i hasłem do 16 znaków wychodzi ok. 990 znaków, więc nie dopisuj nic więcej. Linijka „Changes in this revision” jest wymagana: formularz prosi o opis zmian przy rewizji.
+
+> Postfly (https://postfly.pl) lets creators and small businesses publish their own videos and photos to their own TikTok profile.
+> Login Kit, user.info.basic: shows the connected account name.
+> Content Posting API, video.publish: Direct Post after explicit confirmation. video.upload is bundled with the product; we do not use draft upload.
+> user.info.stats: follower growth screen. video.list: statistics of posts published via Postfly.
+> Before posting, the creator sees their nickname (creator_info), picks the privacy level (no default), opts in to comments/duet/stitch (off by default), can disclose commercial content, edits the caption (AI text is only a draft) and accepts the Music Usage Confirmation. Nothing is posted automatically; no watermarks.
+> Changes in this revision: removed user.info.profile; posting UI updated to the Content Sharing Guidelines.
+> Polish UI, English captions in the video. Test account: https://postfly.pl, <E-MAIL>, <HASŁO>
 
 ## 5. Gdzie to jest w kodzie (na wypadek pytań TikToka)
 

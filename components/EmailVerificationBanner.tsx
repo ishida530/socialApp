@@ -25,7 +25,7 @@ export function EmailVerificationBanner() {
       return;
     }
     if (verifiedParam === '1') {
-      toast.success(isFreeBeta() ? 'Adres e-mail potwierdzony - plan PRO jest aktywny na czas bety.' : 'Adres e-mail potwierdzony - 7 dni planu PRO jest aktywne.');
+      toast.success(isFreeBeta() ? 'Adres e-mail potwierdzony - plan PRO jest aktywny.' : 'Adres e-mail potwierdzony - 7 dni planu PRO jest aktywne.');
     } else {
       toast.error('Link potwierdzający jest nieprawidłowy lub wygasł. Wyślij nowy z baneru w aplikacji.');
     }
@@ -59,7 +59,7 @@ export function EmailVerificationBanner() {
     >
       <p className="flex items-start gap-2">
         <MailCheck className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-        Potwierdź adres e-mail (link jest w skrzynce), żeby odblokować {isFreeBeta() ? 'darmowy plan PRO na czas bety' : '7 dni pełnego planu PRO'}.
+        Potwierdź adres e-mail (link jest w skrzynce), żeby odblokować {isFreeBeta() ? 'bezpłatny plan PRO' : '7 dni pełnego planu PRO'}.
       </p>
       <button
         type="button"

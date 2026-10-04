@@ -65,7 +65,7 @@ export default function RegisterPage() {
         : intent === 'business'
           ? 'Chcesz zacząć od planu Business.'
           : isFreeBeta()
-            ? 'Postfly jest w darmowej becie - po potwierdzeniu e-maila masz plan PRO bez opłat.'
+            ? 'Postfly jest teraz bezpłatny - po potwierdzeniu e-maila masz plan PRO bez opłat.'
             : 'Zaczynasz darmowy okres próbny.';
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {

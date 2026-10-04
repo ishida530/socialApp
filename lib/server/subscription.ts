@@ -426,5 +426,5 @@ export async function aiQuotaDeniedMessage(userId: string) {
 }
 
 export const AI_QUOTA_EXHAUSTED_MESSAGE = isFreeBeta()
-  ? 'Wykorzystano miesięczny limit tekstów AI w becie - odnowi się 1. dnia miesiąca. Opis możesz napisać lub poprawić ręcznie.'
+  ? 'Wykorzystano miesięczny limit tekstów AI - odnowi się 1. dnia miesiąca. Opis możesz napisać lub poprawić ręcznie.'
   : 'Wykorzystano miesięczny limit generowania tekstów AI w Twoim planie. Opis możesz edytować ręcznie albo zmienić plan.';

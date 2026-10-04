@@ -315,10 +315,10 @@ function BillingPageContent() {
             {isFreeBeta() ? (
               // Free beta (lib/beta.ts): no purchases - every confirmed account has PRO for free.
               <div className="rounded-lg border border-primary/30 bg-primary/10 p-4 text-sm">
-                <p className="font-semibold text-foreground">Darmowa beta</p>
+                <p className="font-semibold text-foreground">Teraz bezpłatnie</p>
                 <p className="mt-1 text-muted-foreground">
-                  Postfly jest teraz w darmowej becie: masz plan PRO bez opłat i bez limitu czasu (z miesięcznym limitem
-                  tekstów AI). Płatne plany uruchomimy później i uprzedzimy o tym e-mailem z wyprzedzeniem - nic nie zostanie
+                  Postfly jest teraz bezpłatny: masz plan PRO bez opłat do czasu wprowadzenia płatnych planów (z miesięcznym limitem
+                  tekstów AI). Płatne plany uruchomimy później i uprzedzimy o tym e-mailem co najmniej 14 dni wcześniej - nic nie zostanie
                   pobrane automatycznie.
                 </p>
               </div>
