@@ -74,7 +74,7 @@ Opcjonalnie (czytelniejsze ślady błędów): `SENTRY_ORG`, `SENTRY_PROJECT` i `
 - [ ] **Limits** → ustaw miesięczny limit wydatków (np. 30 USD na start, podnoś razem z liczbą klientów), żeby błąd albo nadużycie nie wygenerowały dowolnego rachunku.
 - [ ] Sprawdź w aplikacji: nowy post ze zdjęciem → opis powinien dotyczyć tego, co jest na zdjęciu.
 - [ ] Alerty: gdy AI przestanie działać z powodu środków albo klucza, aplikacja wyśle e-mail (najwyżej raz na godzinę) na adresy z `ADMIN_EMAILS`. Inny adres ustawisz zmienną `AI_ALERT_EMAILS` w Vercelu. Alert działa po skonfigurowaniu Resend (A4).
-- [ ] Miesięczne limity AI: w becie każde konto ma limit PRO (600 tekstów). Po becie: FREE 20, STARTER 200, PRO 600, BUSINESS 1500, okres próbny 50 są w `lib/billing/plans.ts` → `ai_generations`. Zmień je, jeśli chcesz, a ja zaktualizuję też opis planów w cenniku.
+- [ ] Miesięczne limity AI: w becie każde konto z potwierdzonym e-mailem ma 50 tekstów miesięcznie (koszt około 0,5–1 USD na aktywne konto), a bez potwierdzonego e-maila AI jest wyłączone. Po becie: FREE 20, STARTER 200, PRO 600, BUSINESS 1500, okres próbny 50 są w `lib/billing/plans.ts` → `ai_generations`. Zmień je, jeśli chcesz, a ja zaktualizuję też opis planów w cenniku.
 - [ ] Przed zmianą modelu albo promptu uruchom ewaluację: `npm run eval:captions` (opis w `evals/README.md`, ok. 1 USD za przebieg).
 
 ---

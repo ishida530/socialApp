@@ -32,7 +32,7 @@ export default function OpengraphImage() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 12 }}>
-            {[isFreeBeta() ? 'Darmowa beta' : '7 dni PRO bez karty', 'Propozycje opisów AI', 'Polski produkt'].map((pill) => (
+            {[isFreeBeta() ? 'Teraz bezpłatnie' : '7 dni PRO bez karty', 'Propozycje opisów AI', 'Polski produkt'].map((pill) => (
               <div
                 key={pill}
                 style={{

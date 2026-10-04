@@ -6,11 +6,11 @@ const BETA = isFreeBeta();
 
 export const TRIAL_CTA_LABEL = BETA ? 'Załóż darmowe konto' : 'Wypróbuj 7 dni za darmo';
 
-export const OFFER_CHIP = BETA ? 'Darmowa beta: plan PRO bez opłat' : '7 dni PRO za darmo, bez karty';
+export const OFFER_CHIP = BETA ? 'Teraz bezpłatnie: plan PRO bez karty' : '7 dni PRO za darmo, bez karty';
 
 export const HERO_RISK_LINES: [string, string] = BETA
   ? [
-      'Bez karty i bez opłat. W czasie bety po potwierdzeniu e-maila masz pełny plan PRO.',
+      'Bez karty i bez opłat. Po potwierdzeniu e-maila masz pełny plan PRO za darmo.',
       'Płatne plany uruchomimy później - uprzedzimy e-mailem, nic nie zostanie pobrane automatycznie.',
     ]
   : [
@@ -19,9 +19,9 @@ export const HERO_RISK_LINES: [string, string] = BETA
     ];
 
 export const FINAL_CTA_SUB = BETA
-  ? 'Załóż konto, potwierdź e-mail i korzystaj z planu PRO za darmo przez cały czas trwania bety. Bez karty.'
+  ? 'Załóż konto, potwierdź e-mail i korzystaj z planu PRO za darmo. Płatne plany wprowadzimy później i uprzedzimy Cię e-mailem 14 dni wcześniej.'
   : 'Załóż konto, potwierdź e-mail i przez 7 dni korzystaj z planu PRO. Bez karty - potem zostajesz na Free albo wybierasz plan.';
 
-export const USE_CASES_TRIAL_LINK = BETA ? 'dołącz do darmowej bety' : 'wypróbuj Postfly przez 7 dni bez karty';
+export const USE_CASES_TRIAL_LINK = BETA ? 'załóż bezpłatne konto' : 'wypróbuj Postfly przez 7 dni bez karty';
 
 export const IS_FREE_BETA = BETA;

@@ -796,12 +796,12 @@ export function LandingExperience({
             <div>
               <p className="text-xs uppercase tracking-[0.18em] text-accent">Cennik</p>
               <h2 className="mt-2 text-balance text-2xl font-semibold sm:text-3xl">
-                {IS_FREE_BETA ? 'Cennik po zakończeniu bety' : 'Cennik Postfly: zacznij za 0 zł'}
+                {IS_FREE_BETA ? 'Teraz za 0 zł, planowane ceny później' : 'Cennik Postfly: zacznij za 0 zł'}
               </h2>
               {IS_FREE_BETA ? (
                 <p className="mt-2 text-sm text-foreground">
-                  Teraz korzystasz za 0 zł z planem PRO. Płatne plany uruchomimy po ogłoszeniu i uprzedzimy o tym e-mailem - nic
-                  nie zostanie pobrane automatycznie. Poniżej planowane ceny.
+                  Teraz korzystasz za 0 zł z planem PRO. Płatne plany wprowadzimy później i uprzedzimy o tym e-mailem co
+                  najmniej 14 dni wcześniej - nic nie zostanie pobrane automatycznie. Poniżej planowane ceny.
                 </p>
               ) : null}
               <p className="mt-2 text-sm text-muted-foreground">
@@ -1048,7 +1048,7 @@ export function LandingExperience({
               </div>
               <p className="mt-2 text-xs text-muted-foreground">
                 {IS_FREE_BETA
-                  ? 'W czasie bety korzystasz z planu PRO za darmo. Ceny obowiązują dopiero po zakończeniu bety i włączeniu płatności.'
+                  ? 'Teraz korzystasz z planu PRO za darmo. Ceny obowiązują dopiero po wprowadzeniu płatnych planów - uprzedzimy Cię e-mailem 14 dni wcześniej.'
                   : `Pierwsza subskrypcja zaczyna się od 7 dni próbnych. Jeśli nie zrezygnujesz przed ich końcem, Stripe pobierze ${zl(selectedPlan.priceMonthly)}, a subskrypcja będzie się odnawiać co miesiąc. Rezygnujesz w każdej chwili w panelu płatności; konto wraca wtedy na plan Free.`}
               </p>
             </motion.div>

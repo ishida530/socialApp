@@ -35,7 +35,7 @@ export async function sendEmailVerificationEmail(userEmail: string, userName: st
   const safeLink = escapeHtml(verifyLink);
 
   // Free beta (lib/beta.ts): the confirmed address unlocks PRO for the whole beta, not 7 days.
-  const unlock = isFreeBeta() ? 'darmowy plan PRO na czas bety' : '7 dni pełnego pakietu PRO';
+  const unlock = isFreeBeta() ? 'bezpłatny plan PRO' : '7 dni pełnego pakietu PRO';
 
   const result = await getResendClient().emails.send({
     from,

@@ -30,14 +30,14 @@ export const LANDING_FAQ_ITEMS: LandingFaqItem[] = [
     question: BETA ? 'Czy Postfly jest płatny?' : 'Czy do okresu próbnego potrzebuję karty płatniczej?',
     answer:
       BETA
-      ? 'Teraz nie. Postfly jest w darmowej becie: po założeniu konta i potwierdzeniu adresu e-mail masz plan PRO bez opłat i bez podawania karty. Płatne plany uruchomimy później i uprzedzimy o tym e-mailem z wyprzedzeniem - nic nie zostanie pobrane automatycznie.'
+      ? 'Teraz nie. Postfly jest teraz bezpłatny: po założeniu konta i potwierdzeniu adresu e-mail masz plan PRO bez opłat i bez podawania karty. Płatne plany uruchomimy później i uprzedzimy o tym e-mailem co najmniej 14 dni wcześniej - nic nie zostanie pobrane automatycznie.'
       : 'Nie. Po założeniu konta i potwierdzeniu adresu e-mail masz plan PRO przez 7 dni, z limitem 50 tekstów AI. Nie podajesz karty.',
   },
   {
-    question: BETA ? 'Co się stanie po zakończeniu bety?' : 'Co się stanie po 7 dniach okresu próbnego?',
+    question: BETA ? 'Co się stanie, gdy wprowadzicie płatne plany?' : 'Co się stanie po 7 dniach okresu próbnego?',
     answer:
       BETA
-      ? 'Zanim włączymy płatne plany, napiszemy do Ciebie e-mailem. Bez wybrania płatnego planu konto przejdzie na darmowy plan Free (1 konto, 3 publikacje w miesiącu, planowanie do 3 dni naprzód, 20 tekstów AI) - niczego nie pobierzemy automatycznie.'
+      ? 'Dostaniesz e-mail co najmniej 14 dni wcześniej. Bez wybrania płatnego planu konto przejdzie na darmowy plan Free (1 konto, 3 publikacje w miesiącu, planowanie do 3 dni naprzód, 20 tekstów AI) - niczego nie pobierzemy automatycznie.'
       : 'Konto automatycznie przechodzi na darmowy plan Free (1 konto, 3 publikacje w miesiącu, planowanie do 3 dni naprzód, 20 tekstów AI). Nic nie jest pobierane. Płatny plan wybierasz sam, kiedy chcesz.',
   },
   {
@@ -64,7 +64,7 @@ export const LANDING_FAQ_ITEMS: LandingFaqItem[] = [
     question: 'Ile tekstów AI mam w planie?',
     answer:
       BETA
-      ? 'W czasie bety masz 50 tekstów AI miesięcznie (limit odnawia się 1. dnia miesiąca). Po becie: Free 20, Starter 200, Pro 600, Business 1500. Limit obejmuje opisy postów i odpowiedzi asystenta. Gdy się wyczerpie, nadal publikujesz - opis piszesz wtedy sam.'
+      ? 'Teraz masz 50 tekstów AI miesięcznie (limit odnawia się 1. dnia miesiąca). Po wprowadzeniu płatnych planów: Free 20, Starter 200, Pro 600, Business 1500. Limit obejmuje opisy postów i odpowiedzi asystenta. Gdy się wyczerpie, nadal publikujesz - opis piszesz wtedy sam.'
       : 'Miesięcznie: Free 20, Starter 200, Pro 600, Business 1500; w okresie próbnym 50. Limit obejmuje opisy postów i odpowiedzi asystenta. Gdy się wyczerpie, nadal publikujesz - opis piszesz wtedy sam.',
   },
   {
@@ -76,7 +76,7 @@ export const LANDING_FAQ_ITEMS: LandingFaqItem[] = [
     question: 'Jak zrezygnować z subskrypcji?',
     answer:
       BETA
-      ? 'W czasie bety nie ma subskrypcji ani opłat - po prostu przestajesz korzystać, a konto możesz usunąć w ustawieniach (dane zostaną usunięte). Po włączeniu płatnych planów zrezygnujesz w panelu płatności w każdej chwili.'
+      ? 'Teraz nie ma subskrypcji ani opłat - po prostu przestajesz korzystać, a konto możesz usunąć w ustawieniach (dane zostaną usunięte). Po włączeniu płatnych planów zrezygnujesz w panelu płatności w każdej chwili.'
       : 'W panelu płatności w aplikacji (obsługiwanym przez Stripe). Subskrypcja odnawia się automatycznie, dopóki nie zrezygnujesz przed kolejnym okresem rozliczeniowym; po rezygnacji konto wraca na plan Free.',
   },
 ];

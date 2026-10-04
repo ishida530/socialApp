@@ -85,7 +85,7 @@ const softwareJsonLd = {
   offers: [
     {
       '@type': 'Offer',
-      name: isFreeBeta() ? 'Darmowa beta (plan PRO)' : 'Free',
+      name: isFreeBeta() ? 'Plan PRO bezpłatnie (okres startowy)' : 'Free',
       price: '0',
       priceCurrency: 'PLN',
       url: `${siteUrl}/register?source=landing&intent=free`,
@@ -112,7 +112,7 @@ const faqJsonLd = {
 export const metadata: Metadata = {
   title: 'Planowanie postów na Facebooka i Instagram z AI | Postfly',
   description:
-    'Wrzuć zdjęcie i jedno zdanie – AI zaproponuje opisy i hashtagi na Facebooka, Instagram i LinkedIn. Edytujesz, planujesz, publikujesz. ' + (isFreeBeta() ? 'Darmowa beta bez karty.' : '7 dni PRO bez karty.'),
+    'Wrzuć zdjęcie i jedno zdanie – AI zaproponuje opisy i hashtagi na Facebooka, Instagram i LinkedIn. Edytujesz, planujesz, publikujesz. ' + (isFreeBeta() ? 'Teraz bezpłatnie, bez karty.' : '7 dni PRO bez karty.'),
   robots: {
     index: true,
     follow: true,

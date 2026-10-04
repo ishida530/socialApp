@@ -40,8 +40,8 @@ export default function TermsPage() {
           </p>
           {isFreeBeta() ? (
             <p>
-              Postfly jest obecnie udostępniany w wersji testowej („beta”). W okresie beta Usługa jest świadczona
-              nieodpłatnie i nie są pobierane żadne opłaty. O zakończeniu okresu beta i wprowadzeniu płatnych planów
+              Obecnie Usługa jest świadczona nieodpłatnie („okres bezpłatny”, okres startowy) i nie są pobierane
+              żadne opłaty. O zakończeniu okresu bezpłatnego i wprowadzeniu płatnych planów
               Usługodawca poinformuje Użytkowników e-mailem z co najmniej 14-dniowym wyprzedzeniem; korzystanie z płatnych
               planów będzie wymagało ich świadomego wyboru przez Użytkownika.
             </p>
@@ -132,7 +132,7 @@ export default function TermsPage() {
           <h2 className="text-base font-semibold text-foreground">6. Płatności i subskrypcje</h2>
           {isFreeBeta() ? (
             <p>
-              W okresie beta (punkt 1) Usługa jest nieodpłatna, a płatne subskrypcje nie są oferowane. Postanowienia
+              W okresie bezpłatnym (punkt 1) Usługa jest nieodpłatna, a płatne subskrypcje nie są oferowane. Postanowienia
               dotyczące płatności i subskrypcji zostaną określone w zmienionym Regulaminie, udostępnionym przed
               wprowadzeniem płatnych planów zgodnie z punktem 11.
             </p>
@@ -149,7 +149,7 @@ export default function TermsPage() {
           {isFreeBeta() ? (
             <p>
               Użytkownik będący konsumentem ma prawo odstąpić od umowy w terminie 14 dni bez podania przyczyny. W
-              okresie beta Usługa jest nieodpłatna, więc odstąpienie nie wiąże się z żadnymi rozliczeniami - wystarczy
+              okresie bezpłatnym Usługa jest nieodpłatna, więc odstąpienie nie wiąże się z żadnymi rozliczeniami - wystarczy
               usunąć Konto w ustawieniach aplikacji lub napisać na adres z punktu 10.
             </p>
           ) : (
@@ -167,7 +167,7 @@ export default function TermsPage() {
             przez platformy takie jak Facebook, Instagram, LinkedIn, TikTok czy YouTube. Usługodawca nie gwarantuje,
             że API podmiotów trzecich będzie dostępne bez przerw i zmian funkcjonalnych.
             {isFreeBeta()
-              ? ' W okresie beta Usługa jest udostępniana w wersji testowej: mogą występować przerwy techniczne i zmiany funkcji, a dostępność Usługi nie jest gwarantowana.'
+              ? ' W okresie bezpłatnym Usługodawca nie gwarantuje ciągłej dostępności Usługi; mogą występować przerwy techniczne i zmiany funkcji.'
               : ''}
           </p>
 

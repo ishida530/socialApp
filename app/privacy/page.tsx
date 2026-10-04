@@ -101,7 +101,7 @@ export default function PrivacyPage() {
           <h2 className="text-base font-semibold text-foreground">4. Płatności i Stripe</h2>
           {BETA ? (
             <p>
-              W okresie beta Postfly jest bezpłatny i nie przetwarza żadnych danych płatniczych. Przed wprowadzeniem
+              Obecnie Postfly jest bezpłatny i nie przetwarza żadnych danych płatniczych. Przed wprowadzeniem
               płatnych planów ten punkt zostanie zaktualizowany.
             </p>
           ) : (

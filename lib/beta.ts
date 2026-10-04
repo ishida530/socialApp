@@ -9,4 +9,4 @@ export function isFreeBeta() {
 }
 
 export const FREE_BETA_CHECKOUT_MESSAGE =
-  'Postfly jest w darmowej becie - płatne plany uruchomimy później i nic nie zostanie pobrane automatycznie.';
+  'Postfly jest teraz bezpłatny - płatne plany uruchomimy później i nic nie zostanie pobrane automatycznie.';
