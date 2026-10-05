@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
+import { PostResultsSection } from '@/components/PostResultsSection';
 
 type RangeKey = '7d' | '30d' | '90d';
 
@@ -157,6 +158,8 @@ export function AnalyticsView({ initialMetrics }: { initialMetrics: AnalyticsRes
               )}
             </div>
           </section>
+
+          <PostResultsSection />
     </main>
   );
 }
