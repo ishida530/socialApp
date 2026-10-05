@@ -208,6 +208,15 @@ const MAX_JOBS_PER_SWEEP = 200;
 // (app/api/cron/telegram-digest) rather than a new cron entry - same free-tier Vercel cron-slot
 // constraint already applied to TASK-3.2.3.
 export async function collectMetricsForRecentJobs(): Promise<{ attempted: number; updated: number }> {
+  return collectMetrics({ onlyStale: true });
+}
+
+// "Odśwież statystyki" on the Analytics screen (2026-10-04): the user's own recent posts, now.
+export async function collectMetricsForUser(userId: string) {
+  return collectMetrics({ onlyStale: false, userId, take: 50 });
+}
+
+async function collectMetrics(options: { onlyStale: boolean; userId?: string; take?: number }): Promise<{ attempted: number; updated: number }> {
   const lookbackCutoff = new Date(Date.now() - METRICS_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
   const staleCutoff = new Date(Date.now() - REFRESH_STALE_AFTER_HOURS * 60 * 60 * 1000);
 
@@ -216,11 +225,12 @@ export async function collectMetricsForRecentJobs(): Promise<{ attempted: number
       status: 'SUCCESS',
       remotePostId: { not: null },
       publishedAt: { gte: lookbackCutoff },
-      OR: [{ postMetric: null }, { postMetric: { fetchedAt: { lte: staleCutoff } } }],
+      ...(options.onlyStale ? { OR: [{ postMetric: null }, { postMetric: { fetchedAt: { lte: staleCutoff } } }] } : {}),
+      ...(options.userId ? { video: { userId: options.userId } } : {}),
       // TikTok post metrics need video.list, not requested since 2026-10-04 (see social-oauth.ts).
       socialAccount: { platform: { not: 'TIKTOK' } },
     },
-    take: MAX_JOBS_PER_SWEEP,
+    take: options.take ?? MAX_JOBS_PER_SWEEP,
     orderBy: { publishedAt: 'desc' },
     include: { socialAccount: true },
   });
@@ -256,7 +266,60 @@ export async function collectMetricsForRecentJobs(): Promise<{ attempted: number
     }
   }
 
-  logEvent('post-metrics', 'metrics-sweep-complete', { attempted: jobs.length, updated });
+  logEvent('post-metrics', 'metrics-sweep-complete', { attempted: jobs.length, updated, userScoped: Boolean(options.userId) });
 
   return { attempted: jobs.length, updated };
+}
+
+export type PostResult = {
+  jobId: string;
+  platform: string;
+  accountHandle: string | null;
+  title: string;
+  postUrl: string | null;
+  publishedAt: string | null;
+  views: number | null;
+  likes: number | null;
+  comments: number | null;
+  shares: number | null;
+  fetchedAt: string | null;
+  metricsAvailable: boolean;
+};
+
+// Analytics screen (2026-10-04): the statistics collected above are shown to the user who owns
+// the posts - the platform read scopes (youtube.readonly, pages_read_engagement, instagram_basic)
+// exist for this screen.
+export async function getRecentPostResults(userId: string, days = 30): Promise<PostResult[]> {
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  const jobs = await prisma.publishJob.findMany({
+    where: { status: 'SUCCESS', publishedAt: { gte: since }, video: { userId } },
+    orderBy: { publishedAt: 'desc' },
+    take: 50,
+    select: {
+      id: true,
+      title: true,
+      caption: true,
+      remotePostUrl: true,
+      publishedAt: true,
+      socialAccount: { select: { platform: true, handle: true } },
+      video: { select: { title: true } },
+      postMetric: { select: { views: true, likes: true, comments: true, shares: true, fetchedAt: true } },
+    },
+  });
+
+  return jobs.map((job) => ({
+    jobId: job.id,
+    platform: job.socialAccount.platform,
+    accountHandle: job.socialAccount.handle,
+    title: job.title?.trim() || job.caption?.trim().slice(0, 80) || job.video.title,
+    postUrl: job.remotePostUrl,
+    publishedAt: job.publishedAt?.toISOString() ?? null,
+    views: job.postMetric?.views ?? null,
+    likes: job.postMetric?.likes ?? null,
+    comments: job.postMetric?.comments ?? null,
+    shares: job.postMetric?.shares ?? null,
+    fetchedAt: job.postMetric?.fetchedAt.toISOString() ?? null,
+    // TikTok post statistics need video.list, which is requested only after the TikTok audit.
+    metricsAvailable: job.socialAccount.platform !== 'TIKTOK',
+  }));
 }

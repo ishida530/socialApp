@@ -53,7 +53,7 @@ Jedno nagranie możesz wgrać przy kilku uprawnieniach, które pokazuje.
 | 6 | Zakładki **Facebook** i **Instagram**: pokaż opis zaproponowany przez AI, potem go edytuj i dodaj hashtag. | The caption is an AI suggestion; the user edits the caption and hashtags for each platform. |
 | 7 | **„Dalej”** → pokaż przyciski platform z **nazwą Strony i konta IG** → **„Opublikuj teraz”**. | The user sees exactly which Page and Instagram account the post goes to, and explicitly publishes (pages_manage_posts, instagram_content_publish). |
 | 8 | Ekran statusu → **„Zobacz post”** przy Facebooku i Instagramie → post widoczny na Stronie i w profilu IG. | The post is live on the Facebook Page and the Instagram profile. |
-| 9 | Menu **„Rozwój”** (obserwujący) i **„Analityka”** (statystyki postów). | pages_read_engagement, instagram_basic: the user sees follower counts and statistics of their own posts. |
+| 9 | Menu **„Rozwój”** (obserwujący, **„Odśwież teraz”**) i **„Analityka”** → **„Wyniki opublikowanych postów”** → **„Odśwież statystyki”** (polubienia i komentarze postów). | pages_read_engagement, instagram_basic: the user sees follower counts and statistics of their own posts. |
 
 ## 3. Nagranie B: odpowiedzi na komentarze (`pages_manage_engagement`, `pages_read_user_content`, `instagram_manage_comments`)
 
