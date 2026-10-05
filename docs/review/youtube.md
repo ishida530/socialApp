@@ -54,6 +54,7 @@ Wymagania Google:
 | # | Co robisz na ekranie | Napis (EN) |
 |---|---|---|
 | 1 | Otwórz `https://postfly.pl`, przewiń do sekcji **„Integracje”** (karta YouTube z opisem, co aplikacja robi z kanałem), potem do stopki, otwórz **Politykę Prywatności** i przewiń do sekcji **14** (YouTube/Google, z angielskim podsumowaniem). | Postfly home page and privacy policy, including the section on YouTube API Services and Google user data (Limited Use). |
+| 1b | **Logowanie przez Google** (ten sam klient OAuth co YouTube, Google wymaga pokazania wszystkich): `https://postfly.pl/login` → **„Zaloguj się przez Google”** → ekran zgody po angielsku z nazwą **PostFly** i `client_id` w pasku adresu → zaakceptuj → pulpit → **wyloguj się**. | Sign in with Google uses the same OAuth client: openid, email and profile only identify the user's Postfly account. |
 | 2 | **„Zaloguj się”** do Postfly na konto testowe z [README](README.md) (adres z `REVIEWER_EMAILS`) → menu **„Połączone konta”** → karta YouTube → **„Kontynuuj z Google”**. | The user connects their YouTube channel with Google OAuth. |
 | 3 | **Ekran zgody Google: zatrzymaj się.** Jeśli jest po polsku, zmień język w selektorze **na dole ekranu** na **English (United States)** (albo przed nagraniem ustaw język konta Google na angielski). Kliknij w pasek adresu, żeby był widoczny cały URL z **`client_id=…`**. Pokaż nazwę **„Postfly”** i listę uprawnień. Zaakceptuj. | Google consent screen: app name "Postfly" and the OAuth client ID in the address bar. The user grants youtube.upload and youtube.readonly. |
 | 4 | Powrót do Postfly: kanał widoczny jako połączony. | The YouTube channel is connected. |
@@ -68,6 +69,13 @@ Na nagraniu wybierz „Prywatny”: przed audytem YouTube i tak wymusza tę wido
 **Ekran „Google hasn't verified this app”** między scenami 2 i 3 jest przed weryfikacją normalny. Kliknij **„Advanced” → „Go to Postfly (unsafe)”** i nagrywaj dalej. Google wie, że aplikacja jest w trakcie weryfikacji, i tego nie ocenia. Najważniejsze, żeby na samym ekranie zgody były widoczne nazwa „Postfly”, lista uprawnień i `client_id`.
 
 **Wgraj film na YouTube jako „Niepubliczny” (Unlisted)** i skopiuj link. Ten link podajesz we wniosku.
+
+## 2b. Stan weryfikacji (sprawdzony 5.10.2026)
+
+Wniosek jest w toku od marca 2026 (projekt `raperapp`, klient „Klient internetowy 1”, nazwa aplikacji **PostFly**: zostaje, bo marka jest już zatwierdzona, a zmiana nazwy zresetowałaby ten etap).
+- ✅ Wymagania dotyczące strony głównej, ✅ wskazówki dotyczące marki (30.06.2026).
+- ❌ Funkcje aplikacji (23.03.2026): „film demonstracyjny nie pokazuje procesu wyrażania zgody OAuth”.
+- Do zrobienia: nowy film (sceny 1b i 3 szczególnie starannie), uzasadnienie zakresów po angielsku w **Dostęp do danych**, nowy link do filmu w tym samym miejscu, a potem **odpowiedź w wątku e-mailowym** od Google (nie nowy wniosek).
 
 ## 3. Zgłoszenie weryfikacji OAuth: krok po kroku
 
