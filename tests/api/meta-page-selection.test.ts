@@ -26,6 +26,9 @@ function stubMeta(pages: Array<Record<string, unknown>>) {
       if (url.includes('/me/accounts')) {
         return { ok: true, json: async () => ({ data: pages }) };
       }
+      if (url.includes('/me?fields=id')) {
+        return { ok: true, json: async () => ({ id: 'fb-user-777', name: 'Paweł' }) };
+      }
       return { ok: false, text: async () => 'unexpected', statusText: 'unexpected' };
     }),
   );
@@ -47,6 +50,21 @@ afterEach(async () => {
   vi.unstubAllGlobals();
   for (const id of cleanup.splice(0)) await deleteTestUser(id);
   for (const key of ENV_KEYS) process.env[key] = originalEnv[key];
+});
+
+describe('Meta Facebook user ID for data deletion requests', () => {
+  // 2026-10-10: Meta's Data Deletion Request names only the Facebook user, so the connection stores it.
+  it('stores the Facebook user ID on the connected Page', async () => {
+    const { user } = await createTestUser();
+    cleanup.push(user.id);
+
+    stubMeta([CUSTOMER_PAGE]);
+    await handleOAuthCallback('facebook', { code: 'abc', state: stateFor(user.id) });
+
+    const [connected] = await prisma.socialAccount.findMany({ where: { userId: user.id } });
+    expect(connected.externalId).toBe(CUSTOMER_PAGE.id);
+    expect(connected.metaUserId).toBe('fb-user-777');
+  });
 });
 
 describe('Meta page selection across Postfly accounts', () => {

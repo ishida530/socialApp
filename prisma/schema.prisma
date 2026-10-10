@@ -257,9 +257,15 @@ model SocialAccount {
   lastTiktokAllowDuet    Boolean?
   lastTiktokAllowStitch  Boolean?
   lastMetaPostFormat     String?
+  // Meta Data Deletion Request callback (2026-10-10): the app-scoped Facebook user ID of the person
+  // who connected this Page / Instagram account. Meta's signed_request names only that user, while
+  // externalId holds the Page or Instagram account ID - this links the two. Null for TikTok, YouTube,
+  // LinkedIn and for Meta accounts connected before this column existed (filled on reconnect).
+  metaUserId             String?
   growthSnapshots        AccountGrowthSnapshot[]
 
   @@index([userId])
+  @@index([metaUserId])
   @@unique([platform, externalId])
 }
 

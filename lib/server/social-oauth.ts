@@ -1023,6 +1023,19 @@ export async function handleOAuthCallback(
               }
             : await fetchFacebookProfile(tokenResult.accessToken);
 
+  // Meta Data Deletion Request callback (2026-10-10): remember which Facebook user connected this
+  // Page / Instagram account - Meta's deletion request identifies only that user. Best-effort: a
+  // failed lookup never blocks connecting the account.
+  const metaUserId =
+    provider === 'facebook' || provider === 'instagram'
+      ? await fetchFacebookProfile(tokenResult.accessToken)
+          .then((facebookUser) => facebookUser.externalId)
+          .catch((error) => {
+            console.error('[social-oauth] meta user id lookup failed', { provider, error });
+            return null;
+          })
+      : null;
+
   const prismaPlatform = toPrismaPlatform(provider);
   const reconnectAccountId = options?.reconnectAccountId;
 
@@ -1089,6 +1102,7 @@ export async function handleOAuthCallback(
           accessToken: encryptedAccessToken,
           refreshToken: encryptedRefreshToken,
           expiresAt: expiresAtToStore,
+          ...(metaUserId ? { metaUserId } : {}),
         },
       })
     : await (async () => {
@@ -1111,6 +1125,7 @@ export async function handleOAuthCallback(
             accessToken: encryptedAccessToken,
             refreshToken: encryptedRefreshToken,
             expiresAt: expiresAtToStore,
+            metaUserId,
           },
         });
       })();
