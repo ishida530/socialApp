@@ -24,21 +24,27 @@ afterEach(async () => {
 });
 
 describe('PATCH /api/publish-jobs/drafts/:id metaPostFormat', () => {
-  it('saves REELS/FEED on an Instagram video draft', async () => {
+  // 2026-10-10: Meta retired media_type=VIDEO - an Instagram video is always a Reel.
+  it('saves REELS and rejects FEED on an Instagram video draft', async () => {
     const { user, token } = await createTestUser();
     cleanupUserId = user.id;
     const account = await createSocialAccount(user.id, 'INSTAGRAM');
     const video = await createVideo(user.id, { mediaType: 'VIDEO' });
     const job = await createDraftJob({ videoId: video.id, socialAccountId: account.id, postGroupId: `group-${user.id}` });
 
-    const response = await PATCH(
+    const reels = await PATCH(
+      patchRequest(job.id, { metaPostFormat: 'REELS' }, authHeaders(token)),
+      { params: Promise.resolve({ id: job.id }) },
+    );
+    expect(reels.status).toBe(200);
+    expect((await prisma.publishJob.findUniqueOrThrow({ where: { id: job.id } })).metaPostFormat).toBe('REELS');
+
+    const feed = await PATCH(
       patchRequest(job.id, { metaPostFormat: 'FEED' }, authHeaders(token)),
       { params: Promise.resolve({ id: job.id }) },
     );
-
-    expect(response.status).toBe(200);
-    const updated = await prisma.publishJob.findUniqueOrThrow({ where: { id: job.id } });
-    expect(updated.metaPostFormat).toBe('FEED');
+    expect(feed.status).toBe(400);
+    expect((await prisma.publishJob.findUniqueOrThrow({ where: { id: job.id } })).metaPostFormat).toBe('REELS');
   });
 
   it('saves REELS/FEED on a Facebook video draft', async () => {

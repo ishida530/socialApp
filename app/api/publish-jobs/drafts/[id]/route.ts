@@ -6,6 +6,7 @@ import { consumeRateLimit } from '@/lib/server/rate-limit';
 import { fetchTikTokCreatorInfo, TikTokCreatorCannotPostError } from '@/lib/server/tiktok-creator-info';
 import { collectContentWarnings } from '@/lib/server/content-safety';
 import { PUBLIC_SOCIAL_ACCOUNT_SELECT } from '@/lib/server/public-fields';
+import { isMetaPostFormat, META_POST_FORMATS, metaPostFormatOptions } from '@/lib/meta-post-format';
 
 type PatchBody = {
   caption?: string;
@@ -25,7 +26,6 @@ type PatchBody = {
   youtubePrivacyStatus?: string;
 };
 
-const META_POST_FORMATS = ['REELS', 'FEED', 'BOTH'];
 const YOUTUBE_PRIVACY_STATUSES = ['public', 'unlisted', 'private'];
 
 export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
@@ -220,14 +220,20 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
         return badRequest('Format publikacji (Reels/zwykły post) dotyczy tylko materiałów wideo.');
       }
 
-      if (!META_POST_FORMATS.includes(body.metaPostFormat)) {
+      if (!isMetaPostFormat(body.metaPostFormat)) {
         return badRequest(`Niepoprawny format publikacji. Dozwolone: ${META_POST_FORMATS.join(', ')}`);
       }
 
-      // "Oba" only makes sense on Facebook - Instagram's Reels already appears in the feed too
-      // (share_to_feed), so there's no separate "plain post" surface to also publish to there.
-      if (body.metaPostFormat === 'BOTH' && job.socialAccount.platform !== 'FACEBOOK') {
-        return badRequest('Format "Oba" (Reels + zwykły post) dotyczy tylko Facebooka.');
+      // Allowed formats per platform come from lib/meta-post-format.ts (shared with the web
+      // composer and Telegram): Facebook video - REELS/FEED/BOTH; Instagram video - REELS only
+      // (Meta retired media_type=VIDEO; a Reel with share_to_feed already reaches the feed).
+      const allowedFormats = metaPostFormatOptions(job.socialAccount.platform, job.video.mediaType);
+      if (!allowedFormats.includes(body.metaPostFormat)) {
+        return badRequest(
+          job.socialAccount.platform === 'INSTAGRAM'
+            ? 'Na Instagramie każdy film jest publikowany jako Reels.'
+            : `Niepoprawny format publikacji. Dozwolone: ${allowedFormats.join(', ')}`,
+        );
       }
 
       data.metaPostFormat = body.metaPostFormat;

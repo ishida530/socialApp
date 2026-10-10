@@ -230,27 +230,36 @@ describe('Telegram preview platform toggle', () => {
   });
 });
 
+async function makeFacebookVideoDraft(userId: string, metaPostFormat: string) {
+  const video = await createVideo(userId);
+  const fbAccount = await createSocialAccount(userId, 'FACEBOOK', { accessToken: encrypt('token') });
+  const postGroupId = `group-fbonly-${userId}`;
+  const fbJob = await prisma.publishJob.create({
+    data: { status: 'DRAFT', postGroupId, caption: 'fb', scheduledFor: new Date(), videoId: video.id, socialAccountId: fbAccount.id, metaPostFormat },
+  });
+  return { postGroupId, fbJob };
+}
+
 describe('Telegram preview Reels/Feed format toggle', () => {
-  it('flips metaPostFormat REELS -> FEED, persists it as the account sticky default, and updates the message', async () => {
+  it('flips a Facebook video REELS -> FEED, persists it as the account sticky default, and updates the message', async () => {
     const { user } = await createTestUser();
     cleanupUserId = user.id;
     const chatId = '5551005';
     await linkChat(user.id, chatId);
-    const { postGroupId, igJob } = await makeDraftGroup(user.id);
-    await prisma.publishJob.update({ where: { id: igJob.id }, data: { metaPostFormat: 'REELS' } });
+    const { postGroupId, fbJob } = await makeFacebookVideoDraft(user.id, 'REELS');
 
     const response = await POST(
       webhookRequest({
         callback_query: {
           id: 'cbq-format-1',
-          data: `formattoggle:${postGroupId}:INSTAGRAM`,
+          data: `formattoggle:${postGroupId}:FACEBOOK`,
           message: { chat: { id: Number(chatId) }, message_id: 7 },
         },
       }),
     );
     expect(response.status).toBe(200);
 
-    const updatedJob = await prisma.publishJob.findUniqueOrThrow({ where: { id: igJob.id } });
+    const updatedJob = await prisma.publishJob.findUniqueOrThrow({ where: { id: fbJob.id } });
     expect(updatedJob.metaPostFormat).toBe('FEED');
 
     const account = await prisma.socialAccount.findUniqueOrThrow({ where: { id: updatedJob.socialAccountId } });
@@ -259,17 +268,19 @@ describe('Telegram preview Reels/Feed format toggle', () => {
     expect(mockAnswerTelegramCallbackQuery).toHaveBeenCalledWith('cbq-format-1', expect.stringContaining('zwykły post'));
 
     const [, , text, buttons] = mockEditTelegramMessage.mock.calls[0];
-    expect(text).toContain('INSTAGRAM — zwykły post');
-    expect(buttons.flat()).toContainEqual({ text: '📋 Zwykły post', callback_data: `formattoggle:${postGroupId}:INSTAGRAM` });
+    expect(text).toContain('FACEBOOK — zwykły post');
+    expect(buttons.flat()).toContainEqual({ text: '📋 Zwykły post', callback_data: `formattoggle:${postGroupId}:FACEBOOK` });
   });
 
-  it('toggling back returns to REELS', async () => {
+  // 2026-10-10: Meta retired media_type=VIDEO - an Instagram video is always a Reel, so the preview
+  // shows "Reels" without a format button, and a stale button from an old message changes nothing.
+  it('offers no format button for an Instagram video and ignores a stale toggle', async () => {
     const { user } = await createTestUser();
     cleanupUserId = user.id;
     const chatId = '5551006';
     await linkChat(user.id, chatId);
     const { postGroupId, igJob } = await makeDraftGroup(user.id);
-    await prisma.publishJob.update({ where: { id: igJob.id }, data: { metaPostFormat: 'FEED' } });
+    await prisma.publishJob.update({ where: { id: igJob.id }, data: { metaPostFormat: 'REELS' } });
 
     await POST(
       webhookRequest({
@@ -281,8 +292,10 @@ describe('Telegram preview Reels/Feed format toggle', () => {
       }),
     );
 
-    const updatedJob = await prisma.publishJob.findUniqueOrThrow({ where: { id: igJob.id } });
-    expect(updatedJob.metaPostFormat).toBe('REELS');
+    expect(mockAnswerTelegramCallbackQuery).toHaveBeenCalledWith('cbq-format-2', expect.stringContaining('Reels'));
+    expect(mockEditTelegramMessage).not.toHaveBeenCalled();
+    const unchanged = await prisma.publishJob.findUniqueOrThrow({ where: { id: igJob.id } });
+    expect(unchanged.metaPostFormat).toBe('REELS');
   });
 
   it('is not offered for TikTok (no formattoggle button) and rejects the action defensively if forced', async () => {
@@ -308,7 +321,7 @@ describe('Telegram preview Reels/Feed format toggle', () => {
     expect(unchangedJob.metaPostFormat).toBeNull();
   });
 
-  it('Facebook cycles through all three states (REELS -> FEED -> BOTH -> REELS); Instagram never reaches BOTH', async () => {
+  it('Facebook cycles through all three states (REELS -> FEED -> BOTH -> REELS); Instagram stays REELS', async () => {
     const { user } = await createTestUser();
     cleanupUserId = user.id;
     const chatId = '5551008';
@@ -369,8 +382,6 @@ describe('Telegram preview Reels/Feed format toggle', () => {
     await toggleFb();
     expect((await prisma.publishJob.findUniqueOrThrow({ where: { id: fbJob.id } })).metaPostFormat).toBe('REELS');
 
-    await toggleIg();
-    expect((await prisma.publishJob.findUniqueOrThrow({ where: { id: igJob.id } })).metaPostFormat).toBe('FEED');
     await toggleIg();
     expect((await prisma.publishJob.findUniqueOrThrow({ where: { id: igJob.id } })).metaPostFormat).toBe('REELS');
   });
