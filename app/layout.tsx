@@ -25,11 +25,14 @@ export const metadata: Metadata = {
   title: 'Panel Postfly',
   description: 'Panel Postfly do planowania i publikacji treści w social media.',
   icons: {
+    // Ta sama ikona (samolot) co App icon w TikTok Developer Portal — recenzja TikToka wymaga zgodności.
+    // ?v=3 wymusza pobranie nowej ikony zamiast wersji z cache przeglądarki.
     icon: [
-      { url: '/favicon.ico', type: 'image/x-icon' },
+      { url: '/favicon.ico?v=3', sizes: '48x48', type: 'image/x-icon' },
+      { url: '/icon.png?v=3', sizes: '512x512', type: 'image/png' },
     ],
-    shortcut: ['/favicon.ico'],
-    apple: ['/apple-icon.png?v=2'],
+    shortcut: ['/favicon.ico?v=3'],
+    apple: ['/apple-icon.png?v=3'],
   },
   openGraph: {
     title: 'Panel Postfly',
