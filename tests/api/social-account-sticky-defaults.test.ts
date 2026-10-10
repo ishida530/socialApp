@@ -19,6 +19,7 @@ vi.mock('@/lib/server/tiktok-creator-info', async (importOriginal) => ({
 const mockBundles = new Map([
   ['TIKTOK', { platform: 'TIKTOK', title: 'TikTok Title', caption: 'TikTok caption', hashtags: [] }],
   ['INSTAGRAM', { platform: 'INSTAGRAM', title: 'IG Title', caption: 'IG caption', hashtags: [] }],
+  ['FACEBOOK', { platform: 'FACEBOOK', title: 'FB Title', caption: 'FB caption', hashtags: [] }],
 ]);
 vi.mock('@/lib/server/composer-drafts', () => ({
   previewImageUrls: () => [],
@@ -103,10 +104,10 @@ describe('SocialAccount sticky defaults', () => {
     expect(secondTiktokJob?.tiktokAllowComment).toBeNull();
   });
 
-  it('PATCH of metaPostFormat persists it, and a new Instagram draft inherits FEED instead of the REELS fallback', async () => {
+  it('PATCH of metaPostFormat persists it, and a new Facebook draft inherits FEED instead of the REELS fallback', async () => {
     const { user, token } = await createTestUser();
     cleanupUserId = user.id;
-    const account = await createSocialAccount(user.id, 'INSTAGRAM');
+    const account = await createSocialAccount(user.id, 'FACEBOOK');
 
     const firstVideo = await createVideo(user.id, { mediaType: 'VIDEO' });
     const firstJob = await createDraftJob({
@@ -128,9 +129,28 @@ describe('SocialAccount sticky defaults', () => {
     expect(response.status).toBe(200);
     const body = await response.json();
 
-    const secondIgJob = await prisma.publishJob.findFirst({
+    const secondFbJob = await prisma.publishJob.findFirst({
       where: { postGroupId: body.postGroupId, socialAccountId: account.id },
     });
-    expect(secondIgJob?.metaPostFormat).toBe('FEED');
+    expect(secondFbJob?.metaPostFormat).toBe('FEED');
+  });
+
+  // 2026-10-10: Instagram videos are always Reels (Meta retired media_type=VIDEO). An account that
+  // remembered FEED from before the change must start new drafts as REELS.
+  it('a new Instagram video draft falls back to REELS even if the account remembered FEED', async () => {
+    const { user, token } = await createTestUser();
+    cleanupUserId = user.id;
+    const account = await createSocialAccount(user.id, 'INSTAGRAM');
+    await prisma.socialAccount.update({ where: { id: account.id }, data: { lastMetaPostFormat: 'FEED' } });
+
+    const video = await createVideo(user.id, { mediaType: 'VIDEO' });
+    const response = await postDrafts(jsonRequest(DRAFTS_URL, { videoId: video.id }, authHeaders(token)));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+
+    const igJob = await prisma.publishJob.findFirst({
+      where: { postGroupId: body.postGroupId, socialAccountId: account.id },
+    });
+    expect(igJob?.metaPostFormat).toBe('REELS');
   });
 });

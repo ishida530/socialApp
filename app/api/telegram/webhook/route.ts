@@ -40,6 +40,13 @@ import { runWithRequestId } from '@/lib/server/request-context';
 import { consumeRateLimit } from '@/lib/server/rate-limit';
 import { parseTelegramEditReply } from '@/lib/server/telegram-edit-parser';
 import { parseTelegramScheduleReply } from '@/lib/server/telegram-schedule-parser';
+import {
+  canChooseMetaPostFormat,
+  effectiveMetaPostFormat,
+  META_POST_FORMAT_BUTTON,
+  META_POST_FORMAT_LABEL,
+  nextMetaPostFormat,
+} from '@/lib/meta-post-format';
 
 type TelegramPhotoSize = { file_id: string; file_size?: number };
 type TelegramVideo = { file_id: string; file_size?: number; mime_type?: string };
@@ -146,8 +153,11 @@ const YOUTUBE_VISIBILITY_LABEL: Record<string, string> = {
 // here also updates SocialAccount.lastMetaPostFormat, the same "sticky default" write-through
 // PATCH .../drafts/:id already does, so a choice made here sticks for future posts on either
 // channel too.
+// Which formats exist per platform/material lives in lib/meta-post-format.ts (shared with the web
+// composer and the draft API): a button only when there's a real choice - Instagram videos are
+// always Reels since Meta retired media_type=VIDEO (2026-10-10).
 function canToggleMetaFormat(job: PreviewJob) {
-  return (job.socialAccount.platform === 'FACEBOOK' || job.socialAccount.platform === 'INSTAGRAM') && job.video.mediaType === 'VIDEO';
+  return canChooseMetaPostFormat(job.socialAccount.platform, job.video.mediaType);
 }
 
 function buildPreviewButtons(postGroupId: string, jobs: PreviewJob[]) {
@@ -163,10 +173,9 @@ function buildPreviewButtons(postGroupId: string, jobs: PreviewJob[]) {
       },
     ];
 
-    if (canToggleMetaFormat(job)) {
-      const label =
-        job.metaPostFormat === 'FEED' ? '📋 Zwykły post' : job.metaPostFormat === 'BOTH' ? '🎬📋 Oba' : '🎬 Reels';
-      row.push({ text: label, callback_data: `formattoggle:${postGroupId}:${job.socialAccount.platform}` });
+    const format = effectiveMetaPostFormat(job.socialAccount.platform, job.video.mediaType, job.metaPostFormat);
+    if (canToggleMetaFormat(job) && format) {
+      row.push({ text: META_POST_FORMAT_BUTTON[format], callback_data: `formattoggle:${postGroupId}:${job.socialAccount.platform}` });
     }
 
     return row;
@@ -212,13 +221,8 @@ function describePlatformFormat(job: PreviewJob) {
   }
 
   if (platform === 'INSTAGRAM' || platform === 'FACEBOOK') {
-    if (job.metaPostFormat === 'FEED') {
-      return 'zwykły post';
-    }
-    if (job.metaPostFormat === 'BOTH') {
-      return 'Reels + zwykły post (2 osobne publikacje)';
-    }
-    return 'Reels';
+    const format = effectiveMetaPostFormat(platform, job.video.mediaType, job.metaPostFormat);
+    return format ? META_POST_FORMAT_LABEL[format] : 'Reels';
   }
 
   if (platform === 'YOUTUBE') {
@@ -274,7 +278,7 @@ function buildPreviewMessage(jobs: PreviewJob[], schedule: ScheduleSlot[] = []) 
     ...lines,
     ...(scheduleSuggestion ? ['', scheduleSuggestion] : []),
     '',
-    'Odznacz platformę żeby ją pominąć, ✏️ Edytuj żeby poprawić opis/hashtagi/tytuł, 🎬/📋 żeby przełączyć Reels/zwykły post (Facebook/Instagram), potem zatwierdź albo anuluj.',
+    'Odznacz platformę żeby ją pominąć, ✏️ Edytuj żeby poprawić opis/hashtagi/tytuł, 🎬/📋 żeby przełączyć format filmu na Facebooku (Reels/zwykły post/oba; na Instagramie film to zawsze Reels), potem zatwierdź albo anuluj.',
   ].join('\n');
 }
 
@@ -1318,20 +1322,16 @@ async function handleCallbackQuery(update: NonNullable<TelegramUpdate['callback_
       return;
     }
 
-    // Facebook cycles through all three (Reels and a plain post are genuinely separate surfaces
-    // there, so "Oba" = two real publications - see enqueueDraftGroup). Instagram stays a
-    // two-way toggle: a Reel there already reaches the feed too (share_to_feed), so a separate
-    // "Oba" would just be a literal duplicate post, not a second real placement.
-    const nextFormat =
-      toggleTarget === 'FACEBOOK'
-        ? targetJob.metaPostFormat === 'REELS' || !targetJob.metaPostFormat
-          ? 'FEED'
-          : targetJob.metaPostFormat === 'FEED'
-            ? 'BOTH'
-            : 'REELS'
-        : targetJob.metaPostFormat === 'FEED'
-          ? 'REELS'
-          : 'FEED';
+    // An old preview message may still carry an Instagram format button from before 2026-10-10.
+    if (!canChooseMetaPostFormat(toggleTarget, targetJob.video.mediaType)) {
+      await answerTelegramCallbackQuery(update.id, 'Na Instagramie każdy film jest publikowany jako Reels.').catch(() => {});
+      return;
+    }
+
+    // Facebook cycles REELS -> FEED -> BOTH (Reels and a plain post are genuinely separate
+    // surfaces there, so "Oba" = two real publications - see enqueueDraftGroup). The order comes
+    // from lib/meta-post-format.ts, the same list the web composer shows.
+    const nextFormat = nextMetaPostFormat(toggleTarget, targetJob.video.mediaType, targetJob.metaPostFormat)!;
 
     await prisma.publishJob.update({ where: { id: targetJob.id }, data: { metaPostFormat: nextFormat } });
     // Same sticky-default write-through PATCH .../drafts/:id already does for the web composer -
@@ -1346,8 +1346,7 @@ async function handleCallbackQuery(update: NonNullable<TelegramUpdate['callback_
       orderBy: { createdAt: 'asc' },
     });
 
-    const confirmationText =
-      nextFormat === 'FEED' ? `${toggleTarget}: zwykły post.` : nextFormat === 'BOTH' ? `${toggleTarget}: oba (Reels + post).` : `${toggleTarget}: Reels.`;
+    const confirmationText = `${toggleTarget}: ${META_POST_FORMAT_LABEL[nextFormat]}.`;
     await answerTelegramCallbackQuery(update.id, confirmationText).catch(() => {});
 
     await editTelegramMessage(

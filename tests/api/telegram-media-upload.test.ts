@@ -98,11 +98,11 @@ describe('POST /api/telegram/webhook — media upload (TASK-3.1.2)', () => {
     const [, message, buttons] = mockSendTelegramMessageWithButtons.mock.calls[0];
     // Format type shown per platform (Reels is the sticky default for a fresh Meta account).
     expect(message).toContain('INSTAGRAM — Reels');
-    // Row 1: toggle + edit + Reels/post format buttons for the one connected platform (Instagram, video). Row 2: Publikuj/Zaplanuj. Row 3: Zaplanuj optymalnie/Anuluj.
+    // Row 1: toggle + edit for the one connected platform (Instagram video - always a Reel since
+    // 2026-10-10, so no format button). Row 2: Publikuj/Zaplanuj. Row 3: Zaplanuj optymalnie/Anuluj.
     expect(buttons[0]).toEqual([
       { text: '✅ INSTAGRAM', callback_data: `toggle:${createdJobs[0].postGroupId}:INSTAGRAM` },
       { text: '✏️ Edytuj', callback_data: `editstart:${createdJobs[0].postGroupId}:INSTAGRAM` },
-      { text: '🎬 Reels', callback_data: `formattoggle:${createdJobs[0].postGroupId}:INSTAGRAM` },
     ]);
     expect(buttons[1]).toEqual([
       { text: '✅ Publikuj', callback_data: `publish:${createdJobs[0].postGroupId}` },

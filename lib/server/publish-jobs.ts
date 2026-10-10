@@ -14,6 +14,7 @@ import { processPublishJobImmediately } from './publish-processor';
 import { cancelQStashMessage, scheduleQStashPublish } from './qstash';
 import { PUBLIC_SOCIAL_ACCOUNT_SELECT } from './public-fields';
 import { attachActiveCampaignToJobs } from './campaigns';
+import { effectiveMetaPostFormat } from '@/lib/meta-post-format';
 
 // TASK-3.1.2: rdzeń logiki app/api/publish-jobs/drafts (POST) i
 // app/api/publish-jobs/enqueue (POST), wydzielony żeby webhook Telegrama (upload materiału,
@@ -110,7 +111,6 @@ export async function createDraftGroupForVideo(
   const createdJobs = await prisma.$transaction(
     connectedPlatforms.map((platform) => {
       const account = accountByPlatform.get(platform)!;
-      const isMetaVideo = video.mediaType === 'VIDEO' && (platform === Platform.FACEBOOK || platform === Platform.INSTAGRAM);
 
       return prisma.publishJob.create({
         data: {
@@ -125,7 +125,9 @@ export async function createDraftGroupForVideo(
           // client code, so Telegram - which has no settings UI of its own - gets the same
           // inherited value instead of a hardcoded default every time. Same lesson as BUG-003
           // (a client-only default never reached the Telegram channel).
-          metaPostFormat: isMetaVideo ? (account.lastMetaPostFormat ?? 'REELS') : undefined,
+          // The sticky value goes through lib/meta-post-format.ts, so a format the platform no
+          // longer offers (Instagram "FEED" saved before 2026-10-10) falls back to REELS.
+          metaPostFormat: effectiveMetaPostFormat(platform, video.mediaType, account.lastMetaPostFormat) ?? undefined,
           // TikTok deliberately has NO sticky defaults (2026-09-30, Content Posting API audit
           // rejection, ref 20260913074631) - every new draft starts with privacyLevel/allow*/
           // disclosure all unset. TikTok's Content Sharing Guidelines require privacy level and

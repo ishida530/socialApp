@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Hash, AtSign, RefreshCw, TriangleAlert } from 'lucide-react';
 import { MetaFormatPanel } from './MetaFormatPanel';
+import { metaPostFormatOptions } from '@/lib/meta-post-format';
 import { PLATFORM_CAPTION_LIMIT } from './types';
 import type { DraftJob } from './types';
 
@@ -204,10 +205,9 @@ export function PlatformCaptionTab({
         </p>
       )}
 
-      {(job.socialAccount.platform === 'FACEBOOK' || job.socialAccount.platform === 'INSTAGRAM') &&
-        job.video.mediaType === 'VIDEO' && (
-          <MetaFormatPanel job={job} onSaveNow={(patch) => onSaveNow(job.id, patch)} />
-        )}
+      {metaPostFormatOptions(job.socialAccount.platform, job.video.mediaType).length > 0 && (
+        <MetaFormatPanel job={job} onSaveNow={(patch) => onSaveNow(job.id, patch)} />
+      )}
     </div>
   );
 }
