@@ -57,7 +57,12 @@ Jedno nagranie możesz wgrać przy kilku uprawnieniach, które pokazuje.
 
 ## 3. Nagranie B: odpowiedzi na komentarze (`pages_manage_engagement`, `pages_read_user_content`, `instagram_manage_comments`)
 
-**Nagrywaj na koncie testowym z [README](README.md)** (adres z `REVIEWER_EMAILS`) albo na koncie administratora. Zwykli użytkownicy nie są o te uprawnienia proszeni, dopóki nie zostaną zatwierdzone. Konto recenzenta i konto administratora dostają je automatycznie przy łączeniu Facebooka i Instagrama. Jeśli łączyłeś Stronę wcześniej, rozłącz ją i połącz ponownie, żeby token miał nowe uprawnienia.
+**Nagrywaj na koncie testowym z [README](README.md)** (adres z `REVIEWER_EMAILS`) albo na koncie administratora. Zwykli użytkownicy nie są o te uprawnienia proszeni, dopóki nie zostaną zatwierdzone.
+
+**Przed nagraniem B (od 10.10.2026):** uprawnienia do komentarzy nie są już dodawane automatycznie, bo Facebook blokował okno logowania („Invalid Scopes: pages_read_user_content”), a nagranie A ma pokazywać tylko uprawnienia do publikacji. Dlatego:
+1. W panelu Mety: Przykłady użycia → „Zarządzaj wszystkim na swojej stronie” → **Dostosuj** → „Add more to this use case” → dodaj **`pages_read_user_content`**.
+2. Vercel → `META_COMMENT_SCOPES_FOR_REVIEW` = `1` (Production) → Redeploy. Wtedy konto recenzenta i administratora dostaną uprawnienia do komentarzy przy łączeniu Facebooka i Instagrama.
+3. Po nagraniu i wysłaniu review ustaw zmienną z powrotem na pustą wartość. Jeśli łączyłeś Stronę wcześniej, rozłącz ją i połącz ponownie, żeby token miał nowe uprawnienia.
 
 Nagraj **osobny film dla Facebooka** (pokazuje oba uprawnienia: `pages_manage_engagement` i `pages_read_user_content`) **i dla Instagrama** (`instagram_manage_comments`). Komentarze są pobierane tylko spod postów opublikowanych przez Postfly w ostatnich 30 dniach, więc najpierw opublikuj post przez Postfly.
 

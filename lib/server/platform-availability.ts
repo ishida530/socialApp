@@ -34,6 +34,18 @@ export function commentsFeatureEnabledFor(email: string | null | undefined): boo
   return process.env.COMMENTS_FEATURE_ENABLED === '1' || hasReviewAccess(email);
 }
 
+// Comment scopes in the Facebook/Instagram login dialog (2026-10-10). Admins and reviewers no
+// longer get them by default: pages_read_user_content isn't added to the app's use case, so
+// Facebook blocks the dialog with "Invalid Scopes", and the publishing review recording must show
+// only the permissions submitted for review. Before recording the comments demo, add
+// pages_read_user_content to the "Manage Pages" use case and set META_COMMENT_SCOPES_FOR_REVIEW="1".
+export function commentScopesRequestedFor(email: string | null | undefined): boolean {
+  if (process.env.COMMENTS_FEATURE_ENABLED === '1') {
+    return true;
+  }
+  return process.env.META_COMMENT_SCOPES_FOR_REVIEW === '1' && hasReviewAccess(email);
+}
+
 export const PLATFORM_IN_REVIEW_MESSAGE =
   'Ta platforma jest jeszcze w trakcie zatwierdzania przez jej operatora - połączenie będzie dostępne wkrótce.';
 

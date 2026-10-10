@@ -12,10 +12,11 @@ Data sprawdzenia: **2026-09-13**
 
 ## Meta (Facebook + Instagram) — Graph API
 
-**Status: zatwierdzony (Advanced Access).**
+**Status (sprawdzone w panelu 2026-10-10): NIE zatwierdzony — Standard access („Ready for testing”).** Wcześniejszy wpis z 13.09 („Advanced Access”) był błędny.
 
-- Appka ma pełny, zatwierdzony dostęp produkcyjny dla uprawnień: `pages_show_list`, `pages_manage_posts`, `pages_read_engagement`, `instagram_basic`, `instagram_content_publish`, `business_management` (patrz `FACEBOOK_OAUTH_SCOPES`/`INSTAGRAM_OAUTH_SCOPES` w `.env.example`).
-- Działa dla dowolnego konta Facebook/Instagram, nie tylko kont testowych.
+- Business verification: **Verified** (Code94 Paweł Sawczuk). Access verification (Tech Provider): **In review** od 10.10.
+- App Review: **Not submitted**. Do zgłoszenia (nagranie A z [review/meta.md](review/meta.md)): `pages_show_list`, `pages_manage_posts`, `pages_read_engagement`, `business_management`, `instagram_basic`, `instagram_content_publish`, `public_profile`. Uprawnienia do komentarzy usunięte z tego zgłoszenia — osobne review później (nagranie B).
+- Do czasu zatwierdzenia publikacja na Facebooku/Instagramie działa **tylko dla kont z rolą w aplikacji** (admin, deweloperzy, testerzy) — nie dla zwykłych klientów.
 
 ## Statystyki/metryki postów — status pól API (sprawdzone 2026-09-13)
 

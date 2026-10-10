@@ -8,7 +8,7 @@ import { badRequest, serverError, tooManyRequests, unauthorized } from '@/lib/se
 import { consumeRateLimit } from '@/lib/server/rate-limit';
 import {
   canConnectPlatform,
-  commentsFeatureEnabledFor,
+  commentScopesRequestedFor,
   PLATFORM_IN_REVIEW_MESSAGE,
 } from '@/lib/server/platform-availability';
 
@@ -40,7 +40,7 @@ export async function GET(
     }
 
     const result = buildAuthUrl(params.platform, user.userId, {
-      includeCommentScopes: commentsFeatureEnabledFor(user.email),
+      includeCommentScopes: commentScopesRequestedFor(user.email),
     });
     const debugEnabled = request.nextUrl.searchParams.get('debug') === '1';
     const authUrl = new URL(result.url);
