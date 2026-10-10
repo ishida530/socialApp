@@ -10,21 +10,24 @@ W skrócie:
 
 ## 0. Najpierw etap 1 z [README](README.md)
 
-Środki w Anthropic, domena w Resend, konto recenzenta (`REVIEWER_EMAILS`) i test generalny. Konto recenzenta dostaje uprawnienia do komentarzy automatycznie, potrzebne do nagrania B.
+Środki w Anthropic, domena w Resend, konto recenzenta (`REVIEWER_EMAILS`) i test generalny. Uprawnienia do komentarzy **nie** są już dodawane automatycznie (od 10.10.2026) — przed nagraniem B patrz sekcja 3.
 
-## 1. Najpierw sprawdź, może nic nie trzeba nagrywać
+## 1. Stan i ustawienia panelu
 
-Produkcja prosi wyłącznie o uprawnienia, które według dokumentacji projektu (13.09.2026) masz już zatwierdzone:
+**Stan na 10.10.2026 (sprawdzony w panelu):** publikacja **nie jest zatwierdzona** — wszystkie uprawnienia mają „Ready for testing” (Standard access), więc działają tylko dla kont z rolą w aplikacji. Wcześniejszy zapis o „Advanced access” był błędny. Potrzebne jest **nagranie A** i zgłoszenie review.
+
+Zgłoszenie publikacji (Review → Recenzja aplikacji → „New requests”) obejmuje 7 uprawnień:
 
 | Platforma | Uprawnienia |
 |---|---|
-| Facebook | `pages_show_list`, `pages_manage_posts`, `pages_read_engagement` |
-| Instagram | `instagram_basic`, `instagram_content_publish`, `pages_show_list`, `pages_read_engagement`, `business_management` |
+| Facebook | `pages_show_list`, `pages_manage_posts`, `pages_read_engagement`, `public_profile` |
+| Instagram | `instagram_basic`, `instagram_content_publish`, `business_management` |
+
+Uprawnienia do komentarzy (`pages_manage_engagement`, `instagram_manage_comments`) są **usunięte z tego zgłoszenia** (ikona kosza) — osobne review z nagraniem B, później.
 
 W [Meta for Developers](https://developers.facebook.com/apps) → aplikacja Postfly sprawdź:
-- [ ] **App Mode: Live** (przełącznik u góry panelu);
-- [ ] **App Review → Permissions and Features**: przy każdym uprawnieniu z tabeli status **Advanced access**;
-- [ ] **Business verification**: zakończona (Settings → Basic albo komunikat w App Review);
+- [x] **App Mode: Live** (Opublikuj: „Published”) — potwierdzone 10.10;
+- [x] **Business verification**: Verified (Code94 Paweł Sawczuk) — potwierdzone 10.10. **Access verification** (Tech Provider): In review od 10.10, toczy się niezależnie;
 - [ ] **Settings → Basic**:
   - Privacy Policy URL `https://postfly.pl/privacy`;
   - Terms of Service URL `https://postfly.pl/terms`;
@@ -33,15 +36,18 @@ W [Meta for Developers](https://developers.facebook.com/apps) → aplikacja Post
 - [ ] **Uprawnienie `email` nie jest zgłoszone ani używane** (Postfly już o nie nie prosi od 3.10.2026). Jeśli w Vercelu jest zmienna `FACEBOOK_OAUTH_SCOPES`, upewnij się, że nie zawiera `email`.
 - [ ] **Facebook Login → Settings → Valid OAuth Redirect URIs**: `https://postfly.pl/api/auth/callback/facebook` i `https://postfly.pl/api/auth/callback/instagram`.
 
-**Jeśli wszystko jest zielone, publikacji nie zgłaszasz.** Nagrywasz tylko to, czego brakuje:
-- któreś uprawnienie ma tylko „Standard access” → nagranie A;
-- chcesz odpowiadać na komentarze z Postfly → nagranie B.
-
 ---
 
-## 2. Nagranie A: publikacja (tylko gdy brakuje Advanced access)
+## 2. Nagranie A: publikacja
 
-Jedno nagranie możesz wgrać przy kilku uprawnieniach, które pokazuje.
+Jedno nagranie wgrywasz przy wszystkich 7 uprawnieniach, które pokazuje.
+
+**Przed nagraniem:**
+- [ ] Anthropic: saldo i miesięczny limit wystarczą; szybki test w Postfly — opis od AI dotyczy Twojego zdjęcia.
+- [ ] Konto recenzenta w Postfly: **rozłącz** Facebooka i Instagrama w „Połączonych kontach”, żeby nagrać łączenie od zera.
+- [ ] Facebook → [Integracje biznesowe](https://www.facebook.com/settings?tab=business_tools): **usuń postfly** (bez usuwania postów) — inaczej Facebook pominie listę uprawnień w scenie 3.
+- [ ] Język konta Facebook: **English** na czas nagrania.
+- [ ] Materiał: **zdjęcie** (najprościej — jednakowo na obu platformach). Film też zadziała: na Instagramie idzie zawsze jako Reels (kreator pokazuje „Format publikacji: Reels”).
 
 | # | Co robisz na ekranie | Napis (EN) |
 |---|---|---|
@@ -79,16 +85,18 @@ Nagraj **osobny film dla Facebooka** (pokazuje oba uprawnienia: `pages_manage_en
 
 ## 4. Zgłoszenie review: krok po kroku
 
-1. **Wymagane testowe wywołanie API.** Przycisk „Request advanced access” jest nieaktywny, dopóki w ciągu ostatnich 30 dni nie było **co najmniej jednego udanego wywołania API** z danym uprawnieniem. Wystarczy wykonać w Postfly akcję z nagrania (np. wysłać odpowiedź na komentarz) albo zrobić wywołanie w [Graph API Explorer](https://developers.facebook.com/tools/explorer/).
-2. **App Review → Permissions and Features**: wyszukaj każde uprawnienie → **Request advanced access**.
+1. **Wymagane testowe wywołanie API.** Meta nie przepuści zgłoszenia, dopóki w ciągu ostatnich 30 dni nie było **co najmniej jednego udanego wywołania API** z każdym zgłaszanym uprawnieniem. Dla publikacji wystarczy opublikować z Postfly post na Facebooku i Instagramie oraz kliknąć „Analityka” → „Odśwież statystyki” i „Rozwój” → „Odśwież teraz” (nagranie A robi to samo). Sprawdzisz to w Przykłady użycia → **Dostosuj** → kolumna **API Calls** (aktualizuje się do 24 h).
+2. **Review → Recenzja aplikacji**: lista „New requests” (7 uprawnień z sekcji 1) → **Next**.
 3. Jeśli pojawi się prośba: dokończ **Business verification** i odpowiedz na **pytania o przetwarzanie danych** (data handling).
 4. **Complete App Settings**: potwierdź dane z punktu 1 (ikona, polityka prywatności, URL usuwania danych, kategoria).
 5. **Complete App Verification**: wklej instrukcję dla recenzenta (punkt 5).
 6. **Requested Permissions and Features**: przy każdym uprawnieniu wklej opis (punkt 6), wgraj nagranie i zaznacz zgodę na zasady użycia.
 7. **Submit for Review** → zaakceptuj Platform Onboarding Terms. Decyzja przychodzi zwykle w ciągu tygodnia (do 2–4 tygodni).
-8. Po zatwierdzeniu ustaw w Vercelu `COMMENTS_FEATURE_ENABLED` = `1` i zrób Redeploy. Uprawnienia do komentarzy będą wtedy wymagane od wszystkich łączących konta. Użytkownicy, którzy połączyli konta wcześniej, muszą je połączyć ponownie.
+8. Tylko po zatwierdzeniu **komentarzy** (osobne review z nagraniem B): ustaw w Vercelu `COMMENTS_FEATURE_ENABLED` = `1` i zrób Redeploy. Uprawnienia do komentarzy będą wtedy wymagane od wszystkich łączących konta. Użytkownicy, którzy połączyli konta wcześniej, muszą je połączyć ponownie.
 
 ## 5. Instrukcja dla recenzenta (pole „App Verification”)
+
+**Zgłoszenie publikacji (teraz)** — wklej punkty 1–3 i ostatnie zdanie; punkt 4 dodaj dopiero przy zgłoszeniu komentarzy:
 
 > 1. Go to https://postfly.pl and click "Zaloguj się" (Log in). Email: <E-MAIL KONTA TESTOWEGO Z REVIEWER_EMAILS>, password: <HASŁO>.
 > 2. Open "Połączone konta" (Connected accounts) in the left menu and click "Kontynuuj z Facebookiem" (Continue with
@@ -102,12 +110,15 @@ Nagraj **osobny film dla Facebooka** (pokazuje oba uprawnienia: `pages_manage_en
 
 ## 6. Opisy uprawnień (pole „How will your app use this permission?”)
 
+- **public_profile**: *Identifies the Facebook user who connects their Page so the connection is linked to their Postfly account. Only the name and ID are used.*
 - **pages_show_list**: *Lets the user choose which of their Facebook Pages to connect to Postfly. We show the Page name so the user sees where content will be published.*
 - **pages_read_engagement**: *Reads the follower count of the connected Page and engagement statistics (likes, comments, shares) of posts the user published through Postfly, shown to that user on the Growth and Analytics screens.*
 - **pages_manage_posts**: *Publishes a post (photo, video or text) to the user's own Page only after the user writes the caption and clicks "Publish now" in Postfly.*
 - **business_management**: *Required to access the Page and the Instagram professional account the user manages through Meta Business, so they can connect them to Postfly.*
 - **instagram_basic**: *Reads the connected Instagram account's username, follower count and basic media statistics to identify the account and show the user their results.*
 - **instagram_content_publish**: *Publishes a photo or Reel to the user's own Instagram professional account only after the user writes the caption and clicks "Publish now" in Postfly.*
+
+Poniższe trzy — dopiero przy zgłoszeniu komentarzy (nagranie B):
 - **pages_manage_engagement**: *Lets the user reply to comments under their own Page posts from Postfly's Community screen. Postfly may suggest a reply with AI; the user edits it, and a reply is sent only when the user clicks "Send".*
 - **pages_read_user_content**: *Reads comments (text and the commenter's name) under posts the user published to their own Page through Postfly, so the user can see them on Postfly's Community screen and reply. The data is shown only to that user and deleted when the Page is disconnected.*
 - **instagram_manage_comments**: *Reads new comments under the user's own Instagram posts and lets the user reply from Postfly's Community screen. Postfly may suggest a reply with AI; the user edits it, and a reply is sent only when the user clicks "Send".*
