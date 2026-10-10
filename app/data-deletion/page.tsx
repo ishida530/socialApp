@@ -11,10 +11,32 @@ export const metadata: Metadata = {
 
 const CONTACT_EMAIL = 'hello@postfly.pl';
 
-export default function DataDeletionPage() {
+// ?code=... - the status link Meta shows after a Data Deletion Request (app/api/meta/data-deletion).
+// Only a short hex code is accepted, so arbitrary text from the URL is never echoed on the page.
+const CONFIRMATION_CODE_PATTERN = /^[a-f0-9]{8,64}$/;
+
+export default async function DataDeletionPage({ searchParams }: { searchParams: Promise<{ code?: string | string[] }> }) {
+  const { code } = await searchParams;
+  const confirmationCode = typeof code === 'string' && CONFIRMATION_CODE_PATTERN.test(code) ? code : null;
+
   return (
     <main className="min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-3xl px-6 py-16">
+        {confirmationCode && (
+          <div className="mb-8 rounded-lg border border-border bg-secondary/30 p-4 text-sm leading-6">
+            <p className="font-semibold text-foreground">Żądanie usunięcia danych zostało zrealizowane.</p>
+            <p className="text-muted-foreground">
+              Dane Twoich stron Facebook i kont Instagram połączonych z Postfly zostały usunięte. Kod potwierdzenia:{' '}
+              <code className="text-foreground">{confirmationCode}</code>
+            </p>
+            <p className="mt-2 font-semibold text-foreground">Your data deletion request has been completed.</p>
+            <p className="text-muted-foreground">
+              The data of your Facebook Pages and Instagram accounts connected to Postfly has been deleted. Confirmation
+              code: <code className="text-foreground">{confirmationCode}</code>
+            </p>
+          </div>
+        )}
+
         <div className="mb-6">
           <Link
             href="/"
@@ -53,8 +75,11 @@ export default function DataDeletionPage() {
           <h2 className="text-base font-semibold text-foreground">3. Cofnięcie dostępu po stronie Facebooka</h2>
           <p>
             Na Facebooku wejdź w <strong className="text-foreground">Ustawienia i prywatność → Ustawienia → Aplikacje i
-            witryny</strong>, znajdź Postfly i wybierz <strong className="text-foreground">Usuń</strong>. Postfly traci wtedy
-            dostęp do Twoich stron i konta Instagram; dane zapisane w Postfly usuniesz sposobem 1 lub 2.
+            witryny</strong> (albo <strong className="text-foreground">Integracje biznesowe</strong>), znajdź Postfly i wybierz{' '}
+            <strong className="text-foreground">Usuń</strong>. Postfly traci wtedy dostęp do Twoich stron i konta Instagram.
+            Jeśli przy usuwaniu poprosisz o usunięcie danych, Facebook przekaże nam to żądanie, a my automatycznie usuniemy
+            dane połączonych stron i kont Instagram (z ich statystykami i komentarzami); potwierdzenie z kodem zobaczysz na
+            Facebooku.
           </p>
           <p>
             <strong className="text-foreground">YouTube / Google:</strong> dostęp cofniesz na stronie{' '}
@@ -101,7 +126,9 @@ export default function DataDeletionPage() {
             </li>
             <li>
               <strong className="text-foreground">Revoke access on Facebook:</strong> Settings &amp; privacy → Settings →
-              Apps and websites → Postfly → Remove.
+              Apps and websites (or Business integrations) → Postfly → Remove. If you also request data deletion there,
+              Facebook forwards the request to us and the data of your connected Pages and Instagram accounts (including
+              their statistics and comments) is deleted automatically; Facebook shows you a confirmation code.
             </li>
             <li>
               <strong className="text-foreground">Revoke access on Google / YouTube:</strong>{' '}
