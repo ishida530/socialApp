@@ -29,6 +29,19 @@ export function MetaFormatPanel({
   // no separate surface left to also publish to.
   const showBothOption = platform === 'FACEBOOK';
 
+  // 2026-10-10: Instagram no longer accepts plain feed videos (media_type=VIDEO is retired) - every
+  // video is published as a Reel that also appears in the profile grid, so there is nothing to choose.
+  if (platform === 'INSTAGRAM') {
+    return (
+      <div className="rounded-lg border border-border bg-background/40 p-3">
+        <p className="text-sm font-medium text-foreground">Format publikacji: Reels</p>
+        <p className="text-xs text-muted-foreground mt-1">
+          Instagram publikuje każdy film jako Reels. Film pojawi się też w siatce Twojego profilu i w aktualnościach obserwujących.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3 rounded-lg border border-border bg-background/40 p-3">
       <p className="text-sm font-medium text-foreground">Format publikacji</p>

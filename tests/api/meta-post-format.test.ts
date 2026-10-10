@@ -49,7 +49,9 @@ async function makePendingJob(platform: 'FACEBOOK' | 'INSTAGRAM', metaPostFormat
 }
 
 describe('Instagram publish respects metaPostFormat', () => {
-  it('FEED: posts as a plain video (media_type=VIDEO, no share_to_feed)', async () => {
+  // Meta retired media_type=VIDEO (error_subcode 2207067, 2026-10-10): a FEED video on Instagram
+  // is published as a Reel shared to the feed, the same as the default.
+  it('FEED: posts as a Reel shared to feed (media_type=VIDEO is retired)', async () => {
     const job = await makePendingJob('INSTAGRAM', 'FEED');
 
     let createParams: URLSearchParams | null = null;
@@ -74,8 +76,8 @@ describe('Instagram publish respects metaPostFormat', () => {
 
     const outcome = await processPublishJobImmediately(job.id);
     expect(outcome).toBe('succeeded');
-    expect(createParams!.get('media_type')).toBe('VIDEO');
-    expect(createParams!.get('share_to_feed')).toBeNull();
+    expect(createParams!.get('media_type')).toBe('REELS');
+    expect(createParams!.get('share_to_feed')).toBe('true');
   });
 
   it('REELS (default, metaPostFormat null): posts as a Reel shared to feed', async () => {

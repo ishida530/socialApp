@@ -1276,17 +1276,17 @@ async function publishToInstagram(job: PublishInputJob, accessToken: string): Pr
   const sourceUrl = resolvePublicVideoUrl(job.video.sourceUrl);
   const version = resolveMetaApiVersion();
   const caption = composeCaption(job.caption, job.hashtags).slice(0, 2200);
-  const isFeedFormat = job.metaPostFormat === 'FEED';
 
+  // 2026-10-10: Meta retired media_type=VIDEO ("use REELS to publish a video to the feed",
+  // error_subcode 2207067). Every Instagram video is a Reel; share_to_feed also puts it in the
+  // profile grid and followers' feed, which is what "Zwykły post" (FEED) used to mean.
   const createParams = new URLSearchParams({
     access_token: accessToken,
-    media_type: isFeedFormat ? 'VIDEO' : 'REELS',
+    media_type: 'REELS',
     video_url: sourceUrl,
     caption,
+    share_to_feed: 'true',
   });
-  if (!isFeedFormat) {
-    createParams.set('share_to_feed', 'true');
-  }
 
   return publishInstagramMediaContainer(igUserId, accessToken, version, createParams);
 }
