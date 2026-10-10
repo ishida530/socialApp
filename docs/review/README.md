@@ -6,7 +6,7 @@ Każda platforma ma swój plik: co ustawić w panelu, co nagrać (scena po sceni
 |---|---|---|
 | TikTok (Content Posting API, Direct Post) | [tiktok.md](tiktok.md) | **Tak.** Poprzedni wniosek odrzucono (ref. `20260913074631`), interfejs jest już poprawiony |
 | YouTube (Google) | [youtube.md](youtube.md) | **Tak.** Weryfikacja OAuth, potem audyt YouTube API |
-| Facebook + Instagram (Meta) | [meta.md](meta.md) | Publikacja: **raczej nie** (uprawnienia już zatwierdzone, najpierw sprawdź). Odpowiedzi na komentarze: **tak**, jeśli chcesz tę funkcję |
+| Facebook + Instagram (Meta) | [meta.md](meta.md) | **Tak** — publikacja nie jest zatwierdzona (stan 10.10.2026: Standard access), nagranie A. Odpowiedzi na komentarze: osobno, nagranie B |
 
 Wymagania sprawdzone w oficjalnej dokumentacji **1.10.2026**, instrukcje zaktualizowane **3.10.2026** (konta recenzentów, opisy AI, pytania o dane).
 
