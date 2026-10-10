@@ -9,7 +9,7 @@ import { badRequest, serverError, tooManyRequests, unauthorized } from '@/lib/se
 import { consumeRateLimit } from '@/lib/server/rate-limit';
 import {
   canConnectPlatform,
-  commentsFeatureEnabledFor,
+  commentScopesRequestedFor,
   PLATFORM_IN_REVIEW_MESSAGE,
 } from '@/lib/server/platform-availability';
 
@@ -58,7 +58,7 @@ export async function POST(
     }
 
     const result = buildAuthUrl(platform, user.userId, {
-      includeCommentScopes: commentsFeatureEnabledFor(user.email),
+      includeCommentScopes: commentScopesRequestedFor(user.email),
     });
     const response = NextResponse.json({
       success: true,

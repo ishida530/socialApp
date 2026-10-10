@@ -11,6 +11,7 @@ const { POST: refreshComments } = await import('@/app/api/comments/refresh/route
 const { sendCustomReply } = await import('@/lib/server/social-comments');
 const { isAdminEmail } = await import('@/lib/server/admin');
 const { applyCommentScopes } = await import('@/lib/server/social-oauth');
+const { commentScopesRequestedFor } = await import('@/lib/server/platform-availability');
 const { getEffectivePlan } = await import('@/lib/server/subscription');
 const { createTestUser, deleteTestUser, authHeaders } = await import('../helpers/fixtures');
 
@@ -18,9 +19,10 @@ const saved: Record<string, string | undefined> = {};
 const cleanup: string[] = [];
 
 beforeEach(() => {
-  for (const key of ['PLATFORMS_IN_REVIEW', 'COMMENTS_FEATURE_ENABLED', 'ADMIN_EMAILS', 'REVIEWER_EMAILS']) saved[key] = process.env[key];
+  for (const key of ['PLATFORMS_IN_REVIEW', 'COMMENTS_FEATURE_ENABLED', 'META_COMMENT_SCOPES_FOR_REVIEW', 'ADMIN_EMAILS', 'REVIEWER_EMAILS']) saved[key] = process.env[key];
   delete process.env.PLATFORMS_IN_REVIEW; // default: TIKTOK,YOUTUBE
   delete process.env.COMMENTS_FEATURE_ENABLED; // default: off
+  delete process.env.META_COMMENT_SCOPES_FOR_REVIEW; // default: off
   process.env.ADMIN_EMAILS = 'owner-admin@example.com';
   process.env.REVIEWER_EMAILS = 'platform-reviewer@example.com';
 });
@@ -135,5 +137,23 @@ describe('Meta comment permissions in the OAuth request', () => {
     expect(applyCommentScopes(`${base},pages_manage_engagement`, 'facebook', true)).toBe(
       `${base},pages_manage_engagement,pages_read_user_content`,
     );
+  });
+
+  // 2026-10-10: Facebook blocked the admin's login dialog with "Invalid Scopes:
+  // pages_read_user_content", and the publishing review recording must show only the submitted scopes.
+  it('are not requested for admins and reviewers unless explicitly switched on for the comments demo', () => {
+    for (const email of ['owner-admin@example.com', 'platform-reviewer@example.com']) {
+      expect(commentScopesRequestedFor(email)).toBe(false);
+    }
+    expect(commentScopesRequestedFor('regular@example.com')).toBe(false);
+
+    process.env.META_COMMENT_SCOPES_FOR_REVIEW = '1';
+    expect(commentScopesRequestedFor('owner-admin@example.com')).toBe(true);
+    expect(commentScopesRequestedFor('platform-reviewer@example.com')).toBe(true);
+    expect(commentScopesRequestedFor('regular@example.com')).toBe(false);
+
+    delete process.env.META_COMMENT_SCOPES_FOR_REVIEW;
+    process.env.COMMENTS_FEATURE_ENABLED = '1';
+    expect(commentScopesRequestedFor('regular@example.com')).toBe(true);
   });
 });
